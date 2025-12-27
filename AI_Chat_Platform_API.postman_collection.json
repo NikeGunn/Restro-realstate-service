@@ -1,0 +1,1584 @@
+{
+  "info": {
+    "name": "AI Business Chat Platform API",
+    "description": "Complete API collection for the Multi-tenant AI Business Chatbot Platform.\n\n## Getting Started\n1. Register a new user\n2. Login to get JWT tokens\n3. Create an organization\n4. Add locations to the organization\n5. Configure knowledge base\n6. Use the widget API for chat\n\n## Authentication\nAll protected endpoints require a Bearer token in the Authorization header.\n\n## Base URL\n- Development: http://localhost:8000/api\n\n## Response Codes\n- 200: Success\n- 201: Created\n- 400: Bad Request\n- 401: Unauthorized\n- 403: Forbidden\n- 404: Not Found\n- 500: Server Error",
+    "_postman_id": "ai-chat-platform-2025",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8000/api",
+      "type": "string"
+    },
+    {
+      "key": "accessToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "refreshToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "organizationId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "locationId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "conversationId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "widgetKey",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "sessionToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "knowledgeBaseId",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "🚀 Quick Start Flow",
+      "description": "Follow these requests in order to get started with the platform",
+      "item": [
+        {
+          "name": "1. Register New User",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set('accessToken', jsonData.access);",
+                  "    pm.collectionVariables.set('refreshToken', jsonData.refresh);",
+                  "    console.log('✅ User registered! Tokens saved.');",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"email\": \"owner@restaurant.com\",\n    \"username\": \"restaurantowner\",\n    \"first_name\": \"John\",\n    \"last_name\": \"Smith\",\n    \"phone\": \"1234567890\",\n    \"password\": \"SecurePass123!\",\n    \"password_confirm\": \"SecurePass123!\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/register/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "register",
+                ""
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "2. Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set('accessToken', jsonData.access);",
+                  "    pm.collectionVariables.set('refreshToken', jsonData.refresh);",
+                  "    console.log('✅ Logged in! Tokens saved.');",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"email\": \"owner@restaurant.com\",\n    \"password\": \"SecurePass123!\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login",
+                ""
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "3. Get Current User",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/me/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "me",
+                ""
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "4. Create Organization",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set('organizationId', jsonData.id);",
+                  "    pm.collectionVariables.set('widgetKey', jsonData.widget_key);",
+                  "    console.log('✅ Organization created! ID: ' + jsonData.id);",
+                  "    console.log('🔑 Widget Key: ' + jsonData.widget_key);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"Bella Italia Restaurant\",\n    \"business_type\": \"restaurant\",\n    \"email\": \"contact@bellaitalia.com\",\n    \"phone\": \"(555) 123-4567\",\n    \"website\": \"https://bellaitalia.com\",\n    \"widget_color\": \"#E74C3C\",\n    \"widget_position\": \"bottom-right\",\n    \"widget_greeting\": \"Welcome to Bella Italia! 🍝 How can I help you today? Ask about our menu, reservations, or hours!\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/organizations/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "organizations",
+                ""
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "5. Add Location",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set('locationId', jsonData.id);",
+                  "    console.log('✅ Location created! ID: ' + jsonData.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"Downtown Branch\",\n    \"address_line1\": \"123 Main Street\",\n    \"address_line2\": \"Suite 100\",\n    \"city\": \"New York\",\n    \"state\": \"NY\",\n    \"postal_code\": \"10001\",\n    \"country\": \"USA\",\n    \"email\": \"downtown@bellaitalia.com\",\n    \"phone\": \"(555) 123-4567\",\n    \"timezone\": \"America/New_York\",\n    \"is_primary\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/organizations/{{organizationId}}/locations/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "organizations",
+                "{{organizationId}}",
+                "locations",
+                ""
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "6. Create Knowledge Base",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set('knowledgeBaseId', jsonData.id);",
+                  "    console.log('✅ Knowledge Base created! ID: ' + jsonData.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"organization\": \"{{organizationId}}\",\n    \"business_description\": \"Bella Italia is an authentic Italian restaurant serving traditional dishes made with fresh, locally-sourced ingredients. We specialize in wood-fired pizzas, handmade pasta, and classic Italian desserts. Family-owned since 1985.\",\n    \"services_offered\": [\n        \"Dine-in service\",\n        \"Takeout and delivery\",\n        \"Catering for events (up to 100 guests)\",\n        \"Private dining room reservations\",\n        \"Wine pairing dinners\",\n        \"Cooking classes on Saturdays\"\n    ],\n    \"operating_hours\": \"Monday-Thursday: 11:00 AM - 10:00 PM\\nFriday-Saturday: 11:00 AM - 11:00 PM\\nSunday: 12:00 PM - 9:00 PM\\nHoliday hours may vary.\",\n    \"contact_info\": \"Phone: (555) 123-4567\\nEmail: reservations@bellaitalia.com\\nAddress: 123 Main Street, New York, NY 10001\",\n    \"policies\": \"Reservations recommended for parties of 6 or more.\\nCancellation policy: 24 hours notice required.\\nDress code: Smart casual.\\nWe are allergy-friendly - please inform staff of any dietary restrictions.\\n20% gratuity added for parties of 8+.\",\n    \"additional_info\": \"Popular dishes: Margherita Pizza, Fettuccine Alfredo, Tiramisu\\nAverage price: $25-45 per person\\nParking: Free valet parking after 5 PM\\nAccessibility: Wheelchair accessible\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/knowledge/bases/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "knowledge",
+                "bases",
+                ""
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "7. Add FAQs",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"knowledge_base\": \"{{knowledgeBaseId}}\",\n    \"question\": \"Do you take reservations?\",\n    \"answer\": \"Yes! We highly recommend reservations, especially for dinner and weekends. You can book online at bellaitalia.com/reservations or call us at (555) 123-4567. For parties of 6 or more, reservations are required.\",\n    \"order\": 1\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/knowledge/faqs/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "knowledge",
+                "faqs",
+                ""
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "🔐 Authentication",
+      "description": "User authentication endpoints",
+      "item": [
+        {
+          "name": "Register New User",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"email\": \"newuser@example.com\",\n    \"username\": \"newuser\",\n    \"first_name\": \"Jane\",\n    \"last_name\": \"Doe\",\n    \"phone\": \"9876543210\",\n    \"password\": \"MySecurePassword123!\",\n    \"password_confirm\": \"MySecurePassword123!\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/register/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "register",
+                ""
+              ]
+            },
+            "description": "Register a new user account. Returns JWT tokens on success."
+          },
+          "response": []
+        },
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set('accessToken', jsonData.access);",
+                  "    pm.collectionVariables.set('refreshToken', jsonData.refresh);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"email\": \"owner@restaurant.com\",\n    \"password\": \"SecurePass123!\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login",
+                ""
+              ]
+            },
+            "description": "Login with email and password. Returns access and refresh JWT tokens."
+          },
+          "response": []
+        },
+        {
+          "name": "Refresh Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set('accessToken', jsonData.access);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"refresh\": \"{{refreshToken}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/refresh/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "refresh",
+                ""
+              ]
+            },
+            "description": "Get a new access token using the refresh token."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Current User",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/me/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "me",
+                ""
+              ]
+            },
+            "description": "Get the currently authenticated user's profile and organizations."
+          },
+          "response": []
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"refresh\": \"{{refreshToken}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/logout/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "logout",
+                ""
+              ]
+            },
+            "description": "Logout and invalidate the refresh token."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "🏢 Organizations",
+      "description": "Organization management endpoints",
+      "item": [
+        {
+          "name": "List My Organizations",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/organizations/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "organizations",
+                ""
+              ]
+            },
+            "description": "Get all organizations the current user belongs to."
+          },
+          "response": []
+        },
+        {
+          "name": "Create Organization",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set('organizationId', jsonData.id);",
+                  "    pm.collectionVariables.set('widgetKey', jsonData.widget_key);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"My Restaurant\",\n    \"business_type\": \"restaurant\",\n    \"email\": \"info@myrestaurant.com\",\n    \"phone\": \"(555) 555-5555\",\n    \"website\": \"https://myrestaurant.com\",\n    \"widget_color\": \"#3B82F6\",\n    \"widget_position\": \"bottom-right\",\n    \"widget_greeting\": \"Hello! How can I assist you today?\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/organizations/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "organizations",
+                ""
+              ]
+            },
+            "description": "Create a new organization. The creating user becomes the owner."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Organization Details",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/organizations/{{organizationId}}/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "organizations",
+                "{{organizationId}}",
+                ""
+              ]
+            },
+            "description": "Get detailed information about a specific organization."
+          },
+          "response": []
+        },
+        {
+          "name": "Update Organization",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"widget_greeting\": \"Welcome! Ask me about our menu, hours, or make a reservation!\",\n    \"widget_color\": \"#10B981\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/organizations/{{organizationId}}/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "organizations",
+                "{{organizationId}}",
+                ""
+              ]
+            },
+            "description": "Update organization settings."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "📍 Locations",
+      "description": "Location management for organizations",
+      "item": [
+        {
+          "name": "List Locations",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/organizations/{{organizationId}}/locations/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "organizations",
+                "{{organizationId}}",
+                "locations",
+                ""
+              ]
+            },
+            "description": "List all locations for an organization."
+          },
+          "response": []
+        },
+        {
+          "name": "Create Location",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set('locationId', jsonData.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"Main Branch\",\n    \"address_line1\": \"456 Oak Avenue\",\n    \"city\": \"Los Angeles\",\n    \"state\": \"CA\",\n    \"postal_code\": \"90001\",\n    \"country\": \"USA\",\n    \"phone\": \"(555) 987-6543\",\n    \"timezone\": \"America/Los_Angeles\",\n    \"is_primary\": false\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/organizations/{{organizationId}}/locations/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "organizations",
+                "{{organizationId}}",
+                "locations",
+                ""
+              ]
+            },
+            "description": "Add a new location to the organization."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Location Details",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/organizations/{{organizationId}}/locations/{{locationId}}/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "organizations",
+                "{{organizationId}}",
+                "locations",
+                "{{locationId}}",
+                ""
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Location",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"phone\": \"(555) 111-2222\",\n    \"is_primary\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/organizations/{{organizationId}}/locations/{{locationId}}/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "organizations",
+                "{{organizationId}}",
+                "locations",
+                "{{locationId}}",
+                ""
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Location",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/organizations/{{organizationId}}/locations/{{locationId}}/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "organizations",
+                "{{organizationId}}",
+                "locations",
+                "{{locationId}}",
+                ""
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "👥 Team Members",
+      "description": "Manage organization team members",
+      "item": [
+        {
+          "name": "List Members",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/organizations/{{organizationId}}/members/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "organizations",
+                "{{organizationId}}",
+                "members",
+                ""
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Invite Member",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"user_email\": \"manager@example.com\",\n    \"role\": \"manager\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/organizations/{{organizationId}}/members/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "organizations",
+                "{{organizationId}}",
+                "members",
+                ""
+              ]
+            },
+            "description": "Add a new team member. User must already have an account."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "📚 Knowledge Base",
+      "description": "Manage AI knowledge and FAQs",
+      "item": [
+        {
+          "name": "List Knowledge Bases",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/knowledge/bases/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "knowledge",
+                "bases",
+                ""
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Knowledge Base",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set('knowledgeBaseId', jsonData.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"organization\": \"{{organizationId}}\",\n    \"business_description\": \"We are a family-owned Italian restaurant serving authentic cuisine since 1985.\",\n    \"services_offered\": [\"Dine-in\", \"Takeout\", \"Catering\", \"Private events\"],\n    \"operating_hours\": \"Mon-Thu: 11AM-10PM, Fri-Sat: 11AM-11PM, Sun: 12PM-9PM\",\n    \"contact_info\": \"Phone: (555) 123-4567, Email: info@restaurant.com\",\n    \"policies\": \"Reservations recommended for parties of 6+. Smart casual dress code.\",\n    \"additional_info\": \"Free parking available. Wheelchair accessible.\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/knowledge/bases/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "knowledge",
+                "bases",
+                ""
+              ]
+            },
+            "description": "Create a knowledge base with business information for the AI to use."
+          },
+          "response": []
+        },
+        {
+          "name": "Update Knowledge Base",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"operating_hours\": \"Mon-Sun: 11AM-11PM (Extended holiday hours)\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/knowledge/bases/{{knowledgeBaseId}}/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "knowledge",
+                "bases",
+                "{{knowledgeBaseId}}",
+                ""
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List FAQs",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/knowledge/faqs/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "knowledge",
+                "faqs",
+                ""
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create FAQ",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"knowledge_base\": \"{{knowledgeBaseId}}\",\n    \"question\": \"Do you have vegetarian options?\",\n    \"answer\": \"Yes! We have an extensive vegetarian menu including pasta primavera, margherita pizza, eggplant parmesan, and various salads. We can also modify many dishes to be vegetarian-friendly.\",\n    \"order\": 2\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/knowledge/faqs/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "knowledge",
+                "faqs",
+                ""
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "💬 Conversations",
+      "description": "Manage customer conversations",
+      "item": [
+        {
+          "name": "List Conversations",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/conversations/?organization={{organizationId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "conversations",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "organization",
+                  "value": "{{organizationId}}"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List Conversations (Filtered)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/conversations/?organization={{organizationId}}&state=human_handoff",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "conversations",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "organization",
+                  "value": "{{organizationId}}"
+                },
+                {
+                  "key": "state",
+                  "value": "human_handoff",
+                  "description": "Filter by state: new, ai_handling, human_handoff, resolved, archived"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Conversation Details",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/conversations/{{conversationId}}/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "conversations",
+                "{{conversationId}}",
+                ""
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Assign Conversation to Self",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/conversations/{{conversationId}}/assign/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "conversations",
+                "{{conversationId}}",
+                "assign",
+                ""
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Resolve Conversation",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/conversations/{{conversationId}}/resolve/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "conversations",
+                "{{conversationId}}",
+                "resolve",
+                ""
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List Messages in Conversation",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/conversations/{{conversationId}}/messages/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "conversations",
+                "{{conversationId}}",
+                "messages",
+                ""
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Send Message as Agent",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"content\": \"Hi! I'm here to help. Let me check on that for you.\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/conversations/{{conversationId}}/messages/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "conversations",
+                "{{conversationId}}",
+                "messages",
+                ""
+              ]
+            },
+            "description": "Send a message as a human agent."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "🚨 Handoff Alerts",
+      "description": "Human handoff management",
+      "item": [
+        {
+          "name": "List Alerts",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/handoff/alerts/?organization={{organizationId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "handoff",
+                "alerts",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "organization",
+                  "value": "{{organizationId}}"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List Pending Alerts",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/handoff/alerts/?organization={{organizationId}}&status=pending",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "handoff",
+                "alerts",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "organization",
+                  "value": "{{organizationId}}"
+                },
+                {
+                  "key": "status",
+                  "value": "pending"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Acknowledge Alert",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/handoff/alerts/{{alertId}}/acknowledge/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "handoff",
+                "alerts",
+                "{{alertId}}",
+                "acknowledge",
+                ""
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Resolve Alert",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"resolution_notes\": \"Helped customer with reservation inquiry.\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/handoff/alerts/{{alertId}}/resolve/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "handoff",
+                "alerts",
+                "{{alertId}}",
+                "resolve",
+                ""
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "📊 Analytics",
+      "description": "Analytics and metrics endpoints",
+      "item": [
+        {
+          "name": "Get Dashboard Overview",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/analytics/overview/?organization={{organizationId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "analytics",
+                "overview",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "organization",
+                  "value": "{{organizationId}}"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "🔌 Widget API (Public)",
+      "description": "Public API for the embeddable chat widget - NO authentication required",
+      "item": [
+        {
+          "name": "Get Widget Config",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/widget/config/?key={{widgetKey}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "widget",
+                "config",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "key",
+                  "value": "{{widgetKey}}"
+                }
+              ]
+            },
+            "description": "Get widget configuration. Use the widget_key from your organization."
+          },
+          "response": []
+        },
+        {
+          "name": "Create Widget Session",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set('sessionToken', jsonData.session_token);",
+                  "    if (jsonData.conversation_id) {",
+                  "        pm.collectionVariables.set('conversationId', jsonData.conversation_id);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"widget_key\": \"{{widgetKey}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/widget/session/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "widget",
+                "session",
+                ""
+              ]
+            },
+            "description": "Start a new chat session. Returns session_token for subsequent messages."
+          },
+          "response": []
+        },
+        {
+          "name": "Send Chat Message",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200 || pm.response.code === 201) {",
+                  "    var jsonData = pm.response.json();",
+                  "    if (jsonData.conversation_id) {",
+                  "        pm.collectionVariables.set('conversationId', jsonData.conversation_id);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"session_token\": \"{{sessionToken}}\",\n    \"message\": \"What are your hours today?\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/widget/message/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "widget",
+                "message",
+                ""
+              ]
+            },
+            "description": "Send a message and get AI response. The AI uses your knowledge base to answer."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Conversation History",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/widget/conversation/{{conversationId}}/?session_token={{sessionToken}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "widget",
+                "conversation",
+                "{{conversationId}}",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "session_token",
+                  "value": "{{sessionToken}}"
+                }
+              ]
+            },
+            "description": "Get full conversation history for the current session."
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}
