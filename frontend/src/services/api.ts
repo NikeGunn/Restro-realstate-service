@@ -119,7 +119,7 @@ export const conversationsApi = {
     search?: string
   }) => {
     const response = await api.get('/conversations/', { params })
-    return response.data
+    return Array.isArray(response.data) ? response.data : (response.data.results || [])
   },
 
   get: async (id: string) => {
@@ -161,7 +161,7 @@ export const alertsApi = {
     priority?: string
   }) => {
     const response = await api.get('/handoff/alerts/', { params })
-    return response.data
+    return Array.isArray(response.data) ? response.data : (response.data.results || [])
   },
 
   acknowledge: async (id: string) => {
@@ -184,7 +184,7 @@ export const alertsApi = {
 export const knowledgeApi = {
   list: async (params?: { organization?: string; location?: string }) => {
     const response = await api.get('/knowledge/bases/', { params })
-    return response.data
+    return Array.isArray(response.data) ? response.data : (response.data.results || [])
   },
 
   get: async (id: string) => {
@@ -216,7 +216,7 @@ export const knowledgeApi = {
 
   listFAQs: async (params?: { organization?: string; location?: string }) => {
     const response = await api.get('/knowledge/faqs/', { params })
-    return response.data
+    return Array.isArray(response.data) ? response.data : (response.data.results || [])
   },
 
   createFAQ: async (data: {
@@ -273,7 +273,7 @@ export const analyticsApi = {
 export const locationsApi = {
   list: async (organizationId: string) => {
     const response = await api.get(`/organizations/${organizationId}/locations/`)
-    return response.data
+    return Array.isArray(response.data) ? response.data : (response.data.results || [])
   },
 
   get: async (organizationId: string, locationId: string) => {
@@ -394,7 +394,7 @@ export const restaurantApi = {
   items: {
     list: async (params?: { organization?: string; category?: string; active?: boolean; available?: boolean }) => {
       const response = await api.get('/restaurant/items/', { params })
-      return response.data
+      return Array.isArray(response.data) ? response.data : (response.data.results || [])
     },
 
     get: async (id: string) => {
@@ -453,7 +453,7 @@ export const restaurantApi = {
   hours: {
     list: async (params?: { location?: string }) => {
       const response = await api.get('/restaurant/hours/', { params })
-      return response.data
+      return Array.isArray(response.data) ? response.data : (response.data.results || [])
     },
 
     create: async (data: {
@@ -494,7 +494,7 @@ export const restaurantApi = {
   specials: {
     list: async (params?: { organization?: string; location?: string; active?: boolean; today?: boolean }) => {
       const response = await api.get('/restaurant/specials/', { params })
-      return response.data
+      return Array.isArray(response.data) ? response.data : (response.data.results || [])
     },
 
     get: async (id: string) => {
@@ -634,7 +634,7 @@ export const restaurantApi = {
   bookingSettings: {
     list: async (params?: { location?: string }) => {
       const response = await api.get('/restaurant/booking-settings/', { params })
-      return response.data
+      return Array.isArray(response.data) ? response.data : (response.data.results || [])
     },
 
     get: async (id: string) => {
@@ -694,7 +694,7 @@ export const realEstateApi = {
       is_featured?: boolean
     }) => {
       const response = await api.get('/realestate/properties/', { params })
-      return response.data
+      return Array.isArray(response.data) ? response.data : (response.data.results || [])
     },
 
     get: async (id: string) => {
@@ -780,7 +780,7 @@ export const realEstateApi = {
       source?: string
     }) => {
       const response = await api.get('/realestate/leads/', { params })
-      return response.data
+      return Array.isArray(response.data) ? response.data : (response.data.results || [])
     },
 
     get: async (id: string) => {
@@ -875,7 +875,7 @@ export const realEstateApi = {
       end_date?: string
     }) => {
       const response = await api.get('/realestate/appointments/', { params })
-      return response.data
+      return Array.isArray(response.data) ? response.data : (response.data.results || [])
     },
 
     get: async (id: string) => {
