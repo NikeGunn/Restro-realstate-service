@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/store/auth'
 import { cn } from '@/lib/utils'
@@ -16,21 +16,57 @@ import {
   Menu,
   X,
   MessageSquare,
+  UtensilsCrossed,
+  CalendarDays,
+  Building2,
+  Users,
 } from 'lucide-react'
 
-const navItems = [
+const coreNavItems = [
   { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { path: '/inbox', label: 'Inbox', icon: Inbox },
   { path: '/alerts', label: 'Alerts', icon: Bell },
   { path: '/knowledge', label: 'Knowledge Base', icon: BookOpen },
   { path: '/analytics', label: 'Analytics', icon: BarChart3 },
-  { path: '/settings', label: 'Settings', icon: Settings },
 ]
+
+const restaurantNavItems = [
+  { path: '/restaurant/menu', label: 'Menu', icon: UtensilsCrossed },
+  { path: '/restaurant/bookings', label: 'Bookings', icon: CalendarDays },
+]
+
+const realEstateNavItems = [
+  { path: '/realestate/properties', label: 'Properties', icon: Building2 },
+  { path: '/realestate/leads', label: 'Leads', icon: Users },
+]
+
+const settingsNavItem = { path: '/settings', label: 'Settings', icon: Settings }
 
 export function DashboardLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const { user, currentOrganization, logout } = useAuthStore()
   const navigate = useNavigate()
+
+  // Build navigation items based on organization business type
+  const navItems = useMemo(() => {
+    const items = [...coreNavItems]
+    
+    // Add vertical-specific navigation based on current organization
+    const businessType = currentOrganization?.business_type
+    
+    if (businessType === 'restaurant') {
+      items.push(...restaurantNavItems)
+    } else if (businessType === 'real_estate') {
+      items.push(...realEstateNavItems)
+    } else {
+      // Show both if no specific type or generic
+      items.push(...restaurantNavItems)
+      items.push(...realEstateNavItems)
+    }
+    
+    items.push(settingsNavItem)
+    return items
+  }, [currentOrganization?.business_type])
 
   const handleLogout = () => {
     logout()

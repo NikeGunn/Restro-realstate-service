@@ -13,6 +13,14 @@ import { KnowledgePage } from '@/pages/knowledge/KnowledgePage'
 import { SettingsPage } from '@/pages/settings/SettingsPage'
 import { AnalyticsPage } from '@/pages/analytics/AnalyticsPage'
 
+// Restaurant pages
+import { MenuPage } from '@/pages/restaurant/MenuPage'
+import { BookingsPage } from '@/pages/restaurant/BookingsPage'
+
+// Real Estate pages
+import { PropertiesPage } from '@/pages/realestate/PropertiesPage'
+import { LeadsPage } from '@/pages/realestate/LeadsPage'
+
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { tokens } = useAuthStore()
 
@@ -63,6 +71,14 @@ function App() {
           <Route path="/knowledge" element={<KnowledgePage />} />
           <Route path="/analytics" element={<AnalyticsPage />} />
           <Route path="/settings" element={<SettingsPage />} />
+          
+          {/* Restaurant Routes */}
+          <Route path="/restaurant/menu" element={<MenuPage />} />
+          <Route path="/restaurant/bookings" element={<BookingsPage />} />
+          
+          {/* Real Estate Routes */}
+          <Route path="/realestate/properties" element={<PropertiesPage />} />
+          <Route path="/realestate/leads" element={<LeadsPage />} />
         </Route>
       </Routes>
       <Toaster />

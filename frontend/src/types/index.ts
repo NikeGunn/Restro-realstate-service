@@ -208,3 +208,249 @@ export interface RegisterRequest {
   password: string;
   password_confirm: string;
 }
+
+// ============================================
+// Restaurant Vertical Types
+// ============================================
+
+export interface MenuCategory {
+  id: string;
+  organization: string;
+  location: string | null;
+  location_name: string | null;
+  name: string;
+  description: string;
+  display_order: number;
+  is_active: boolean;
+  items?: MenuItem[];
+  items_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MenuItem {
+  id: string;
+  category: string;
+  category_name: string;
+  name: string;
+  description: string;
+  price: string;
+  dietary_info: string[];
+  prep_time_minutes: number | null;
+  image_url: string;
+  display_order: number;
+  is_available: boolean;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface OpeningHours {
+  id: string;
+  location: string;
+  day_of_week: number;
+  day_name: string;
+  open_time: string | null;
+  close_time: string | null;
+  open_time_2: string | null;
+  close_time_2: string | null;
+  is_closed: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DailySpecial {
+  id: string;
+  organization: string;
+  location: string | null;
+  location_name: string | null;
+  name: string;
+  description: string;
+  price: string;
+  original_price: string | null;
+  discount_percentage: number | null;
+  start_date: string;
+  end_date: string;
+  recurring_days: number[];
+  is_active: boolean;
+  is_available_today: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Booking {
+  id: string;
+  organization: string;
+  location: string;
+  location_name: string;
+  conversation: string | null;
+  booking_date: string;
+  booking_time: string;
+  party_size: number;
+  customer_name: string;
+  customer_email: string;
+  customer_phone: string;
+  special_requests: string;
+  status: 'pending' | 'confirmed' | 'cancelled' | 'completed' | 'no_show';
+  status_display: string;
+  source: 'website' | 'whatsapp' | 'phone' | 'walk_in' | 'other';
+  source_display: string;
+  confirmation_code: string;
+  confirmed_at: string | null;
+  confirmed_by: string | null;
+  confirmed_by_name: string | null;
+  cancelled_at: string | null;
+  cancellation_reason: string;
+  internal_notes: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface BookingSettings {
+  id: string;
+  location: string;
+  location_name: string;
+  max_party_size: number;
+  max_bookings_per_slot: number;
+  total_capacity: number;
+  slot_duration_minutes: number;
+  booking_buffer_minutes: number;
+  min_advance_hours: number;
+  max_advance_days: number;
+  auto_confirm: boolean;
+  cancellation_hours: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface BookingSlot {
+  time: string;
+  available: boolean;
+  remaining: number;
+}
+
+export interface BookingAvailability {
+  date: string;
+  day: string;
+  opening_time: string;
+  closing_time: string;
+  available_slots: BookingSlot[];
+}
+
+// ============================================
+// Real Estate Vertical Types
+// ============================================
+
+export interface PropertyListing {
+  id: string;
+  organization: string;
+  listing_type: 'sale' | 'rent';
+  property_type: 'house' | 'apartment' | 'condo' | 'townhouse' | 'land' | 'commercial';
+  title: string;
+  description: string;
+  price: string;
+  bedrooms: number;
+  bathrooms: string;
+  square_feet: number | null;
+  lot_size: number | null;
+  year_built: number | null;
+  address_line1: string;
+  address_line2: string;
+  city: string;
+  state: string;
+  postal_code: string;
+  country: string;
+  latitude: string | null;
+  longitude: string | null;
+  features: string[];
+  images: string[];
+  virtual_tour_url: string;
+  status: 'draft' | 'active' | 'pending' | 'sold' | 'rented' | 'off_market';
+  status_display: string;
+  is_featured: boolean;
+  reference_number: string;
+  listed_date: string | null;
+  sold_date: string | null;
+  sold_price: string | null;
+  assigned_agent: string | null;
+  assigned_agent_name: string | null;
+  view_count: number;
+  inquiry_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Lead {
+  id: string;
+  organization: string;
+  conversation: string | null;
+  name: string;
+  email: string;
+  phone: string;
+  intent: 'buy' | 'rent' | 'sell' | 'invest' | 'other';
+  intent_display: string;
+  status: 'new' | 'contacted' | 'qualified' | 'negotiating' | 'converted' | 'lost';
+  status_display: string;
+  priority: 'low' | 'medium' | 'high' | 'urgent';
+  priority_display: string;
+  budget_min: number | null;
+  budget_max: number | null;
+  preferred_areas: string[];
+  property_type_preference: string;
+  bedrooms_min: number | null;
+  bedrooms_max: number | null;
+  timeline: string;
+  notes: string;
+  source: 'website' | 'whatsapp' | 'referral' | 'advertising' | 'phone' | 'other';
+  source_display: string;
+  lead_score: number;
+  qualification_data: Record<string, unknown>;
+  interested_properties: PropertyListing[];
+  assigned_agent: string | null;
+  assigned_agent_name: string | null;
+  last_contact_at: string | null;
+  next_follow_up: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Appointment {
+  id: string;
+  lead: string;
+  lead_name: string;
+  property: string | null;
+  property_title: string | null;
+  property_address: string | null;
+  appointment_date: string;
+  appointment_time: string;
+  duration_minutes: number;
+  appointment_type: 'in_person' | 'virtual' | 'phone';
+  appointment_type_display: string;
+  status: 'scheduled' | 'confirmed' | 'completed' | 'cancelled' | 'no_show';
+  status_display: string;
+  confirmation_code: string;
+  notes: string;
+  outcome_notes: string;
+  assigned_agent: string | null;
+  assigned_agent_name: string | null;
+  confirmed_at: string | null;
+  cancelled_at: string | null;
+  cancellation_reason: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LeadStats {
+  total: number;
+  by_status: Record<string, number>;
+  by_intent: Record<string, number>;
+  by_source: Record<string, number>;
+  conversion_rate: number;
+}
+
+export interface BookingStats {
+  total: number;
+  by_status: Record<string, number>;
+  by_source: Record<string, number>;
+  total_guests: number;
+}

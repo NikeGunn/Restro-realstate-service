@@ -45,6 +45,9 @@ INSTALLED_APPS = [
     'apps.knowledge',
     'apps.analytics',
     'apps.widget',
+    # Vertical apps
+    'apps.restaurant',
+    'apps.realestate',
 ]
 
 MIDDLEWARE = [

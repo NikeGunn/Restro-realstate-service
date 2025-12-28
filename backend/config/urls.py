@@ -23,6 +23,10 @@ urlpatterns = [
     path('api/handoff/', include('apps.handoff.urls')),
     path('api/analytics/', include('apps.analytics.urls')),
     path('api/v1/widget/', include('apps.widget.urls')),
+    
+    # Vertical APIs (Phase 2 & 3)
+    path('api/restaurant/', include('apps.restaurant.urls')),
+    path('api/realestate/', include('apps.realestate.urls')),
 ]
 
 # Serve static files (including widget.js)
