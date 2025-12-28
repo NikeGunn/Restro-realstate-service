@@ -85,7 +85,7 @@ export function DashboardPage() {
   const copyWidgetCode = () => {
     if (!currentOrganization) return
 
-    const code = `<script src="http://localhost:8000/static/widget.js" data-widget-key="${currentOrganization.widget_key}"></script>`
+    const code = `<script src="http://localhost:8000/api/v1/widget/widget.js" data-widget-key="${currentOrganization.widget_key}"></script>`
     navigator.clipboard.writeText(code)
 
     toast({
@@ -234,7 +234,7 @@ export function DashboardPage() {
         </CardHeader>
         <CardContent>
           <div className="bg-muted p-4 rounded-lg font-mono text-sm overflow-x-auto">
-            {`<script src="http://localhost:8000/static/widget.js" data-widget-key="${currentOrganization.widget_key}"></script>`}
+            {`<script src="http://localhost:8000/api/v1/widget/widget.js" data-widget-key="${currentOrganization.widget_key}"></script>`}
           </div>
           <Button onClick={copyWidgetCode} className="mt-4" variant="outline">
             <Copy className="h-4 w-4 mr-2" />

@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useToast } from '@/hooks/use-toast'
+import { WidgetPreview } from '@/components/WidgetPreview'
 import {
   Building2,
   MapPin,
@@ -16,6 +17,9 @@ import {
   Trash2,
   Palette,
   Copy,
+  Eye,
+  X,
+  Check,
 } from 'lucide-react'
 import type { Location } from '@/types'
 
@@ -128,10 +132,17 @@ export function SettingsPage() {
     }
   }
 
+  const [showPreview, setShowPreview] = useState(false)
+
+  const getWidgetCode = () => {
+    if (!currentOrganization) return ''
+    return `<script src="http://localhost:8000/api/v1/widget/widget.js" data-widget-key="${currentOrganization.widget_key}"></script>`
+  }
+
   const copyWidgetCode = () => {
     if (!currentOrganization) return
 
-    const code = `<script src="http://localhost:8000/static/widget.js" data-widget-key="${currentOrganization.widget_key}"></script>`
+    const code = getWidgetCode()
     navigator.clipboard.writeText(code)
     toast({
       title: 'Copied!',
@@ -156,13 +167,22 @@ export function SettingsPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">Settings</h1>
-        <p className="text-muted-foreground">
-          Manage your organization and widget settings.
-        </p>
-      </div>
+    <>
+      {/* Widget Preview Modal */}
+      {showPreview && (
+        <WidgetPreview
+          widgetKey={currentOrganization.widget_key}
+          onClose={() => setShowPreview(false)}
+        />
+      )}
+
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold">Settings</h1>
+          <p className="text-muted-foreground">
+            Manage your organization and widget settings.
+          </p>
+        </div>
 
       <Tabs defaultValue="organization">
         <TabsList>
@@ -298,27 +318,58 @@ export function SettingsPage() {
               <CardContent className="space-y-4">
                 <div className="space-y-2">
                   <Label>Widget Key</Label>
-                  <Input value={currentOrganization.widget_key} readOnly />
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Embed Code</Label>
-                  <div className="bg-muted p-4 rounded-lg font-mono text-sm overflow-x-auto">
-                    {`<script src="http://localhost:8000/static/widget.js" data-widget-key="${currentOrganization.widget_key}"></script>`}
+                  <div className="flex gap-2">
+                    <Input value={currentOrganization.widget_key} readOnly className="flex-1" />
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => {
+                        navigator.clipboard.writeText(currentOrganization.widget_key)
+                        toast({
+                          title: 'Copied!',
+                          description: 'Widget key copied.',
+                        })
+                      }}
+                    >
+                      <Copy className="h-4 w-4" />
+                    </Button>
                   </div>
                 </div>
 
-                <Button onClick={copyWidgetCode} variant="outline">
-                  <Copy className="h-4 w-4 mr-2" />
-                  Copy Code
-                </Button>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label>Embed Code</Label>
+                    <div className="flex gap-2">
+                      <Button onClick={copyWidgetCode} variant="outline" size="sm">
+                        <Copy className="h-4 w-4 mr-2" />
+                        Copy Code
+                      </Button>
+                      <Button onClick={() => setShowPreview(true)} variant="default" size="sm">
+                        <Eye className="h-4 w-4 mr-2" />
+                        Test Widget
+                      </Button>
+                    </div>
+                  </div>
+                  <div 
+                    className="bg-muted p-4 rounded-lg font-mono text-xs overflow-x-auto cursor-pointer hover:bg-muted/80 transition-colors"
+                    onClick={copyWidgetCode}
+                    title="Click to copy"
+                  >
+                    {getWidgetCode()}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    💡 Click the code above to copy it to your clipboard
+                  </p>
+                </div>
 
-                {/* Preview */}
+                {/* Static Preview */}
                 <div className="border rounded-lg p-4 bg-muted/50">
-                  <p className="text-xs text-muted-foreground mb-2">Preview</p>
+                  <p className="text-xs text-muted-foreground mb-2">Widget Button Preview</p>
                   <div
-                    className="w-14 h-14 rounded-full flex items-center justify-center shadow-lg cursor-pointer"
+                    className="w-14 h-14 rounded-full flex items-center justify-center shadow-lg cursor-pointer hover:scale-110 transition-transform"
                     style={{ backgroundColor: orgForm.widget_color }}
+                    onClick={() => setShowPreview(true)}
+                    title="Click to test widget"
                   >
                     <svg
                       className="w-6 h-6 text-white"
@@ -334,6 +385,17 @@ export function SettingsPage() {
                       />
                     </svg>
                   </div>
+                </div>
+
+                {/* Instructions */}
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <h4 className="text-sm font-semibold text-blue-900 mb-2">📋 Quick Setup Guide</h4>
+                  <ol className="text-xs text-blue-800 space-y-1 list-decimal list-inside">
+                    <li>Click "Copy Code" button above</li>
+                    <li>Paste the code before the closing <code>&lt;/body&gt;</code> tag on your website</li>
+                    <li>Save and publish your website</li>
+                    <li>The chat widget will appear automatically!</li>
+                  </ol>
                 </div>
               </CardContent>
             </Card>
@@ -462,6 +524,7 @@ export function SettingsPage() {
           </div>
         </TabsContent>
       </Tabs>
-    </div>
+      </div>
+    </>
   )
 }
