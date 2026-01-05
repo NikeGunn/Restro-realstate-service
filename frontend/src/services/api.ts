@@ -943,3 +943,112 @@ export const realEstateApi = {
     },
   },
 }
+
+// ============================================
+// Channels API (WhatsApp & Instagram)
+// ============================================
+
+export const channelsApi = {
+  // WhatsApp Configuration
+  whatsapp: {
+    list: async (params?: { organization?: string }) => {
+      const response = await api.get('/channels/whatsapp-config/', { params })
+      return Array.isArray(response.data) ? response.data : (response.data.results || [])
+    },
+
+    get: async (id: string) => {
+      const response = await api.get(`/channels/whatsapp-config/${id}/`)
+      return response.data
+    },
+
+    create: async (data: {
+      organization: string
+      phone_number_id: string
+      business_account_id: string
+      access_token: string
+      verify_token: string
+    }) => {
+      const response = await api.post('/channels/whatsapp-config/', data)
+      return response.data
+    },
+
+    update: async (id: string, data: Partial<{
+      phone_number_id: string
+      business_account_id: string
+      access_token: string
+      verify_token: string
+      is_active: boolean
+    }>) => {
+      const response = await api.patch(`/channels/whatsapp-config/${id}/`, data)
+      return response.data
+    },
+
+    delete: async (id: string) => {
+      const response = await api.delete(`/channels/whatsapp-config/${id}/`)
+      return response.data
+    },
+
+    testConnection: async (id: string) => {
+      const response = await api.post(`/channels/whatsapp-config/${id}/test_connection/`)
+      return response.data
+    },
+  },
+
+  // Instagram Configuration
+  instagram: {
+    list: async (params?: { organization?: string }) => {
+      const response = await api.get('/channels/instagram-config/', { params })
+      return Array.isArray(response.data) ? response.data : (response.data.results || [])
+    },
+
+    get: async (id: string) => {
+      const response = await api.get(`/channels/instagram-config/${id}/`)
+      return response.data
+    },
+
+    create: async (data: {
+      organization: string
+      instagram_business_id: string
+      page_id: string
+      access_token: string
+      verify_token: string
+    }) => {
+      const response = await api.post('/channels/instagram-config/', data)
+      return response.data
+    },
+
+    update: async (id: string, data: Partial<{
+      instagram_business_id: string
+      page_id: string
+      access_token: string
+      verify_token: string
+      is_active: boolean
+    }>) => {
+      const response = await api.patch(`/channels/instagram-config/${id}/`, data)
+      return response.data
+    },
+
+    delete: async (id: string) => {
+      const response = await api.delete(`/channels/instagram-config/${id}/`)
+      return response.data
+    },
+
+    testConnection: async (id: string) => {
+      const response = await api.post(`/channels/instagram-config/${id}/test_connection/`)
+      return response.data
+    },
+  },
+
+  // Webhook Logs (for debugging)
+  webhookLogs: {
+    list: async (params?: { organization?: string; source?: string; is_processed?: boolean }) => {
+      const response = await api.get('/channels/webhook-logs/', { params })
+      return Array.isArray(response.data) ? response.data : (response.data.results || [])
+    },
+
+    get: async (id: string) => {
+      const response = await api.get(`/channels/webhook-logs/${id}/`)
+      return response.data
+    },
+  },
+}

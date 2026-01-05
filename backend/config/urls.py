@@ -8,6 +8,9 @@ from django.conf.urls.static import static
 from django.views.static import serve
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 
+# Import webhook URLs
+from apps.channels.urls import webhook_urlpatterns
+
 urlpatterns = [
     path('admin/', admin.site.urls),
 
@@ -27,6 +30,12 @@ urlpatterns = [
     # Vertical APIs (Phase 2 & 3)
     path('api/restaurant/', include('apps.restaurant.urls')),
     path('api/realestate/', include('apps.realestate.urls')),
+    
+    # Channel configuration API (Phase 4)
+    path('api/channels/', include('apps.channels.urls')),
+    
+    # Public webhook endpoints (no auth)
+    path('api/webhooks/', include(webhook_urlpatterns)),
 ]
 
 # Serve static files (including widget.js)

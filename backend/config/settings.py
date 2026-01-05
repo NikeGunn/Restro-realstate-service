@@ -17,7 +17,11 @@ SECRET_KEY = config('SECRET_KEY', default='django-insecure-dev-key-change-in-pro
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = config('DEBUG', default=True, cast=bool)
 
-ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1').split(',')
+# Allow all hosts in development, or specific hosts from env in production
+if DEBUG:
+    ALLOWED_HOSTS = ['*']
+else:
+    ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1').split(',')
 
 # Application definition
 INSTALLED_APPS = [
@@ -45,6 +49,7 @@ INSTALLED_APPS = [
     'apps.knowledge',
     'apps.analytics',
     'apps.widget',
+    'apps.channels',  # Phase 4: WhatsApp & Instagram
     # Vertical apps
     'apps.restaurant',
     'apps.realestate',
@@ -176,6 +181,13 @@ OPENAI_API_KEY = config('OPENAI_API_KEY', default='')
 OPENAI_MODEL = config('OPENAI_MODEL', default='gpt-4o-mini')
 OPENAI_MAX_TOKENS = config('OPENAI_MAX_TOKENS', default=500, cast=int)
 OPENAI_TEMPERATURE = config('OPENAI_TEMPERATURE', default=0.7, cast=float)
+
+# Meta (WhatsApp & Instagram) Configuration
+META_APP_SECRET = config('META_APP_SECRET', default='')
+META_GRAPH_API_VERSION = config('META_GRAPH_API_VERSION', default='v18.0')
+# Default verify tokens for webhook verification (override per organization in channel config)
+WHATSAPP_DEFAULT_VERIFY_TOKEN = config('WHATSAPP_DEFAULT_VERIFY_TOKEN', default='whatsapp_verify_token_change_me')
+INSTAGRAM_DEFAULT_VERIFY_TOKEN = config('INSTAGRAM_DEFAULT_VERIFY_TOKEN', default='instagram_verify_token_change_me')
 
 # AI Engine Settings
 AI_CONFIDENCE_THRESHOLD = 0.7  # Below this, escalate to human

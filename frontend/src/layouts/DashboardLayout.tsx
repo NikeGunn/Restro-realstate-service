@@ -20,6 +20,7 @@ import {
   CalendarDays,
   Building2,
   Users,
+  Phone,
 } from 'lucide-react'
 
 const coreNavItems = [
@@ -41,6 +42,7 @@ const realEstateNavItems = [
 ]
 
 const settingsNavItem = { path: '/settings', label: 'Settings', icon: Settings }
+const channelsNavItem = { path: '/settings/channels', label: 'Channels', icon: Phone }
 
 export function DashboardLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(true)
@@ -65,6 +67,7 @@ export function DashboardLayout() {
     }
     
     items.push(settingsNavItem)
+    items.push(channelsNavItem)
     return items
   }, [currentOrganization?.business_type])
 
@@ -120,6 +123,7 @@ export function DashboardLayout() {
                 <NavLink
                   key={item.path}
                   to={item.path}
+                  end
                   className={({ isActive }) =>
                     cn(
                       'flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors',

@@ -60,7 +60,8 @@ export function InboxPage() {
       }
 
       const response = await conversationsApi.list(params)
-      setConversations(response.results || [])
+      // API already returns the array, not paginated object
+      setConversations(Array.isArray(response) ? response : (response.results || []))
     } catch (error) {
       console.error('Error fetching conversations:', error)
     } finally {

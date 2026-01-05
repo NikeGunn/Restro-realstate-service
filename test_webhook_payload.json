@@ -1,0 +1,39 @@
+{
+  "object": "whatsapp_business_account",
+  "entry": [
+    {
+      "id": "254968522189957494",
+      "changes": [
+        {
+          "value": {
+            "messaging_product": "whatsapp",
+            "metadata": {
+              "display_phone_number": "15551477652",
+              "phone_number_id": "994726383718065"
+            },
+            "contacts": [
+              {
+                "profile": {
+                  "name": "Test User Nepal"
+                },
+                "wa_id": "9779705651002"
+              }
+            ],
+            "messages": [
+              {
+                "from": "9779705651002",
+                "id": "wamid.HBgNOTc3OTcwNTY1MTAwMhUCABEYEjc4NDJEQ0EwM0ExRjNDNUYxMAA=",
+                "timestamp": "1736073800",
+                "text": {
+                  "body": "Hello! What are your hours?"
+                },
+                "type": "text"
+              }
+            ]
+          },
+          "field": "messages"
+        }
+      ]
+    }
+  ]
+}

@@ -57,7 +57,7 @@ export function AlertsPage() {
       }
 
       const response = await alertsApi.list(params)
-      setAlerts(response.results || [])
+      setAlerts(Array.isArray(response) ? response : (response.results || []))
     } catch (error) {
       console.error('Error fetching alerts:', error)
     } finally {

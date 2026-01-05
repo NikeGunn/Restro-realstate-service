@@ -50,9 +50,9 @@ export function RegisterPage() {
       setTokens(response.tokens)
 
       // Fetch organizations and set the first one as current
-      const orgsResponse = await organizationsApi.list()
-      if (orgsResponse.results?.length > 0) {
-        setCurrentOrganization(orgsResponse.results[0])
+      const organizations = await organizationsApi.list()
+      if (organizations.length > 0) {
+        setCurrentOrganization(organizations[0])
       }
 
       toast({

@@ -11,6 +11,7 @@ import { ConversationPage } from '@/pages/inbox/ConversationPage'
 import { AlertsPage } from '@/pages/alerts/AlertsPage'
 import { KnowledgePage } from '@/pages/knowledge/KnowledgePage'
 import { SettingsPage } from '@/pages/settings/SettingsPage'
+import { ChannelsPage } from '@/pages/settings/ChannelsPage'
 import { AnalyticsPage } from '@/pages/analytics/AnalyticsPage'
 
 // Restaurant pages
@@ -71,6 +72,7 @@ function App() {
           <Route path="/knowledge" element={<KnowledgePage />} />
           <Route path="/analytics" element={<AnalyticsPage />} />
           <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/settings/channels" element={<ChannelsPage />} />
           
           {/* Restaurant Routes */}
           <Route path="/restaurant/menu" element={<MenuPage />} />

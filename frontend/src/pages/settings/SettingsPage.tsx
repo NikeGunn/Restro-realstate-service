@@ -62,7 +62,7 @@ export function SettingsPage() {
 
     try {
       const response = await locationsApi.list(currentOrganization.id)
-      setLocations(response.results || [])
+      setLocations(Array.isArray(response) ? response : (response.results || []))
     } catch (error) {
       console.error('Error fetching locations:', error)
     }

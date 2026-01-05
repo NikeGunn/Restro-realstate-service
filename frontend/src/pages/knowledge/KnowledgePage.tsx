@@ -31,8 +31,8 @@ export function KnowledgePage() {
 
   const [formData, setFormData] = useState({
     business_description: '',
-    services_offered: [] as string[],
-    operating_hours: '',
+    services: [] as string[],
+    opening_hours: '',
     contact_info: '',
     policies: '',
     additional_info: '',
@@ -51,7 +51,7 @@ export function KnowledgePage() {
     try {
       // Fetch locations
       const locsResponse = await locationsApi.list(currentOrganization.id)
-      setLocations(locsResponse.results || [])
+      setLocations(Array.isArray(locsResponse) ? locsResponse : (locsResponse.results || []))
 
       // Fetch knowledge base
       const params: Record<string, string> = { organization: currentOrganization.id }
@@ -60,18 +60,19 @@ export function KnowledgePage() {
       }
 
       const kbResponse = await knowledgeApi.list(params)
-      if (kbResponse.results?.length > 0) {
-        const kb = kbResponse.results[0]
+      const kbArray = Array.isArray(kbResponse) ? kbResponse : (kbResponse.results || [])
+      if (kbArray.length > 0) {
+        const kb = kbArray[0]
         setKnowledgeBase(kb)
         setFormData({
           business_description: kb.business_description || '',
-          services_offered: kb.services_offered || [],
-          operating_hours: kb.operating_hours || '',
+          services: kb.services || [],
+          opening_hours: kb.opening_hours || '',
           contact_info: kb.contact_info || '',
           policies: kb.policies || '',
           additional_info: kb.additional_info || '',
         })
-        setServicesInput((kb.services_offered || []).join(', '))
+        setServicesInput((kb.services || []).join(', '))
 
         // Fetch FAQs
         const faqResponse = await faqApi.list(kb.id)
@@ -80,8 +81,8 @@ export function KnowledgePage() {
         setKnowledgeBase(null)
         setFormData({
           business_description: '',
-          services_offered: [],
-          operating_hours: '',
+          services: [],
+          opening_hours: '',
           contact_info: '',
           policies: '',
           additional_info: '',
@@ -102,7 +103,7 @@ export function KnowledgePage() {
     try {
       const data = {
         ...formData,
-        services_offered: servicesInput.split(',').map((s) => s.trim()).filter(Boolean),
+        services: servicesInput.split(',').map((s) => s.trim()).filter(Boolean),
         organization: currentOrganization.id,
         location: selectedLocationId,
       }
@@ -283,9 +284,9 @@ export function KnowledgePage() {
                   id="hours"
                   className="w-full min-h-[80px] p-3 rounded-md border bg-background"
                   placeholder="Mon-Fri: 9am-9pm, Sat-Sun: 10am-10pm..."
-                  value={formData.operating_hours}
+                  value={formData.opening_hours}
                   onChange={(e) =>
-                    setFormData((prev) => ({ ...prev, operating_hours: e.target.value }))
+                    setFormData((prev) => ({ ...prev, opening_hours: e.target.value }))
                   }
                 />
               </div>
