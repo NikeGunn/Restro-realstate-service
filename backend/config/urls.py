@@ -6,12 +6,22 @@ from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
 from django.views.static import serve
+from django.http import JsonResponse
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 
 # Import webhook URLs
 from apps.channels.urls import webhook_urlpatterns
 
+
+def health_check(request):
+    """Health check endpoint for container orchestration."""
+    return JsonResponse({'status': 'healthy', 'service': 'chatplatform-backend'})
+
+
 urlpatterns = [
+    # Health check endpoint
+    path('api/health/', health_check, name='health-check'),
+    
     path('admin/', admin.site.urls),
 
     # API Documentation

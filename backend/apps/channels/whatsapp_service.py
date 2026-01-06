@@ -270,7 +270,17 @@ class WhatsAppService:
             return message_id
             
         except requests.exceptions.RequestException as e:
-            logger.exception(f"Failed to send WhatsApp message: {e}")
+            # Log the full error response from Graph API
+            error_detail = f"Failed to send WhatsApp message: {e}"
+            if hasattr(e, 'response') and e.response is not None:
+                try:
+                    error_json = e.response.json()
+                    logger.error(f"Graph API Error Response: {error_json}")
+                    error_detail += f" | API Response: {error_json}"
+                except:
+                    logger.error(f"Graph API Error Response (text): {e.response.text}")
+                    error_detail += f" | API Response: {e.response.text}"
+            logger.exception(error_detail)
             return None
     
     def send_interactive_buttons(
