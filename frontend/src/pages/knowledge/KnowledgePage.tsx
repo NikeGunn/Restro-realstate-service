@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/store/auth'
 import { knowledgeApi, faqApi, locationsApi } from '@/services/api'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -20,6 +21,7 @@ import {
 import type { KnowledgeBase, FAQ, Location } from '@/types'
 
 export function KnowledgePage() {
+  const { t } = useTranslation()
   const { currentOrganization } = useAuthStore()
   const [knowledgeBase, setKnowledgeBase] = useState<KnowledgeBase | null>(null)
   const [faqs, setFaqs] = useState<FAQ[]>([])
@@ -115,8 +117,8 @@ export function KnowledgePage() {
       }
 
       toast({
-        title: 'Saved!',
-        description: 'Knowledge base updated successfully.',
+        title: t('knowledge.saved'),
+        description: t('knowledge.savedDesc'),
       })
 
       await fetchData()
@@ -124,8 +126,8 @@ export function KnowledgePage() {
       console.error('Error saving knowledge base:', error)
       toast({
         variant: 'destructive',
-        title: 'Error',
-        description: 'Failed to save knowledge base.',
+        title: t('common.error'),
+        description: t('knowledge.saveError'),
       })
     } finally {
       setSaving(false)
@@ -146,15 +148,15 @@ export function KnowledgePage() {
       await fetchData()
 
       toast({
-        title: 'FAQ added',
-        description: 'New FAQ has been added successfully.',
+        title: t('knowledge.faqAdded'),
+        description: t('knowledge.faqAddedDesc'),
       })
     } catch (error) {
       console.error('Error adding FAQ:', error)
       toast({
         variant: 'destructive',
-        title: 'Error',
-        description: 'Failed to add FAQ.',
+        title: t('common.error'),
+        description: t('knowledge.addFaqError'),
       })
     }
   }
@@ -167,15 +169,15 @@ export function KnowledgePage() {
       await fetchData()
 
       toast({
-        title: 'FAQ deleted',
-        description: 'FAQ has been removed.',
+        title: t('knowledge.faqDeleted'),
+        description: t('knowledge.faqDeletedDesc'),
       })
     } catch (error) {
       console.error('Error deleting FAQ:', error)
       toast({
         variant: 'destructive',
-        title: 'Error',
-        description: 'Failed to delete FAQ.',
+        title: t('common.error'),
+        description: t('knowledge.deleteFaqError'),
       })
     }
   }
@@ -183,7 +185,7 @@ export function KnowledgePage() {
   if (!currentOrganization) {
     return (
       <div className="text-center py-12">
-        <p className="text-muted-foreground">Please select an organization first.</p>
+        <p className="text-muted-foreground">{t('knowledge.selectFirst')}</p>
       </div>
     )
   }
@@ -200,9 +202,9 @@ export function KnowledgePage() {
     <div className="space-y-6">
       <div className="flex justify-between items-start">
         <div>
-          <h1 className="text-3xl font-bold">Knowledge Base</h1>
+          <h1 className="text-3xl font-bold">{t('knowledge.title')}</h1>
           <p className="text-muted-foreground">
-            Configure what your AI chatbot knows about your business.
+            {t('knowledge.subtitle')}
           </p>
         </div>
       </div>
@@ -213,7 +215,7 @@ export function KnowledgePage() {
           <CardHeader>
             <CardTitle className="text-sm flex items-center gap-2">
               <Building2 className="h-4 w-4" />
-              Location-Specific Knowledge
+              {t('knowledge.locationSpecific')}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -223,7 +225,7 @@ export function KnowledgePage() {
                 size="sm"
                 onClick={() => setSelectedLocationId(null)}
               >
-                Organization Default
+                {t('knowledge.organizationDefault')}
               </Button>
               {locations.map((loc) => (
                 <Button
@@ -242,25 +244,25 @@ export function KnowledgePage() {
 
       <Tabs defaultValue="general">
         <TabsList>
-          <TabsTrigger value="general">General Info</TabsTrigger>
-          <TabsTrigger value="faqs">FAQs ({faqs.length})</TabsTrigger>
+          <TabsTrigger value="general">{t('knowledge.generalInfo')}</TabsTrigger>
+          <TabsTrigger value="faqs">{t('knowledge.faqs')} ({faqs.length})</TabsTrigger>
         </TabsList>
 
         <TabsContent value="general" className="mt-4">
           <Card>
             <CardHeader>
-              <CardTitle>Business Information</CardTitle>
+              <CardTitle>{t('knowledge.businessInfo')}</CardTitle>
               <CardDescription>
-                This information helps the AI understand your business and answer customer questions accurately.
+                {t('knowledge.businessInfoDesc')}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="business_description">Business Description</Label>
+                <Label htmlFor="business_description">{t('knowledge.businessDescription')}</Label>
                 <textarea
                   id="business_description"
                   className="w-full min-h-[100px] p-3 rounded-md border bg-background"
-                  placeholder="Describe your business, what makes it unique, and what customers can expect..."
+                  placeholder={t('knowledge.businessDescriptionPlaceholder')}
                   value={formData.business_description}
                   onChange={(e) =>
                     setFormData((prev) => ({ ...prev, business_description: e.target.value }))
@@ -269,21 +271,21 @@ export function KnowledgePage() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="services">Services Offered (comma-separated)</Label>
+                <Label htmlFor="services">{t('knowledge.servicesOffered')}</Label>
                 <Input
                   id="services"
-                  placeholder="Dine-in, Takeout, Delivery, Catering..."
+                  placeholder={t('knowledge.servicesPlaceholder')}
                   value={servicesInput}
                   onChange={(e) => setServicesInput(e.target.value)}
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="hours">Operating Hours</Label>
+                <Label htmlFor="hours">{t('knowledge.operatingHours')}</Label>
                 <textarea
                   id="hours"
                   className="w-full min-h-[80px] p-3 rounded-md border bg-background"
-                  placeholder="Mon-Fri: 9am-9pm, Sat-Sun: 10am-10pm..."
+                  placeholder={t('knowledge.operatingHoursPlaceholder')}
                   value={formData.opening_hours}
                   onChange={(e) =>
                     setFormData((prev) => ({ ...prev, opening_hours: e.target.value }))
@@ -292,11 +294,11 @@ export function KnowledgePage() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="contact">Contact Information</Label>
+                <Label htmlFor="contact">{t('knowledge.contactInfo')}</Label>
                 <textarea
                   id="contact"
                   className="w-full min-h-[80px] p-3 rounded-md border bg-background"
-                  placeholder="Phone, email, address..."
+                  placeholder={t('knowledge.contactInfoPlaceholder')}
                   value={formData.contact_info}
                   onChange={(e) =>
                     setFormData((prev) => ({ ...prev, contact_info: e.target.value }))
@@ -305,11 +307,11 @@ export function KnowledgePage() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="policies">Policies</Label>
+                <Label htmlFor="policies">{t('knowledge.policies')}</Label>
                 <textarea
                   id="policies"
                   className="w-full min-h-[80px] p-3 rounded-md border bg-background"
-                  placeholder="Reservation policy, cancellation policy, pet policy..."
+                  placeholder={t('knowledge.policiesPlaceholder')}
                   value={formData.policies}
                   onChange={(e) =>
                     setFormData((prev) => ({ ...prev, policies: e.target.value }))
@@ -318,11 +320,11 @@ export function KnowledgePage() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="additional">Additional Information</Label>
+                <Label htmlFor="additional">{t('knowledge.additionalInfo')}</Label>
                 <textarea
                   id="additional"
                   className="w-full min-h-[80px] p-3 rounded-md border bg-background"
-                  placeholder="Any other information the AI should know..."
+                  placeholder={t('knowledge.additionalInfoPlaceholder')}
                   value={formData.additional_info}
                   onChange={(e) =>
                     setFormData((prev) => ({ ...prev, additional_info: e.target.value }))
@@ -332,7 +334,7 @@ export function KnowledgePage() {
 
               <Button onClick={handleSaveKnowledgeBase} disabled={saving}>
                 <Save className="h-4 w-4 mr-2" />
-                {saving ? 'Saving...' : 'Save Changes'}
+                {saving ? t('knowledge.saving') : t('knowledge.saveChanges')}
               </Button>
             </CardContent>
           </Card>
@@ -343,23 +345,23 @@ export function KnowledgePage() {
             {/* Add FAQ */}
             <Card>
               <CardHeader>
-                <CardTitle>Add New FAQ</CardTitle>
+                <CardTitle>{t('knowledge.addNewFaq')}</CardTitle>
                 <CardDescription>
-                  Add common questions and answers for your AI to use.
+                  {t('knowledge.addNewFaqDesc')}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 {!knowledgeBase ? (
                   <p className="text-sm text-muted-foreground">
-                    Save the general info first to add FAQs.
+                    {t('knowledge.saveGeneralFirst')}
                   </p>
                 ) : (
                   <>
                     <div className="space-y-2">
-                      <Label htmlFor="faq_question">Question</Label>
+                      <Label htmlFor="faq_question">{t('knowledge.question')}</Label>
                       <Input
                         id="faq_question"
-                        placeholder="What are your hours?"
+                        placeholder={t('knowledge.questionPlaceholder')}
                         value={newFaq.question}
                         onChange={(e) =>
                           setNewFaq((prev) => ({ ...prev, question: e.target.value }))
@@ -367,11 +369,11 @@ export function KnowledgePage() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="faq_answer">Answer</Label>
+                      <Label htmlFor="faq_answer">{t('knowledge.answer')}</Label>
                       <textarea
                         id="faq_answer"
                         className="w-full min-h-[80px] p-3 rounded-md border bg-background"
-                        placeholder="We're open Monday-Friday 9am-9pm..."
+                        placeholder={t('knowledge.answerPlaceholder')}
                         value={newFaq.answer}
                         onChange={(e) =>
                           setNewFaq((prev) => ({ ...prev, answer: e.target.value }))
@@ -380,7 +382,7 @@ export function KnowledgePage() {
                     </div>
                     <Button onClick={handleAddFaq}>
                       <Plus className="h-4 w-4 mr-2" />
-                      Add FAQ
+                      {t('knowledge.addFaq')}
                     </Button>
                   </>
                 )}
@@ -390,16 +392,16 @@ export function KnowledgePage() {
             {/* FAQ List */}
             <Card>
               <CardHeader>
-                <CardTitle>Existing FAQs</CardTitle>
+                <CardTitle>{t('knowledge.existingFaqs')}</CardTitle>
                 <CardDescription>
-                  {faqs.length} FAQ{faqs.length !== 1 ? 's' : ''} configured.
+                  {t('knowledge.faqsConfigured', { count: faqs.length })}
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 {faqs.length === 0 ? (
                   <div className="text-center py-8">
                     <BookOpen className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-                    <p className="text-sm text-muted-foreground">No FAQs yet</p>
+                    <p className="text-sm text-muted-foreground">{t('knowledge.noFaqs')}</p>
                   </div>
                 ) : (
                   <ScrollArea className="h-[400px]">

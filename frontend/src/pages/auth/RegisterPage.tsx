@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/store/auth'
 import { authApi, organizationsApi } from '@/services/api'
 import { Button } from '@/components/ui/button'
@@ -8,8 +9,10 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { useToast } from '@/hooks/use-toast'
 import { MessageSquare } from 'lucide-react'
+import { LanguageSwitcher } from '@/components/LanguageSwitcher'
 
 export function RegisterPage() {
+  const { t } = useTranslation()
   const [formData, setFormData] = useState({
     email: '',
     username: '',
@@ -36,8 +39,8 @@ export function RegisterPage() {
     if (formData.password !== formData.password_confirm) {
       toast({
         variant: 'destructive',
-        title: 'Error',
-        description: 'Passwords do not match.',
+        title: t('common.error'),
+        description: t('auth.passwordMismatch'),
       })
       return
     }
@@ -49,24 +52,35 @@ export function RegisterPage() {
       setUser(response.user)
       setTokens(response.tokens)
 
-      // Fetch organizations and set the first one as current
-      const organizations = await organizationsApi.list()
-      if (organizations.length > 0) {
-        setCurrentOrganization(organizations[0])
+      // Fetch organizations to check if user has any
+      try {
+        const organizations = await organizationsApi.list()
+        if (organizations.length > 0) {
+          setCurrentOrganization(organizations[0])
+          toast({
+            title: t('auth.registerSuccess'),
+            description: t('auth.registerSuccessDescription'),
+          })
+          navigate('/dashboard')
+        } else {
+          // No organizations - redirect to setup
+          toast({
+            title: t('auth.registerSuccess'),
+            description: t('auth.registerSuccessDescription'),
+          })
+          navigate('/setup-organization')
+        }
+      } catch (orgError) {
+        // If org fetch fails, still redirect to setup
+        console.error('Error fetching organizations:', orgError)
+        navigate('/setup-organization')
       }
-
-      toast({
-        title: 'Account created!',
-        description: 'Welcome to the platform.',
-      })
-
-      navigate('/dashboard')
     } catch (error: unknown) {
       console.error('Registration error:', error)
       toast({
         variant: 'destructive',
-        title: 'Registration failed',
-        description: 'Please check your information and try again.',
+        title: t('auth.registerError'),
+        description: t('auth.registerErrorDescription'),
       })
     } finally {
       setLoading(false)
@@ -76,19 +90,22 @@ export function RegisterPage() {
   return (
     <Card className="shadow-lg">
       <CardHeader className="text-center">
+        <div className="flex justify-end mb-2">
+          <LanguageSwitcher variant="compact" />
+        </div>
         <div className="flex justify-center mb-4">
           <div className="p-3 bg-primary/10 rounded-full">
             <MessageSquare className="h-8 w-8 text-primary" />
           </div>
         </div>
-        <CardTitle className="text-2xl">Create Account</CardTitle>
-        <CardDescription>Get started with your business chatbot</CardDescription>
+        <CardTitle className="text-2xl">{t('auth.createAccount')}</CardTitle>
+        <CardDescription>{t('auth.createAccountDescription')}</CardDescription>
       </CardHeader>
       <form onSubmit={handleSubmit}>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="first_name">First Name</Label>
+              <Label htmlFor="first_name">{t('auth.firstName')}</Label>
               <Input
                 id="first_name"
                 name="first_name"
@@ -99,7 +116,7 @@ export function RegisterPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="last_name">Last Name</Label>
+              <Label htmlFor="last_name">{t('auth.lastName')}</Label>
               <Input
                 id="last_name"
                 name="last_name"
@@ -111,7 +128,7 @@ export function RegisterPage() {
             </div>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
+            <Label htmlFor="email">{t('auth.email')}</Label>
             <Input
               id="email"
               name="email"
@@ -123,7 +140,7 @@ export function RegisterPage() {
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="username">Username</Label>
+            <Label htmlFor="username">{t('auth.username')}</Label>
             <Input
               id="username"
               name="username"
@@ -134,7 +151,7 @@ export function RegisterPage() {
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="password">Password</Label>
+            <Label htmlFor="password">{t('auth.password')}</Label>
             <Input
               id="password"
               name="password"
@@ -147,7 +164,7 @@ export function RegisterPage() {
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="password_confirm">Confirm Password</Label>
+            <Label htmlFor="password_confirm">{t('auth.confirmPassword')}</Label>
             <Input
               id="password_confirm"
               name="password_confirm"
@@ -156,17 +173,17 @@ export function RegisterPage() {
               value={formData.password_confirm}
               onChange={handleChange}
               required
-            />
+            />C:\Users\Nautilus\Desktop\RESTRO\Restro & real estate\frontend\src\pages
           </div>
         </CardContent>
         <CardFooter className="flex flex-col space-y-4">
           <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? 'Creating account...' : 'Create Account'}
+            {loading ? t('auth.creatingAccount') : t('auth.createAccount')}
           </Button>
           <p className="text-sm text-muted-foreground text-center">
-            Already have an account?{' '}
+            {t('auth.haveAccount')}{' '}
             <Link to="/login" className="text-primary hover:underline">
-              Sign in
+              {t('auth.signIn')}
             </Link>
           </p>
         </CardFooter>

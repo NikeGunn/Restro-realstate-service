@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/store/auth'
 import { channelsApi } from '@/services/api'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -53,6 +54,7 @@ interface InstagramConfig {
 }
 
 export function ChannelsPage() {
+  const { t } = useTranslation()
   const { currentOrganization, setCurrentOrganization } = useAuthStore()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -283,9 +285,9 @@ export function ChannelsPage() {
     return (
       <div className="space-y-6">
         <div>
-          <h1 className="text-3xl font-bold">Channels</h1>
+          <h1 className="text-3xl font-bold">{t('channels.title')}</h1>
           <p className="text-muted-foreground">
-            Connect WhatsApp and Instagram to your AI chatbot.
+            {t('channels.subtitle')}
           </p>
         </div>
 
@@ -344,9 +346,9 @@ export function ChannelsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Channels</h1>
+          <h1 className="text-3xl font-bold">{t('channels.title')}</h1>
           <p className="text-muted-foreground">
-            Connect WhatsApp and Instagram to your AI chatbot.
+            {t('channels.subtitle')}
           </p>
         </div>
         <div className="flex gap-2">

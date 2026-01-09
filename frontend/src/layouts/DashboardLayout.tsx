@@ -1,10 +1,12 @@
 import { useState, useMemo } from 'react'
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/store/auth'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { LanguageSwitcher } from '@/components/LanguageSwitcher'
 import {
   LayoutDashboard,
   Inbox,
@@ -23,51 +25,52 @@ import {
   Phone,
 } from 'lucide-react'
 
-const coreNavItems = [
-  { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { path: '/inbox', label: 'Inbox', icon: Inbox },
-  { path: '/alerts', label: 'Alerts', icon: Bell },
-  { path: '/knowledge', label: 'Knowledge Base', icon: BookOpen },
-  { path: '/analytics', label: 'Analytics', icon: BarChart3 },
+const coreNavKeys = [
+  { path: '/dashboard', labelKey: 'nav.dashboard', icon: LayoutDashboard },
+  { path: '/inbox', labelKey: 'nav.inbox', icon: Inbox },
+  { path: '/alerts', labelKey: 'nav.alerts', icon: Bell },
+  { path: '/knowledge', labelKey: 'nav.knowledgeBase', icon: BookOpen },
+  { path: '/analytics', labelKey: 'nav.analytics', icon: BarChart3 },
 ]
 
-const restaurantNavItems = [
-  { path: '/restaurant/menu', label: 'Menu', icon: UtensilsCrossed },
-  { path: '/restaurant/bookings', label: 'Bookings', icon: CalendarDays },
+const restaurantNavKeys = [
+  { path: '/restaurant/menu', labelKey: 'nav.menu', icon: UtensilsCrossed },
+  { path: '/restaurant/bookings', labelKey: 'nav.bookings', icon: CalendarDays },
 ]
 
-const realEstateNavItems = [
-  { path: '/realestate/properties', label: 'Properties', icon: Building2 },
-  { path: '/realestate/leads', label: 'Leads', icon: Users },
+const realEstateNavKeys = [
+  { path: '/realestate/properties', labelKey: 'nav.properties', icon: Building2 },
+  { path: '/realestate/leads', labelKey: 'nav.leads', icon: Users },
 ]
 
-const settingsNavItem = { path: '/settings', label: 'Settings', icon: Settings }
-const channelsNavItem = { path: '/settings/channels', label: 'Channels', icon: Phone }
+const settingsNavKey = { path: '/settings', labelKey: 'nav.settings', icon: Settings }
+const channelsNavKey = { path: '/settings/channels', labelKey: 'nav.channels', icon: Phone }
 
 export function DashboardLayout() {
+  const { t } = useTranslation()
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const { user, currentOrganization, logout } = useAuthStore()
   const navigate = useNavigate()
 
   // Build navigation items based on organization business type
   const navItems = useMemo(() => {
-    const items = [...coreNavItems]
+    const items = [...coreNavKeys]
     
     // Add vertical-specific navigation based on current organization
     const businessType = currentOrganization?.business_type
     
     if (businessType === 'restaurant') {
-      items.push(...restaurantNavItems)
+      items.push(...restaurantNavKeys)
     } else if (businessType === 'real_estate') {
-      items.push(...realEstateNavItems)
+      items.push(...realEstateNavKeys)
     } else {
       // Show both if no specific type or generic
-      items.push(...restaurantNavItems)
-      items.push(...realEstateNavItems)
+      items.push(...restaurantNavKeys)
+      items.push(...realEstateNavKeys)
     }
     
-    items.push(settingsNavItem)
-    items.push(channelsNavItem)
+    items.push(settingsNavKey)
+    items.push(channelsNavKey)
     return items
   }, [currentOrganization?.business_type])
 
@@ -111,8 +114,15 @@ export function DashboardLayout() {
           {/* Organization */}
           {sidebarOpen && currentOrganization && (
             <div className="px-4 py-3 border-b">
-              <p className="text-xs text-muted-foreground">Organization</p>
+              <p className="text-xs text-muted-foreground">{t('nav.organization')}</p>
               <p className="font-medium truncate">{currentOrganization.name}</p>
+            </div>
+          )}
+
+          {/* Language Switcher */}
+          {sidebarOpen && (
+            <div className="px-3 py-3 border-b">
+              <LanguageSwitcher variant="compact" showLabel={false} />
             </div>
           )}
 
@@ -134,7 +144,7 @@ export function DashboardLayout() {
                   }
                 >
                   <item.icon className="h-5 w-5 flex-shrink-0" />
-                  {sidebarOpen && <span>{item.label}</span>}
+                  {sidebarOpen && <span>{t(item.labelKey)}</span>}
                 </NavLink>
               ))}
             </nav>
@@ -160,7 +170,7 @@ export function DashboardLayout() {
                 variant="ghost"
                 size="icon"
                 onClick={handleLogout}
-                title="Logout"
+                title={t('auth.logout')}
               >
                 <LogOut className="h-4 w-4" />
               </Button>

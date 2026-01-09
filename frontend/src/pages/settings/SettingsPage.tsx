@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/store/auth'
 import { organizationsApi, locationsApi } from '@/services/api'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -18,12 +19,11 @@ import {
   Palette,
   Copy,
   Eye,
-  X,
-  Check,
 } from 'lucide-react'
 import type { Location } from '@/types'
 
 export function SettingsPage() {
+  const { t } = useTranslation()
   const { currentOrganization, setCurrentOrganization } = useAuthStore()
   const [locations, setLocations] = useState<Location[]>([])
   const [loading, setLoading] = useState(true)
@@ -178,17 +178,17 @@ export function SettingsPage() {
 
       <div className="space-y-6">
         <div>
-          <h1 className="text-3xl font-bold">Settings</h1>
+          <h1 className="text-3xl font-bold">{t('settings.title')}</h1>
           <p className="text-muted-foreground">
-            Manage your organization and widget settings.
+            {t('settings.subtitle')}
           </p>
         </div>
 
       <Tabs defaultValue="organization">
         <TabsList>
-          <TabsTrigger value="organization">Organization</TabsTrigger>
-          <TabsTrigger value="widget">Widget</TabsTrigger>
-          <TabsTrigger value="locations">Locations</TabsTrigger>
+          <TabsTrigger value="organization">{t('settings.organization')}</TabsTrigger>
+          <TabsTrigger value="widget">{t('settings.widget')}</TabsTrigger>
+          <TabsTrigger value="locations">{t('settings.locations')}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="organization" className="mt-4">
@@ -196,15 +196,15 @@ export function SettingsPage() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Building2 className="h-5 w-5" />
-                Organization Settings
+                {t('settings.organizationSettings')}
               </CardTitle>
               <CardDescription>
-                Basic information about your organization.
+                {t('settings.organizationDescription')}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="org_name">Organization Name</Label>
+                <Label htmlFor="org_name">{t('organization.name')}</Label>
                 <Input
                   id="org_name"
                   value={orgForm.name}
@@ -215,7 +215,7 @@ export function SettingsPage() {
               </div>
 
               <div className="space-y-2">
-                <Label>Business Type</Label>
+                <Label>{t('organization.businessType')}</Label>
                 <Badge variant="outline" className="text-sm">
                   {currentOrganization.business_type === 'restaurant'
                     ? '🍽️ Restaurant'
@@ -224,7 +224,7 @@ export function SettingsPage() {
               </div>
 
               <div className="space-y-2">
-                <Label>Plan</Label>
+                <Label>{t('organization.plan')}</Label>
                 <Badge variant="secondary" className="text-sm capitalize">
                   {currentOrganization.plan}
                 </Badge>
@@ -232,7 +232,7 @@ export function SettingsPage() {
 
               <Button onClick={handleSaveOrganization} disabled={saving}>
                 <Save className="h-4 w-4 mr-2" />
-                {saving ? 'Saving...' : 'Save Changes'}
+                {saving ? t('settings.saving') : t('settings.saveChanges')}
               </Button>
             </CardContent>
           </Card>
@@ -244,15 +244,15 @@ export function SettingsPage() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Palette className="h-5 w-5" />
-                  Widget Customization
-                </CardTitle>
-                <CardDescription>
-                  Customize how your chat widget looks on your website.
+                {t('settings.widgetCustomization')}
+              </CardTitle>
+              <CardDescription>
+                {t('settings.widgetCustomizationDescription')}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="widget_color">Widget Color</Label>
+                  <Label htmlFor="widget_color">{t('settings.widgetColor')}</Label>
                   <div className="flex gap-2">
                     <Input
                       id="widget_color"
@@ -274,7 +274,7 @@ export function SettingsPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="widget_position">Widget Position</Label>
+                  <Label htmlFor="widget_position">{t('settings.widgetPosition')}</Label>
                   <select
                     id="widget_position"
                     className="w-full p-2 rounded-md border bg-background"
@@ -283,17 +283,17 @@ export function SettingsPage() {
                       setOrgForm((prev) => ({ ...prev, widget_position: e.target.value }))
                     }
                   >
-                    <option value="bottom-right">Bottom Right</option>
-                    <option value="bottom-left">Bottom Left</option>
+                    <option value="bottom-right">{t('settings.bottomRight')}</option>
+                    <option value="bottom-left">{t('settings.bottomLeft')}</option>
                   </select>
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="greeting">Greeting Message</Label>
+                  <Label htmlFor="greeting">{t('settings.greetingMessage')}</Label>
                   <textarea
                     id="greeting"
                     className="w-full min-h-[80px] p-3 rounded-md border bg-background"
-                    placeholder="Hi! 👋 How can I help you today?"
+                    placeholder={t('settings.greetingPlaceholder')}
                     value={orgForm.greeting_message}
                     onChange={(e) =>
                       setOrgForm((prev) => ({ ...prev, greeting_message: e.target.value }))
@@ -310,14 +310,14 @@ export function SettingsPage() {
 
             <Card>
               <CardHeader>
-                <CardTitle>Widget Installation</CardTitle>
+                <CardTitle>{t('settings.widgetInstallation')}</CardTitle>
                 <CardDescription>
-                  Copy and paste this code into your website.
+                  {t('settings.widgetInstallationDescription')}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  <Label>Widget Key</Label>
+                  <Label>{t('settings.widgetKey')}</Label>
                   <div className="flex gap-2">
                     <Input value={currentOrganization.widget_key} readOnly className="flex-1" />
                     <Button
@@ -338,15 +338,15 @@ export function SettingsPage() {
 
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <Label>Embed Code</Label>
+                    <Label>{t('settings.embedCode')}</Label>
                     <div className="flex gap-2">
                       <Button onClick={copyWidgetCode} variant="outline" size="sm">
                         <Copy className="h-4 w-4 mr-2" />
-                        Copy Code
+                        {t('dashboard.copyCode')}
                       </Button>
                       <Button onClick={() => setShowPreview(true)} variant="default" size="sm">
                         <Eye className="h-4 w-4 mr-2" />
-                        Test Widget
+                        {t('settings.testWidget')}
                       </Button>
                     </div>
                   </div>
@@ -358,13 +358,13 @@ export function SettingsPage() {
                     {getWidgetCode()}
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    💡 Click the code above to copy it to your clipboard
+                    {t('settings.clickToCopy')}
                   </p>
                 </div>
 
                 {/* Static Preview */}
                 <div className="border rounded-lg p-4 bg-muted/50">
-                  <p className="text-xs text-muted-foreground mb-2">Widget Button Preview</p>
+                  <p className="text-xs text-muted-foreground mb-2">{t('settings.widgetButtonPreview')}</p>
                   <div
                     className="w-14 h-14 rounded-full flex items-center justify-center shadow-lg cursor-pointer hover:scale-110 transition-transform"
                     style={{ backgroundColor: orgForm.widget_color }}
@@ -389,12 +389,12 @@ export function SettingsPage() {
 
                 {/* Instructions */}
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                  <h4 className="text-sm font-semibold text-blue-900 mb-2">📋 Quick Setup Guide</h4>
+                  <h4 className="text-sm font-semibold text-blue-900 mb-2">{t('settings.quickSetupGuide')}</h4>
                   <ol className="text-xs text-blue-800 space-y-1 list-decimal list-inside">
-                    <li>Click "Copy Code" button above</li>
-                    <li>Paste the code before the closing <code>&lt;/body&gt;</code> tag on your website</li>
-                    <li>Save and publish your website</li>
-                    <li>The chat widget will appear automatically!</li>
+                    <li>{t('settings.setupStep1')}</li>
+                    <li>{t('settings.setupStep2')}</li>
+                    <li>{t('settings.setupStep3')}</li>
+                    <li>{t('settings.setupStep4')}</li>
                   </ol>
                 </div>
               </CardContent>
@@ -408,18 +408,18 @@ export function SettingsPage() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Plus className="h-5 w-5" />
-                  Add Location
+                  {t('settings.addLocation')}
                 </CardTitle>
                 <CardDescription>
-                  Add multiple locations for your business.
+                  {t('settings.addLocationDescription')}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="loc_name">Location Name *</Label>
+                  <Label htmlFor="loc_name">{t('settings.locationName')} *</Label>
                   <Input
                     id="loc_name"
-                    placeholder="Downtown Branch"
+                    placeholder={t('settings.locationNamePlaceholder')}
                     value={newLocation.name}
                     onChange={(e) =>
                       setNewLocation((prev) => ({ ...prev, name: e.target.value }))
@@ -427,10 +427,10 @@ export function SettingsPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="loc_address">Address</Label>
+                  <Label htmlFor="loc_address">{t('common.address')}</Label>
                   <Input
                     id="loc_address"
-                    placeholder="123 Main St, City"
+                    placeholder={t('settings.locationAddressPlaceholder')}
                     value={newLocation.address}
                     onChange={(e) =>
                       setNewLocation((prev) => ({ ...prev, address: e.target.value }))
@@ -439,7 +439,7 @@ export function SettingsPage() {
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="loc_phone">Phone</Label>
+                    <Label htmlFor="loc_phone">{t('common.phone')}</Label>
                     <Input
                       id="loc_phone"
                       placeholder="+1 234 567 8900"
@@ -450,7 +450,7 @@ export function SettingsPage() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="loc_email">Email</Label>
+                    <Label htmlFor="loc_email">{t('common.email')}</Label>
                     <Input
                       id="loc_email"
                       type="email"
@@ -464,7 +464,7 @@ export function SettingsPage() {
                 </div>
                 <Button onClick={handleAddLocation}>
                   <Plus className="h-4 w-4 mr-2" />
-                  Add Location
+                  {t('settings.addLocation')}
                 </Button>
               </CardContent>
             </Card>
@@ -473,17 +473,17 @@ export function SettingsPage() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <MapPin className="h-5 w-5" />
-                  Your Locations
+                  {t('settings.yourLocations')}
                 </CardTitle>
                 <CardDescription>
-                  {locations.length} location{locations.length !== 1 ? 's' : ''} configured.
+                  {t('settings.locationsConfigured', { count: locations.length })}
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 {locations.length === 0 ? (
                   <div className="text-center py-8">
                     <MapPin className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-                    <p className="text-sm text-muted-foreground">No locations yet</p>
+                    <p className="text-sm text-muted-foreground">{t('settings.noLocationsYet')}</p>
                   </div>
                 ) : (
                   <div className="space-y-3">

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 import { format, parseISO, isToday, isTomorrow, addDays } from 'date-fns'
 import { Calendar, Clock, Users, Phone, Mail, Check, X, ChevronLeft, ChevronRight, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -43,6 +44,7 @@ const SOURCE_ICONS: Record<string, string> = {
 }
 
 export function BookingsPage() {
+  const { t } = useTranslation()
   const { toast } = useToast()
   const [organizations, setOrganizations] = useState<Organization[]>([])
   const [locations, setLocations] = useState<Location[]>([])
@@ -246,8 +248,8 @@ export function BookingsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Bookings</h1>
-          <p className="text-muted-foreground">Manage restaurant reservations</p>
+          <h1 className="text-2xl font-bold">{t('restaurant.bookings.title')}</h1>
+          <p className="text-muted-foreground">{t('restaurant.bookings.subtitle')}</p>
         </div>
         <div className="flex gap-4">
           {locations.length > 1 && (
@@ -265,7 +267,7 @@ export function BookingsPage() {
           )}
           <Button onClick={() => setCreateDialogOpen(true)}>
             <Plus className="h-4 w-4 mr-2" />
-            New Booking
+            {t('restaurant.bookings.newBooking')}
           </Button>
         </div>
       </div>
@@ -276,31 +278,31 @@ export function BookingsPage() {
           <Card>
             <CardContent className="pt-4">
               <div className="text-2xl font-bold">{stats.total}</div>
-              <div className="text-sm text-muted-foreground">Total Bookings</div>
+              <div className="text-sm text-muted-foreground">{t('restaurant.bookings.totalBookings')}</div>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="pt-4">
               <div className="text-2xl font-bold text-yellow-600">{stats.by_status?.pending || 0}</div>
-              <div className="text-sm text-muted-foreground">Pending</div>
+              <div className="text-sm text-muted-foreground">{t('restaurant.bookings.pending')}</div>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="pt-4">
               <div className="text-2xl font-bold text-green-600">{stats.by_status?.confirmed || 0}</div>
-              <div className="text-sm text-muted-foreground">Confirmed</div>
+              <div className="text-sm text-muted-foreground">{t('restaurant.bookings.confirmed')}</div>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="pt-4">
               <div className="text-2xl font-bold text-blue-600">{stats.by_status?.completed || 0}</div>
-              <div className="text-sm text-muted-foreground">Completed</div>
+              <div className="text-sm text-muted-foreground">{t('restaurant.bookings.completed')}</div>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="pt-4">
               <div className="text-2xl font-bold">{stats.total_guests || 0}</div>
-              <div className="text-sm text-muted-foreground">Total Guests</div>
+              <div className="text-sm text-muted-foreground">{t('restaurant.bookings.totalGuests')}</div>
             </CardContent>
           </Card>
         </div>
@@ -309,9 +311,9 @@ export function BookingsPage() {
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
-          <TabsTrigger value="today">Today</TabsTrigger>
-          <TabsTrigger value="upcoming">Upcoming</TabsTrigger>
-          <TabsTrigger value="calendar">Calendar</TabsTrigger>
+          <TabsTrigger value="today">{t('restaurant.bookings.today')}</TabsTrigger>
+          <TabsTrigger value="upcoming">{t('restaurant.bookings.upcoming')}</TabsTrigger>
+          <TabsTrigger value="calendar">{t('restaurant.bookings.calendar')}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="calendar" className="mt-4">
@@ -323,7 +325,7 @@ export function BookingsPage() {
             <Button variant="outline" size="icon" onClick={() => setSelectedDate(d => addDays(d, 1))}>
               <ChevronRight className="h-4 w-4" />
             </Button>
-            <Button variant="outline" onClick={() => setSelectedDate(new Date())}>Today</Button>
+            <Button variant="outline" onClick={() => setSelectedDate(new Date())}>{t('restaurant.bookings.today')}</Button>
           </div>
         </TabsContent>
       </Tabs>
@@ -333,9 +335,9 @@ export function BookingsPage() {
         <Card className="p-8 text-center">Loading bookings...</Card>
       ) : bookings.length === 0 ? (
         <Card className="p-8 text-center">
-          <h3 className="text-lg font-semibold mb-2">No bookings found</h3>
+          <h3 className="text-lg font-semibold mb-2">{t('restaurant.bookings.noBookingsFound')}</h3>
           <p className="text-muted-foreground">
-            {activeTab === 'today' ? "No bookings for today." : "No upcoming bookings."}
+            {activeTab === 'today' ? t('restaurant.bookings.noBookingsToday') : t('restaurant.bookings.noBookingsUpcoming')}
           </p>
         </Card>
       ) : (
@@ -362,7 +364,7 @@ export function BookingsPage() {
                       </div>
                       <div className="flex items-center gap-2">
                         <Users className="h-4 w-4 text-muted-foreground" />
-                        <span>{booking.party_size} guests</span>
+                        <span>{booking.party_size} {t('restaurant.bookings.guests')}</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <Phone className="h-4 w-4 text-muted-foreground" />

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/store/auth'
 import { authApi, organizationsApi } from '@/services/api'
 import { Button } from '@/components/ui/button'
@@ -8,8 +9,10 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { useToast } from '@/hooks/use-toast'
 import { MessageSquare } from 'lucide-react'
+import { LanguageSwitcher } from '@/components/LanguageSwitcher'
 
 export function LoginPage() {
+  const { t } = useTranslation()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
@@ -30,24 +33,35 @@ export function LoginPage() {
       const user = await authApi.getCurrentUser()
       setUser(user)
 
-      // Get organizations and set first one as current
-      const organizations = await organizationsApi.list()
-      if (organizations.length > 0) {
-        setCurrentOrganization(organizations[0])
+      // Get organizations
+      try {
+        const organizations = await organizationsApi.list()
+        if (organizations.length > 0) {
+          setCurrentOrganization(organizations[0])
+          toast({
+            title: t('auth.loginSuccess'),
+            description: t('auth.loginSuccessDescription'),
+          })
+          navigate('/dashboard')
+        } else {
+          // No organizations - redirect to setup
+          toast({
+            title: t('auth.loginSuccess'),
+            description: t('auth.loginSuccessDescription'),
+          })
+          navigate('/setup-organization')
+        }
+      } catch (orgError) {
+        // If org fetch fails, redirect to setup
+        console.error('Error fetching organizations:', orgError)
+        navigate('/setup-organization')
       }
-
-      toast({
-        title: 'Welcome back!',
-        description: 'You have successfully logged in.',
-      })
-
-      navigate('/dashboard')
     } catch (error: unknown) {
       console.error('Login error:', error)
       toast({
         variant: 'destructive',
-        title: 'Login failed',
-        description: 'Invalid email or password. Please try again.',
+        title: t('auth.loginError'),
+        description: t('auth.loginErrorDescription'),
       })
     } finally {
       setLoading(false)
@@ -57,18 +71,21 @@ export function LoginPage() {
   return (
     <Card className="shadow-lg">
       <CardHeader className="text-center">
+        <div className="flex justify-end mb-2">
+          <LanguageSwitcher variant="compact" />
+        </div>
         <div className="flex justify-center mb-4">
           <div className="p-3 bg-primary/10 rounded-full">
             <MessageSquare className="h-8 w-8 text-primary" />
           </div>
         </div>
-        <CardTitle className="text-2xl">Welcome Back</CardTitle>
-        <CardDescription>Sign in to your account to continue</CardDescription>
+        <CardTitle className="text-2xl">{t('auth.welcomeBack')}</CardTitle>
+        <CardDescription>{t('auth.signInDescription')}</CardDescription>
       </CardHeader>
       <form onSubmit={handleSubmit}>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
+            <Label htmlFor="email">{t('auth.email')}</Label>
             <Input
               id="email"
               type="email"
@@ -79,7 +96,7 @@ export function LoginPage() {
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="password">Password</Label>
+            <Label htmlFor="password">{t('auth.password')}</Label>
             <Input
               id="password"
               type="password"
@@ -92,12 +109,12 @@ export function LoginPage() {
         </CardContent>
         <CardFooter className="flex flex-col space-y-4">
           <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? 'Signing in...' : 'Sign In'}
+            {loading ? t('auth.signingIn') : t('auth.signIn')}
           </Button>
           <p className="text-sm text-muted-foreground text-center">
-            Don't have an account?{' '}
+            {t('auth.noAccount')}{' '}
             <Link to="/register" className="text-primary hover:underline">
-              Register
+              {t('auth.register')}
             </Link>
           </p>
         </CardFooter>

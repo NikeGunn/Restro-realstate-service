@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/store/auth'
 import { conversationsApi } from '@/services/api'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -35,6 +36,7 @@ const channelIcons: Record<string, React.ReactNode> = {
 }
 
 export function InboxPage() {
+  const { t } = useTranslation()
   const { currentOrganization } = useAuthStore()
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [loading, setLoading] = useState(true)
@@ -79,7 +81,7 @@ export function InboxPage() {
   if (!currentOrganization) {
     return (
       <div className="text-center py-12">
-        <p className="text-muted-foreground">Please select an organization first.</p>
+        <p className="text-muted-foreground">{t('inbox.selectFirst')}</p>
       </div>
     )
   }
@@ -87,8 +89,8 @@ export function InboxPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">Inbox</h1>
-        <p className="text-muted-foreground">Manage all your customer conversations.</p>
+        <h1 className="text-3xl font-bold">{t('inbox.title')}</h1>
+        <p className="text-muted-foreground">{t('inbox.subtitle')}</p>
       </div>
 
       {/* Filters */}
@@ -96,7 +98,7 @@ export function InboxPage() {
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Search conversations..."
+            placeholder={t('inbox.searchConversations')}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pl-9"
@@ -106,11 +108,11 @@ export function InboxPage() {
 
       <Tabs value={stateFilter} onValueChange={setStateFilter}>
         <TabsList>
-          <TabsTrigger value="all">All</TabsTrigger>
-          <TabsTrigger value="new">New</TabsTrigger>
-          <TabsTrigger value="ai_handling">AI Handling</TabsTrigger>
-          <TabsTrigger value="human_handoff">Human Handoff</TabsTrigger>
-          <TabsTrigger value="resolved">Resolved</TabsTrigger>
+          <TabsTrigger value="all">{t('inbox.all')}</TabsTrigger>
+          <TabsTrigger value="new">{t('inbox.new')}</TabsTrigger>
+          <TabsTrigger value="ai_handling">{t('inbox.aiHandling')}</TabsTrigger>
+          <TabsTrigger value="human_handoff">{t('inbox.humanHandoff')}</TabsTrigger>
+          <TabsTrigger value="resolved">{t('inbox.resolved')}</TabsTrigger>
         </TabsList>
 
         <TabsContent value={stateFilter} className="mt-4">
@@ -122,9 +124,9 @@ export function InboxPage() {
             <Card>
               <CardContent className="flex flex-col items-center justify-center py-12">
                 <MessageSquare className="h-12 w-12 text-muted-foreground mb-4" />
-                <h3 className="text-lg font-medium">No conversations</h3>
+                <h3 className="text-lg font-medium">{t('inbox.noConversations')}</h3>
                 <p className="text-muted-foreground text-sm">
-                  Conversations will appear here when customers start chatting.
+                  {t('inbox.conversationsWillAppear')}
                 </p>
               </CardContent>
             </Card>
@@ -143,7 +145,7 @@ export function InboxPage() {
                             <div className="flex items-center justify-between">
                               <div className="flex items-center gap-2">
                                 <span className="font-medium">
-                                  {conv.customer_name || 'Anonymous'}
+                                  {conv.customer_name || t('inbox.anonymous')}
                                 </span>
                                 {channelIcons[conv.channel]}
                                 {conv.unread_count > 0 && (
@@ -154,11 +156,11 @@ export function InboxPage() {
                                 <Clock className="h-3 w-3" />
                                 {conv.last_message_at
                                   ? formatDistanceToNow(new Date(conv.last_message_at), { addSuffix: true })
-                                  : 'No messages'}
+                                  : t('inbox.noMessages')}
                               </div>
                             </div>
                             <p className="text-sm text-muted-foreground truncate mt-1">
-                              {conv.last_message?.content || 'No messages yet'}
+                              {conv.last_message?.content || t('inbox.noMessagesYet')}
                             </p>
                             <div className="flex items-center gap-2 mt-2">
                               <Badge variant={stateColors[conv.state]}>
@@ -168,7 +170,7 @@ export function InboxPage() {
                                 <Badge variant="outline">{conv.location_name}</Badge>
                               )}
                               {conv.is_locked && (
-                                <Badge variant="warning">Locked</Badge>
+                                <Badge variant="warning">{t('inbox.locked')}</Badge>
                               )}
                             </div>
                           </div>

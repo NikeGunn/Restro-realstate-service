@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Plus, Edit, Trash, ChevronDown, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -35,6 +36,7 @@ const DIETARY_OPTIONS = [
 ]
 
 export function MenuPage() {
+  const { t } = useTranslation()
   const { toast } = useToast()
   const [organizations, setOrganizations] = useState<Organization[]>([])
   const [selectedOrgId, setSelectedOrgId] = useState<string>('')
@@ -254,8 +256,8 @@ export function MenuPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Menu Management</h1>
-          <p className="text-muted-foreground">Manage your restaurant menu categories and items</p>
+          <h1 className="text-2xl font-bold">{t('restaurant.menu.title')}</h1>
+          <p className="text-muted-foreground">{t('restaurant.menu.subtitle')}</p>
         </div>
         <div className="flex gap-4">
           {organizations.length > 1 && (
@@ -272,7 +274,7 @@ export function MenuPage() {
           )}
           <Button onClick={() => openCategoryDialog()}>
             <Plus className="h-4 w-4 mr-2" />
-            Add Category
+            {t('restaurant.menu.addCategory')}
           </Button>
         </div>
       </div>
@@ -282,11 +284,11 @@ export function MenuPage() {
         <Card className="p-8 text-center">Loading menu...</Card>
       ) : categories.length === 0 ? (
         <Card className="p-8 text-center">
-          <h3 className="text-lg font-semibold mb-2">No menu categories yet</h3>
-          <p className="text-muted-foreground mb-4">Start by adding your first category (e.g., Appetizers, Main Course)</p>
+          <h3 className="text-lg font-semibold mb-2">{t('restaurant.menu.noCategoriesYet')}</h3>
+          <p className="text-muted-foreground mb-4">{t('restaurant.menu.startByAdding')}</p>
           <Button onClick={() => openCategoryDialog()}>
             <Plus className="h-4 w-4 mr-2" />
-            Add Your First Category
+            {t('restaurant.menu.addFirstCategory')}
           </Button>
         </Card>
       ) : (
@@ -305,13 +307,13 @@ export function MenuPage() {
                       <ChevronRight className="h-5 w-5" />
                     )}
                     <CardTitle className="text-lg">{category.name}</CardTitle>
-                    <Badge variant="outline">{category.items_count} items</Badge>
+                    <Badge variant="outline">{category.items_count} {t('restaurant.menu.items')}</Badge>
                     {!category.is_active && <Badge variant="secondary">Inactive</Badge>}
                   </div>
                   <div className="flex gap-2">
                     <Button variant="ghost" size="sm" onClick={() => openItemDialog(category.id)}>
                       <Plus className="h-4 w-4 mr-1" />
-                      Add Item
+                      {t('restaurant.menu.addItem')}
                     </Button>
                     <Button variant="ghost" size="icon" onClick={() => openCategoryDialog(category)}>
                       <Edit className="h-4 w-4" />
@@ -330,7 +332,7 @@ export function MenuPage() {
                 <CardContent className="border-t pt-4">
                   {category.items.length === 0 ? (
                     <p className="text-center text-muted-foreground py-4">
-                      No items in this category yet.
+                      {t('restaurant.menu.noItemsYet')}
                     </p>
                   ) : (
                     <div className="space-y-3">
@@ -393,7 +395,7 @@ export function MenuPage() {
       <Dialog open={categoryDialogOpen} onOpenChange={setCategoryDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{editingCategory ? 'Edit Category' : 'Add Category'}</DialogTitle>
+            <DialogTitle>{editingCategory ? t('restaurant.menu.editCategory') : t('restaurant.menu.addCategory')}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
@@ -433,7 +435,7 @@ export function MenuPage() {
       <Dialog open={itemDialogOpen} onOpenChange={setItemDialogOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>{editingItem ? 'Edit Item' : 'Add Item'}</DialogTitle>
+            <DialogTitle>{editingItem ? t('restaurant.menu.editItem') : t('restaurant.menu.addItem')}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">

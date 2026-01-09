@@ -5,6 +5,7 @@ import { AuthLayout } from '@/layouts/AuthLayout'
 import { DashboardLayout } from '@/layouts/DashboardLayout'
 import { LoginPage } from '@/pages/auth/LoginPage'
 import { RegisterPage } from '@/pages/auth/RegisterPage'
+import { OrganizationSetupPage } from '@/pages/auth/OrganizationSetupPage'
 import { DashboardPage } from '@/pages/dashboard/DashboardPage'
 import { InboxPage } from '@/pages/inbox/InboxPage'
 import { ConversationPage } from '@/pages/inbox/ConversationPage'
@@ -27,6 +28,21 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
   if (!tokens?.access) {
     return <Navigate to="/login" replace />
+  }
+
+  return <>{children}</>
+}
+
+function OrganizationRequiredRoute({ children }: { children: React.ReactNode }) {
+  const { tokens, currentOrganization } = useAuthStore()
+
+  if (!tokens?.access) {
+    return <Navigate to="/login" replace />
+  }
+
+  // If no organization is set, redirect to organization setup
+  if (!currentOrganization) {
+    return <Navigate to="/setup-organization" replace />
   }
 
   return <>{children}</>
@@ -56,12 +72,22 @@ function App() {
           <Route path="/register" element={<RegisterPage />} />
         </Route>
 
-        {/* Dashboard Routes */}
+        {/* Organization Setup - requires auth but no org */}
         <Route
+          path="/setup-organization"
           element={
             <ProtectedRoute>
-              <DashboardLayout />
+              <OrganizationSetupPage />
             </ProtectedRoute>
+          }
+        />
+
+        {/* Dashboard Routes - requires both auth and organization */}
+        <Route
+          element={
+            <OrganizationRequiredRoute>
+              <DashboardLayout />
+            </OrganizationRequiredRoute>
           }
         >
           <Route path="/" element={<Navigate to="/dashboard" replace />} />

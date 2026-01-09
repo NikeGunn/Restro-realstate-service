@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 import { format, formatDistanceToNow } from 'date-fns'
 import { User, Phone, Mail, Building2, Star, TrendingUp, Clock, Plus, Edit, MessageSquare, UserCheck, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -66,6 +67,7 @@ const INITIAL_FORM = {
 }
 
 export function LeadsPage() {
+  const { t } = useTranslation()
   const { toast } = useToast()
   const [organizations, setOrganizations] = useState<Organization[]>([])
   const [selectedOrgId, setSelectedOrgId] = useState<string>('')
@@ -249,8 +251,8 @@ export function LeadsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Leads</h1>
-          <p className="text-muted-foreground">Manage potential buyers and renters</p>
+          <h1 className="text-2xl font-bold">{t('realEstate.leads.title')}</h1>
+          <p className="text-muted-foreground">{t('realEstate.leads.subtitle')}</p>
         </div>
         <Button onClick={openCreateDialog}>
           <Plus className="h-4 w-4 mr-2" />

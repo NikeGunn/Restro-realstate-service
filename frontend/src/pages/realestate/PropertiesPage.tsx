@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 import { format } from 'date-fns'
 import { Building2, MapPin, Bed, Bath, Maximize, DollarSign, Plus, Edit, Trash2, Star, Eye, Check } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -73,6 +74,7 @@ const INITIAL_FORM = {
 }
 
 export function PropertiesPage() {
+  const { t } = useTranslation()
   const { toast } = useToast()
   const [organizations, setOrganizations] = useState<Organization[]>([])
   const [selectedOrgId, setSelectedOrgId] = useState<string>('')
@@ -257,8 +259,8 @@ export function PropertiesPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Properties</h1>
-          <p className="text-muted-foreground">Manage property listings</p>
+          <h1 className="text-2xl font-bold">{t('realEstate.properties.title')}</h1>
+          <p className="text-muted-foreground">{t('realEstate.properties.subtitle')}</p>
         </div>
         <Button onClick={openCreateDialog}>
           <Plus className="h-4 w-4 mr-2" />

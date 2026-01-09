@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/store/auth'
 import { analyticsApi } from '@/services/api'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -15,6 +16,7 @@ import {
 import type { AnalyticsOverview, ChannelStats } from '@/types'
 
 export function AnalyticsPage() {
+  const { t } = useTranslation()
   const { currentOrganization } = useAuthStore()
   const [overview, setOverview] = useState<AnalyticsOverview | null>(null)
   const [channelStats, setChannelStats] = useState<ChannelStats[]>([])
@@ -78,9 +80,9 @@ export function AnalyticsPage() {
     <div className="space-y-6">
       <div className="flex justify-between items-start">
         <div>
-          <h1 className="text-3xl font-bold">Analytics</h1>
+          <h1 className="text-3xl font-bold">{t('analytics.title')}</h1>
           <p className="text-muted-foreground">
-            Track your chatbot performance and customer engagement.
+            {t('analytics.subtitle')}
           </p>
         </div>
       </div>
@@ -88,9 +90,9 @@ export function AnalyticsPage() {
       {/* Time Range Tabs */}
       <Tabs value={String(days)} onValueChange={(v) => setDays(Number(v))}>
         <TabsList>
-          <TabsTrigger value="7">Last 7 Days</TabsTrigger>
-          <TabsTrigger value="30">Last 30 Days</TabsTrigger>
-          <TabsTrigger value="90">Last 90 Days</TabsTrigger>
+          <TabsTrigger value="7">{t('analytics.last7Days')}</TabsTrigger>
+          <TabsTrigger value="30">{t('analytics.last30Days')}</TabsTrigger>
+          <TabsTrigger value="90">{t('analytics.last90Days')}</TabsTrigger>
         </TabsList>
       </Tabs>
 
@@ -98,53 +100,53 @@ export function AnalyticsPage() {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Total Conversations</CardTitle>
+            <CardTitle className="text-sm font-medium">{t('analytics.totalConversations')}</CardTitle>
             <MessageSquare className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{overview?.conversations.total || 0}</div>
             <p className="text-xs text-muted-foreground flex items-center gap-1">
               <TrendingUp className="h-3 w-3" />
-              Active: {overview?.conversations.by_state?.ai_handling || 0}
+              {t('analytics.active')}: {overview?.conversations.by_state?.ai_handling || 0}
             </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Total Messages</CardTitle>
+            <CardTitle className="text-sm font-medium">{t('analytics.totalMessages')}</CardTitle>
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{overview?.messages.total || 0}</div>
             <p className="text-xs text-muted-foreground">
-              {overview?.messages.customer || 0} from customers
+              {overview?.messages.customer || 0} {t('analytics.fromCustomers')}
             </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">AI Handle Rate</CardTitle>
+            <CardTitle className="text-sm font-medium">{t('analytics.aiHandleRate')}</CardTitle>
             <Bot className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{aiHandleRate}%</div>
             <p className="text-xs text-muted-foreground">
-              {overview?.messages.ai || 0} AI responses
+              {overview?.messages.ai || 0} {t('analytics.aiResponses')}
             </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Handoff Resolution</CardTitle>
+            <CardTitle className="text-sm font-medium">{t('analytics.handoffResolution')}</CardTitle>
             <AlertTriangle className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{resolutionRate}%</div>
             <p className="text-xs text-muted-foreground">
-              {overview?.handoffs.resolved || 0} of {overview?.handoffs.total || 0} resolved
+              {overview?.handoffs.resolved || 0} {t('analytics.of')} {overview?.handoffs.total || 0} {t('analytics.resolved')}
             </p>
           </CardContent>
         </Card>
@@ -155,8 +157,8 @@ export function AnalyticsPage() {
         {/* Conversation States */}
         <Card>
           <CardHeader>
-            <CardTitle>Conversation States</CardTitle>
-            <CardDescription>Current distribution of conversations</CardDescription>
+            <CardTitle>{t('analytics.conversationStates')}</CardTitle>
+            <CardDescription>{t('analytics.conversationStatesDescription')}</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
@@ -182,7 +184,7 @@ export function AnalyticsPage() {
               })}
               {Object.keys(overview?.conversations.by_state || {}).length === 0 && (
                 <p className="text-sm text-muted-foreground text-center py-4">
-                  No conversation data yet
+                  {t('analytics.noConversationData')}
                 </p>
               )}
             </div>
@@ -192,14 +194,14 @@ export function AnalyticsPage() {
         {/* Channel Stats */}
         <Card>
           <CardHeader>
-            <CardTitle>Channel Performance</CardTitle>
-            <CardDescription>Messages by channel</CardDescription>
+            <CardTitle>{t('analytics.channelPerformance')}</CardTitle>
+            <CardDescription>{t('analytics.channelPerformanceDescription')}</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
               {channelStats.length === 0 ? (
                 <p className="text-sm text-muted-foreground text-center py-4">
-                  No channel data yet
+                  {t('analytics.noChannelData')}
                 </p>
               ) : (
                 channelStats.map((channel) => (
@@ -212,13 +214,13 @@ export function AnalyticsPage() {
                       <div>
                         <p className="font-medium capitalize">{channel.channel}</p>
                         <p className="text-xs text-muted-foreground">
-                          {channel.conversations} conversations
+                          {channel.conversations} {t('analytics.conversations')}
                         </p>
                       </div>
                     </div>
                     <div className="text-right">
                       <p className="font-bold">{channel.messages}</p>
-                      <p className="text-xs text-muted-foreground">messages</p>
+                      <p className="text-xs text-muted-foreground">{t('analytics.messages')}</p>
                     </div>
                   </div>
                 ))
@@ -230,29 +232,29 @@ export function AnalyticsPage() {
         {/* Message Types */}
         <Card>
           <CardHeader>
-            <CardTitle>Message Distribution</CardTitle>
-            <CardDescription>By sender type</CardDescription>
+            <CardTitle>{t('analytics.messageDistribution')}</CardTitle>
+            <CardDescription>{t('analytics.messageDistributionDescription')}</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Users className="h-4 w-4 text-blue-500" />
-                  <span>Customer</span>
+                  <span>{t('analytics.customer')}</span>
                 </div>
                 <span className="font-bold">{overview?.messages.customer || 0}</span>
               </div>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Bot className="h-4 w-4 text-green-500" />
-                  <span>AI</span>
+                  <span>{t('analytics.ai')}</span>
                 </div>
                 <span className="font-bold">{overview?.messages.ai || 0}</span>
               </div>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Users className="h-4 w-4 text-purple-500" />
-                  <span>Human Agent</span>
+                  <span>{t('analytics.humanAgent')}</span>
                 </div>
                 <span className="font-bold">{overview?.messages.human || 0}</span>
               </div>
@@ -263,23 +265,23 @@ export function AnalyticsPage() {
         {/* Handoffs */}
         <Card>
           <CardHeader>
-            <CardTitle>Handoff Summary</CardTitle>
-            <CardDescription>Human escalation metrics</CardDescription>
+            <CardTitle>{t('analytics.handoffSummary')}</CardTitle>
+            <CardDescription>{t('analytics.handoffSummaryDescription')}</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <span>Total Handoffs</span>
+                <span>{t('analytics.totalHandoffs')}</span>
                 <span className="font-bold">{overview?.handoffs.total || 0}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span>Resolved</span>
+                <span>{t('analytics.resolved')}</span>
                 <span className="font-bold text-green-600">
                   {overview?.handoffs.resolved || 0}
                 </span>
               </div>
               <div className="flex items-center justify-between">
-                <span>Pending</span>
+                <span>{t('analytics.pending')}</span>
                 <span className="font-bold text-yellow-600">
                   {overview?.handoffs.pending || 0}
                 </span>
@@ -287,7 +289,7 @@ export function AnalyticsPage() {
               {overview?.handoffs.total > 0 && (
                 <div className="pt-2 border-t">
                   <p className="text-sm text-muted-foreground">
-                    {resolutionRate}% of handoffs have been resolved
+                    {resolutionRate}% {t('analytics.handoffsResolved')}
                   </p>
                 </div>
               )}

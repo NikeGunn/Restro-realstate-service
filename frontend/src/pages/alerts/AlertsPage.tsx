@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/store/auth'
 import { alertsApi } from '@/services/api'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -35,6 +36,7 @@ const typeIcons: Record<string, React.ReactNode> = {
 }
 
 export function AlertsPage() {
+  const { t } = useTranslation()
   const { currentOrganization } = useAuthStore()
   const [alerts, setAlerts] = useState<HandoffAlert[]>([])
   const [loading, setLoading] = useState(true)
@@ -70,15 +72,15 @@ export function AlertsPage() {
       await alertsApi.acknowledge(alertId)
       await fetchAlerts()
       toast({
-        title: 'Alert acknowledged',
-        description: 'You are now handling this conversation.',
+        title: t('alerts.alertAcknowledged'),
+        description: t('alerts.alertAcknowledgedDesc'),
       })
     } catch (error) {
       console.error('Error acknowledging alert:', error)
       toast({
         variant: 'destructive',
-        title: 'Error',
-        description: 'Failed to acknowledge alert.',
+        title: t('common.error'),
+        description: t('alerts.acknowledgeError'),
       })
     }
   }
@@ -88,15 +90,15 @@ export function AlertsPage() {
       await alertsApi.resolve(alertId)
       await fetchAlerts()
       toast({
-        title: 'Alert resolved',
-        description: 'The handoff has been completed.',
+        title: t('alerts.alertResolved'),
+        description: t('alerts.alertResolvedDesc'),
       })
     } catch (error) {
       console.error('Error resolving alert:', error)
       toast({
         variant: 'destructive',
-        title: 'Error',
-        description: 'Failed to resolve alert.',
+        title: t('common.error'),
+        description: t('alerts.resolveError'),
       })
     }
   }
@@ -104,7 +106,7 @@ export function AlertsPage() {
   if (!currentOrganization) {
     return (
       <div className="text-center py-12">
-        <p className="text-muted-foreground">Please select an organization first.</p>
+        <p className="text-muted-foreground">{t('alerts.selectFirst')}</p>
       </div>
     )
   }
@@ -112,18 +114,18 @@ export function AlertsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">Alerts</h1>
+        <h1 className="text-3xl font-bold">{t('alerts.title')}</h1>
         <p className="text-muted-foreground">
-          Human handoff requests and notifications.
+          {t('alerts.subtitle')}
         </p>
       </div>
 
       <Tabs value={statusFilter} onValueChange={setStatusFilter}>
         <TabsList>
-          <TabsTrigger value="pending">Pending</TabsTrigger>
-          <TabsTrigger value="acknowledged">Acknowledged</TabsTrigger>
-          <TabsTrigger value="resolved">Resolved</TabsTrigger>
-          <TabsTrigger value="all">All</TabsTrigger>
+          <TabsTrigger value="pending">{t('alerts.pending')}</TabsTrigger>
+          <TabsTrigger value="acknowledged">{t('alerts.acknowledged')}</TabsTrigger>
+          <TabsTrigger value="resolved">{t('alerts.resolved')}</TabsTrigger>
+          <TabsTrigger value="all">{t('alerts.all')}</TabsTrigger>
         </TabsList>
 
         <TabsContent value={statusFilter} className="mt-4">
@@ -135,11 +137,11 @@ export function AlertsPage() {
             <Card>
               <CardContent className="flex flex-col items-center justify-center py-12">
                 <Bell className="h-12 w-12 text-muted-foreground mb-4" />
-                <h3 className="text-lg font-medium">No alerts</h3>
+                <h3 className="text-lg font-medium">{t('alerts.noAlerts')}</h3>
                 <p className="text-muted-foreground text-sm">
                   {statusFilter === 'pending'
-                    ? 'All caught up! No pending handoff requests.'
-                    : 'No alerts match this filter.'}
+                    ? t('alerts.noPendingHandoffs')
+                    : t('alerts.noAlertsFilter')}
                 </p>
               </CardContent>
             </Card>
@@ -164,7 +166,7 @@ export function AlertsPage() {
                           <div>
                             <div className="flex items-center gap-2">
                               <h3 className="font-medium">
-                                {alert.conversation_customer_name || 'Anonymous Customer'}
+                                {alert.conversation_customer_name || t('alerts.anonymousCustomer')}
                               </h3>
                               <Badge variant={priorityColors[alert.priority]}>
                                 {alert.priority}
@@ -189,7 +191,7 @@ export function AlertsPage() {
                                 })}
                               </span>
                               {alert.acknowledged_by_name && (
-                                <span>Acknowledged by {alert.acknowledged_by_name}</span>
+                                <span>{t('alerts.acknowledgedBy')} {alert.acknowledged_by_name}</span>
                               )}
                             </div>
                           </div>
@@ -198,7 +200,7 @@ export function AlertsPage() {
                           <Link to={`/inbox/${alert.conversation}`}>
                             <Button variant="outline" size="sm">
                               <ExternalLink className="h-4 w-4 mr-2" />
-                              View Chat
+                              {t('alerts.viewChat')}
                             </Button>
                           </Link>
                           {alert.status === 'pending' && (
@@ -207,7 +209,7 @@ export function AlertsPage() {
                               onClick={() => handleAcknowledge(alert.id)}
                             >
                               <CheckCircle className="h-4 w-4 mr-2" />
-                              Acknowledge
+                              {t('alerts.acknowledge')}
                             </Button>
                           )}
                           {alert.status === 'acknowledged' && (
@@ -217,7 +219,7 @@ export function AlertsPage() {
                               onClick={() => handleResolve(alert.id)}
                             >
                               <CheckCircle className="h-4 w-4 mr-2" />
-                              Resolve
+                              {t('alerts.resolve')}
                             </Button>
                           )}
                         </div>
