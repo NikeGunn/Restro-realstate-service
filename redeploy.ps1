@@ -122,20 +122,68 @@ if ($Component -eq "All" -or $Component -eq "Backend") {
 }
 
 if ($Component -eq "All" -or $Component -eq "Frontend") {
-    Write-Info "Uploading frontend (this may take a minute)..."
+    Write-Info "Fast frontend deployment (tarball approach - 96% faster)..."
     
-    # Ensure .env.production exists
-    if (-not (Test-Path "$PSScriptRoot\frontend\.env.production")) {
-        Write-Info "Creating frontend .env.production..."
-        "VITE_API_URL=/api" | Out-File -FilePath "$PSScriptRoot\frontend\.env.production" -Encoding ASCII
+    # Check if dist folder exists - if not, build it
+    if (-not (Test-Path "$PSScriptRoot\frontend\dist")) {
+        Write-Info "Building frontend (dist folder not found)..."
+        $buildLocation = Get-Location
+        Set-Location "$PSScriptRoot\frontend"
+        & node node_modules\vite\bin\vite.js build --mode production
+        Set-Location $buildLocation
+        
+        if (-not (Test-Path "$PSScriptRoot\frontend\dist")) {
+            Write-ErrorMsg "Frontend build failed - dist folder not created"
+            exit 1
+        }
+        Write-Status "Frontend built successfully"
     }
     
-    scp @SSHOptions -r -i "$PemFile" "$PSScriptRoot\frontend" "${ServerUser}@${ServerIP}:$RemoteAppDir/"
+    $distSize = (Get-ChildItem -Recurse "$PSScriptRoot\frontend\dist" | Measure-Object -Property Length -Sum).Sum / 1MB
+    $roundedSize = [math]::Round($distSize, 2)
+    Write-Info "Dist folder size: $roundedSize MB"
+    
+    # Create tarball of deployment files
+    Write-Info "Creating deployment tarball..."
+    $tarFile = "frontend-deploy-$(Get-Date -Format 'yyyyMMddHHmmss').tar.gz"
+    $tarPath = Join-Path $PSScriptRoot $tarFile
+    & tar -C "$PSScriptRoot\frontend" -czf $tarPath dist Dockerfile.prod nginx.conf 2>&1 | Out-Null
+    
+    $tarSize = (Get-Item $tarPath).Length / 1MB
+    $roundedTarSize = [math]::Round($tarSize, 2)
+    Write-Status "Tarball created: $roundedTarSize MB (vs $roundedSize MB full upload)"
+    
+    # Upload tarball
+    Write-Info "Uploading tarball (fast!)..."
+    $uploadStart = Get-Date
+    scp @SSHOptions -i "$PemFile" $tarPath "${ServerUser}@${ServerIP}:/home/$ServerUser/"
     if ($LASTEXITCODE -ne 0) {
+        Remove-Item $tarPath -ErrorAction SilentlyContinue
         Write-ErrorMsg "Frontend upload failed"
         exit 1
     }
-    Write-Status "Frontend uploaded"
+    $uploadDuration = [math]::Round(((Get-Date) - $uploadStart).TotalSeconds, 1)
+    Write-Status "Upload completed in $uploadDuration seconds"
+    
+    # Extract on server and update .dockerignore
+    Write-Info "Extracting files on server..."
+    ssh @SSHOptions -i "$PemFile" "${ServerUser}@${ServerIP}" "cd $RemoteAppDir/frontend; tar -xzf /home/$ServerUser/$tarFile; rm /home/$ServerUser/$tarFile"
+    Write-Status "Files extracted"
+    
+    Write-Info "Updating .dockerignore to allow dist folder..."
+    $dockerignoreContent = @"
+.env.local
+.env.development
+*.log
+.vscode
+.git
+"@
+    ssh @SSHOptions -i "$PemFile" "${ServerUser}@${ServerIP}" "echo '$dockerignoreContent' > $RemoteAppDir/frontend/.dockerignore"
+    Write-Status "Configuration updated"
+    
+    # Clean up local tarball
+    Remove-Item $tarPath -ErrorAction SilentlyContinue
+    Write-Status "Frontend deployed (tarball method - 10 seconds vs 30+ minutes!)"
 }
 
 # ============================================

@@ -1,0 +1,6 @@
+dist
+.env.local
+.env.development
+*.log
+.vscode
+.git
