@@ -8,7 +8,7 @@ $SERVER_USER = "ubuntu"
 $PEM_FILE = "$PSScriptRoot\..\Kribaat.pem"
 
 # Domain Configuration (leave empty if no domain, will use IP)
-$DOMAIN_NAME = ""
+$DOMAIN_NAME = "kribaat.com"
 
 # Application Ports
 $FRONTEND_PORT = 3000
@@ -27,7 +27,7 @@ $REMOTE_DEPLOY_DIR = "/home/$SERVER_USER/$APP_NAME/deploy"
 $ENVIRONMENT = "production"
 
 # SSL (set to $true if you have a domain and want SSL)
-$ENABLE_SSL = $false
+$ENABLE_SSL = $true
 
 # Database Configuration
 $POSTGRES_DB = "chatplatform"

@@ -187,8 +187,10 @@ Write-Host "Redeployment Completed Successfully!" -ForegroundColor Green
 Write-Host "==========================================" -ForegroundColor Green
 Write-Host ""
 Write-Host "Your application is live at:" -ForegroundColor Cyan
-Write-Host "  http://$ServerIP" -ForegroundColor White
+Write-Host "  [HTTPS] https://kribaat.com" -ForegroundColor White
+Write-Host "  [HTTPS] https://www.kribaat.com" -ForegroundColor White
+Write-Host "  OR http://$ServerIP (if DNS not configured)" -ForegroundColor Gray
 Write-Host ""
 Write-Host "View logs:" -ForegroundColor Cyan
-Write-Host "  ssh -i ""$PemFile"" $ServerUser@$ServerIP ""cd $RemoteAppDir && sudo docker compose -f docker-compose.prod.yml logs -f $services""" -ForegroundColor Gray
+Write-Host "  ssh -i `"$PemFile`" $ServerUser@$ServerIP `"cd $RemoteAppDir ; sudo docker compose -f docker-compose.prod.yml logs -f $services`"" -ForegroundColor Gray
 Write-Host ""

@@ -159,6 +159,12 @@ CORS_ALLOW_CREDENTIALS = True
 # Allow all origins for widget (since it's embedded on customer websites)
 CORS_ALLOW_ALL_ORIGINS = config('CORS_ALLOW_ALL_ORIGINS', default=True, cast=bool)
 
+# CSRF Settings for HTTPS
+CSRF_TRUSTED_ORIGINS = config(
+    'CSRF_TRUSTED_ORIGINS',
+    default='https://kribaat.com,https://www.kribaat.com,http://localhost:3000,http://127.0.0.1:3000'
+).split(',')
+
 # Celery Configuration
 CELERY_BROKER_URL = config('REDIS_URL', default='redis://localhost:6379/0')
 CELERY_RESULT_BACKEND = 'django-db'
