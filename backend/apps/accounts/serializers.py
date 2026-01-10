@@ -44,21 +44,7 @@ class UserCreateSerializer(serializers.ModelSerializer):
             phone=validated_data.get('phone', '')
         )
         
-        # Auto-create organization for new user
-        default_org_name = f"{user.first_name or user.username}'s Business"
-        organization = Organization.objects.create(
-            name=default_org_name,
-            email=user.email,
-            phone=user.phone,
-            business_type='restaurant',  # Default to restaurant, user can change later
-        )
-        
-        # Create membership linking user to organization
-        OrganizationMembership.objects.create(
-            user=user,
-            organization=organization,
-            role='owner'
-        )
+        # Don't auto-create organization - let user choose business type in setup flow
         
         return user
 

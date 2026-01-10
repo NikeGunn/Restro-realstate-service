@@ -52,29 +52,13 @@ export function RegisterPage() {
       setUser(response.user)
       setTokens(response.tokens)
 
-      // Fetch organizations to check if user has any
-      try {
-        const organizations = await organizationsApi.list()
-        if (organizations.length > 0) {
-          setCurrentOrganization(organizations[0])
-          toast({
-            title: t('auth.registerSuccess'),
-            description: t('auth.registerSuccessDescription'),
-          })
-          navigate('/dashboard')
-        } else {
-          // No organizations - redirect to setup
-          toast({
-            title: t('auth.registerSuccess'),
-            description: t('auth.registerSuccessDescription'),
-          })
-          navigate('/setup-organization')
-        }
-      } catch (orgError) {
-        // If org fetch fails, still redirect to setup
-        console.error('Error fetching organizations:', orgError)
-        navigate('/setup-organization')
-      }
+      // After successful registration, always redirect to organization setup
+      // User needs to choose business type (restaurant or real estate)
+      toast({
+        title: t('auth.registerSuccess'),
+        description: t('auth.registerSuccessDescription'),
+      })
+      navigate('/setup-organization')
     } catch (error: unknown) {
       console.error('Registration error:', error)
       toast({
@@ -173,7 +157,7 @@ export function RegisterPage() {
               value={formData.password_confirm}
               onChange={handleChange}
               required
-            />C:\Users\Nautilus\Desktop\RESTRO\Restro & real estate\frontend\src\pages
+            />
           </div>
         </CardContent>
         <CardFooter className="flex flex-col space-y-4">
