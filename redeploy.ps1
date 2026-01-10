@@ -5,10 +5,19 @@
 
 .DESCRIPTION
     This script updates your deployed application with code changes:
-    1. Uploads updated backend/frontend code
+    1. Uploads updated backend/frontend code (using smart tarball method)
     2. Rebuilds only changed containers
     3. Restarts services
     4. NO server setup (faster)
+    
+    OPTIMIZATIONS:
+    - Backend: Tarball upload (~15 seconds vs 2-3 minutes)
+      • Excludes: __pycache__, .pyc, .pyo, celerybeat-schedule, staticfiles
+      • Only uploads source code and essential files
+    
+    - Frontend: Dist tarball upload (~10 seconds vs 30+ minutes)
+      • Pre-built dist folder compressed and uploaded
+      • Skips uploading node_modules entirely
 
 .PARAMETER ServerIP
     The IP address of the target server
@@ -112,24 +121,78 @@ Write-Host ""
 Write-Host "Uploading updated code..." -ForegroundColor Yellow
 
 if ($Component -eq "All" -or $Component -eq "Backend") {
-    Write-Info "Uploading backend (this may take a minute)..."
-    scp @SSHOptions -r -i "$PemFile" "$PSScriptRoot\backend" "${ServerUser}@${ServerIP}:$RemoteAppDir/"
+    Write-Info "Smart backend deployment (tarball approach - much faster!)..."
+    
+    # Create tarball of backend files (exclude unnecessary files)
+    Write-Info "Creating backend tarball (excluding cache/temp files)..."
+    $backendTarFile = "backend-deploy-$(Get-Date -Format 'yyyyMMddHHmmss').tar.gz"
+    $backendTarPath = Join-Path $PSScriptRoot $backendTarFile
+    
+    # Exclude patterns: __pycache__, .pyc, .pyo, celerybeat-schedule, .env, db.sqlite3, staticfiles cache
+    & tar -C "$PSScriptRoot" -czf $backendTarPath `
+        --exclude='__pycache__' `
+        --exclude='*.pyc' `
+        --exclude='*.pyo' `
+        --exclude='celerybeat-schedule' `
+        --exclude='db.sqlite3' `
+        --exclude='.env' `
+        --exclude='*.log' `
+        --exclude='staticfiles' `
+        backend 2>&1 | Out-Null
+    
+    if (-not (Test-Path $backendTarPath)) {
+        Write-ErrorMsg "Failed to create backend tarball"
+        exit 1
+    }
+    
+    $backendTarSize = (Get-Item $backendTarPath).Length / 1MB
+    $roundedBackendTarSize = [math]::Round($backendTarSize, 2)
+    Write-Status "Backend tarball created: $roundedBackendTarSize MB"
+    
+    # Upload tarball
+    Write-Info "Uploading backend tarball (fast!)..."
+    $uploadStart = Get-Date
+    scp @SSHOptions -i "$PemFile" $backendTarPath "${ServerUser}@${ServerIP}:/home/$ServerUser/"
     if ($LASTEXITCODE -ne 0) {
+        Remove-Item $backendTarPath -ErrorAction SilentlyContinue
         Write-ErrorMsg "Backend upload failed"
         exit 1
     }
-    Write-Status "Backend uploaded"
+    $uploadDuration = [math]::Round(((Get-Date) - $uploadStart).TotalSeconds, 1)
+    Write-Status "Backend uploaded in $uploadDuration seconds (tarball method)"
+    
+    # Extract on server
+    Write-Info "Extracting backend files on server..."
+    ssh @SSHOptions -i "$PemFile" "${ServerUser}@${ServerIP}" "cd $RemoteAppDir; rm -rf backend; tar -xzf /home/$ServerUser/$backendTarFile; rm /home/$ServerUser/$backendTarFile"
+    if ($LASTEXITCODE -ne 0) {
+        Remove-Item $backendTarPath -ErrorAction SilentlyContinue
+        Write-ErrorMsg "Failed to extract backend on server"
+        exit 1
+    }
+    Write-Status "Backend files extracted"
+    
+    # Clean up local tarball
+    Remove-Item $backendTarPath -ErrorAction SilentlyContinue
+    Write-Status "Backend deployed (tarball method - 10-15 seconds vs several minutes!)"
 }
 
 if ($Component -eq "All" -or $Component -eq "Frontend") {
-    Write-Info "Fast frontend deployment (tarball approach - 96% faster)..."
+    Write-Info "Smart frontend deployment (pre-built dist folder)..."
     
     # Check if dist folder exists - if not, build it
     if (-not (Test-Path "$PSScriptRoot\frontend\dist")) {
         Write-Info "Building frontend (dist folder not found)..."
         $buildLocation = Get-Location
         Set-Location "$PSScriptRoot\frontend"
-        & node node_modules\vite\bin\vite.js build --mode production
+        
+        # Install dependencies if node_modules is missing
+        if (-not (Test-Path "node_modules")) {
+            Write-Info "Installing frontend dependencies..."
+            npm install
+        }
+        
+        # Build for production
+        npm run build
         Set-Location $buildLocation
         
         if (-not (Test-Path "$PSScriptRoot\frontend\dist")) {
@@ -137,21 +200,47 @@ if ($Component -eq "All" -or $Component -eq "Frontend") {
             exit 1
         }
         Write-Status "Frontend built successfully"
+    } else {
+        $distFolder = Get-Item "$PSScriptRoot\frontend\dist"
+        $lastBuildTime = $distFolder.LastWriteTime.ToString('yyyy-MM-dd HH:mm:ss')
+        Write-Info "Using existing dist folder (built $lastBuildTime)"
+        Write-Host "   💡 To rebuild: " -NoNewline -ForegroundColor Yellow
+        Write-Host "cd frontend && npm run build" -ForegroundColor Gray
     }
     
     $distSize = (Get-ChildItem -Recurse "$PSScriptRoot\frontend\dist" | Measure-Object -Property Length -Sum).Sum / 1MB
     $roundedSize = [math]::Round($distSize, 2)
     Write-Info "Dist folder size: $roundedSize MB"
     
+    # Ensure .dockerignore allows dist folder for production
+    Write-Info "Updating .dockerignore to include dist folder..."
+    $dockerignoreContent = @"
+# Build artifacts excluded during development
+# For production deployment, dist/ is needed and included
+node_modules
+.env.local
+.env.development
+*.log
+.vscode
+.git
+"@
+    $dockerignoreContent | Out-File -FilePath "$PSScriptRoot\frontend\.dockerignore" -Encoding UTF8 -NoNewline
+    Write-Status ".dockerignore updated for production"
+    
     # Create tarball of deployment files
     Write-Info "Creating deployment tarball..."
     $tarFile = "frontend-deploy-$(Get-Date -Format 'yyyyMMddHHmmss').tar.gz"
     $tarPath = Join-Path $PSScriptRoot $tarFile
-    & tar -C "$PSScriptRoot\frontend" -czf $tarPath dist Dockerfile.prod nginx.conf 2>&1 | Out-Null
+    & tar -C "$PSScriptRoot\frontend" -czf $tarPath dist Dockerfile.prod nginx.conf .dockerignore 2>&1 | Out-Null
+    
+    if (-not (Test-Path $tarPath)) {
+        Write-ErrorMsg "Failed to create frontend tarball"
+        exit 1
+    }
     
     $tarSize = (Get-Item $tarPath).Length / 1MB
     $roundedTarSize = [math]::Round($tarSize, 2)
-    Write-Status "Tarball created: $roundedTarSize MB (vs $roundedSize MB full upload)"
+    Write-Status "Tarball created: $roundedTarSize MB (includes dist folder)"
     
     # Upload tarball
     Write-Info "Uploading tarball (fast!)..."
@@ -165,25 +254,19 @@ if ($Component -eq "All" -or $Component -eq "Frontend") {
     $uploadDuration = [math]::Round(((Get-Date) - $uploadStart).TotalSeconds, 1)
     Write-Status "Upload completed in $uploadDuration seconds"
     
-    # Extract on server and update .dockerignore
+    # Extract on server
     Write-Info "Extracting files on server..."
     ssh @SSHOptions -i "$PemFile" "${ServerUser}@${ServerIP}" "cd $RemoteAppDir/frontend; tar -xzf /home/$ServerUser/$tarFile; rm /home/$ServerUser/$tarFile"
+    if ($LASTEXITCODE -ne 0) {
+        Remove-Item $tarPath -ErrorAction SilentlyContinue
+        Write-ErrorMsg "Failed to extract frontend on server"
+        exit 1
+    }
     Write-Status "Files extracted"
-    
-    Write-Info "Updating .dockerignore to allow dist folder..."
-    $dockerignoreContent = @"
-.env.local
-.env.development
-*.log
-.vscode
-.git
-"@
-    ssh @SSHOptions -i "$PemFile" "${ServerUser}@${ServerIP}" "echo '$dockerignoreContent' > $RemoteAppDir/frontend/.dockerignore"
-    Write-Status "Configuration updated"
     
     # Clean up local tarball
     Remove-Item $tarPath -ErrorAction SilentlyContinue
-    Write-Status "Frontend deployed (tarball method - 10 seconds vs 30+ minutes!)"
+    Write-Status "Frontend deployed (includes pre-built dist folder)"
 }
 
 # ============================================

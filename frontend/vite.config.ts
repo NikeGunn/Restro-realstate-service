@@ -14,4 +14,15 @@ export default defineConfig({
     port: 3000,
     host: true,
   },
+  build: {
+    sourcemap: false, // Disable sourcemaps in production to prevent file paths from showing
+    minify: 'esbuild',
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ['react', 'react-dom', 'react-router-dom'],
+        },
+      },
+    },
+  },
 })

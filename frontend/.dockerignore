@@ -1,4 +1,6 @@
-dist
+﻿# Build artifacts excluded during development
+# For production deployment, dist/ is needed and included
+node_modules
 .env.local
 .env.development
 *.log
