@@ -151,13 +151,20 @@ SIMPLE_JWT = {
 }
 
 # CORS Settings
-CORS_ALLOWED_ORIGINS = config(
-    'CORS_ALLOWED_ORIGINS',
-    default='http://localhost:3000,http://127.0.0.1:3000,http://localhost:8080,http://127.0.0.1:8080'
-).split(',')
-CORS_ALLOW_CREDENTIALS = True
 # Allow all origins for widget (since it's embedded on customer websites)
 CORS_ALLOW_ALL_ORIGINS = config('CORS_ALLOW_ALL_ORIGINS', default=True, cast=bool)
+
+# If not allowing all origins, use specific origins list
+if not CORS_ALLOW_ALL_ORIGINS:
+    CORS_ALLOWED_ORIGINS = config(
+        'CORS_ALLOWED_ORIGINS',
+        default='http://localhost:3000,http://127.0.0.1:3000,http://localhost:8080,http://127.0.0.1:8080,https://kribaat.com,https://www.kribaat.com'
+    ).split(',')
+else:
+    CORS_ALLOWED_ORIGINS = []
+
+# Don't use credentials with wildcard origin (causes CORS error)
+CORS_ALLOW_CREDENTIALS = False
 
 # CSRF Settings for HTTPS
 CSRF_TRUSTED_ORIGINS = config(

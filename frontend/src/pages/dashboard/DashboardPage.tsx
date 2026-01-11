@@ -82,10 +82,23 @@ export function DashboardPage() {
     }
   }
 
+  // Generate widget embed code based on environment
+  const getWidgetBaseUrl = () => {
+    // In production, use the API URL or default to kribaat.com
+    const apiUrl = import.meta.env.VITE_API_URL || '';
+    if (apiUrl && !apiUrl.includes('localhost')) {
+      // Extract base URL from API URL (e.g., https://kribaat.com/api -> https://kribaat.com)
+      return apiUrl.replace(/\/api$/, '');
+    }
+    // Fallback for development
+    return 'http://localhost:8000';
+  }
+
   const copyWidgetCode = () => {
     if (!currentOrganization) return
 
-    const code = `<script src="http://localhost:8000/api/v1/widget/widget.js" data-widget-key="${currentOrganization.widget_key}"></script>`
+    const baseUrl = getWidgetBaseUrl();
+    const code = `<script src="${baseUrl}/api/v1/widget/widget.js" data-widget-key="${currentOrganization.widget_key}"></script>`
     navigator.clipboard.writeText(code)
 
     toast({
@@ -234,7 +247,7 @@ export function DashboardPage() {
         </CardHeader>
         <CardContent>
           <div className="bg-muted p-4 rounded-lg font-mono text-sm overflow-x-auto">
-            {`<script src="http://localhost:8000/api/v1/widget/widget.js" data-widget-key="${currentOrganization.widget_key}"></script>`}
+            {`<script src="${getWidgetBaseUrl()}/api/v1/widget/widget.js" data-widget-key="${currentOrganization.widget_key}"></script>`}
           </div>
           <Button onClick={copyWidgetCode} className="mt-4" variant="outline">
             <Copy className="h-4 w-4 mr-2" />

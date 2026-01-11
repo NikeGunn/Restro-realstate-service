@@ -82,7 +82,7 @@ export function ChannelsPage() {
     verify_token: '',
   })
 
-  // Check if organization has Power plan
+  // Check if organization has Power plan (only needed for Instagram)
   const isPowerPlan = currentOrganization?.plan === 'power'
 
   // Refresh organization data on mount to get latest plan
@@ -265,9 +265,15 @@ export function ChannelsPage() {
   }
 
   const getWebhookUrl = (type: 'whatsapp' | 'instagram') => {
-    // For production/ngrok, use VITE_WEBHOOK_URL if set, otherwise fallback to API URL
-    const webhookBase = import.meta.env.VITE_WEBHOOK_URL || import.meta.env.VITE_API_URL || 'http://localhost:8000/api'
-    return `${webhookBase.replace('/api', '')}/api/webhooks/${type}/`
+    // Use API URL from environment, fallback to kribaat.com for production
+    const apiUrl = import.meta.env.VITE_API_URL || '';
+    if (apiUrl && !apiUrl.includes('localhost')) {
+      // Production: extract base URL and build webhook URL
+      const baseUrl = apiUrl.replace(/\/api$/, '');
+      return `${baseUrl}/api/webhooks/${type}/`;
+    }
+    // Development fallback
+    return `http://localhost:8000/api/webhooks/${type}/`;
   }
 
   const isLocalhost = getWebhookUrl('whatsapp').includes('localhost')
@@ -280,59 +286,8 @@ export function ChannelsPage() {
     )
   }
 
-  // Power Plan Gate
-  if (!isPowerPlan) {
-    return (
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold">{t('channels.title')}</h1>
-          <p className="text-muted-foreground">
-            {t('channels.subtitle')}
-          </p>
-        </div>
-
-        <Card className="border-amber-200 bg-amber-50">
-          <CardContent className="pt-6">
-            <div className="flex items-start gap-4">
-              <div className="p-3 bg-amber-100 rounded-full">
-                <Crown className="h-8 w-8 text-amber-600" />
-              </div>
-              <div className="flex-1">
-                <h3 className="text-lg font-semibold text-amber-900">Power Plan Required</h3>
-                <p className="text-amber-800 mt-1">
-                  WhatsApp and Instagram integrations are available on the Power plan.
-                  Contact your administrator to upgrade your organization.
-                </p>
-                <div className="mt-4 space-y-2">
-                  <p className="text-sm font-medium text-amber-900">Power Plan includes:</p>
-                  <ul className="text-sm text-amber-800 space-y-1">
-                    <li className="flex items-center gap-2">
-                      <CheckCircle2 className="h-4 w-4" /> WhatsApp Business API integration (FREE from Meta)
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <CheckCircle2 className="h-4 w-4" /> Instagram DM automation (FREE from Meta)
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <CheckCircle2 className="h-4 w-4" /> Multi-channel inbox
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <CheckCircle2 className="h-4 w-4" /> Advanced analytics
-                    </li>
-                  </ul>
-                </div>
-                <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                  <p className="text-sm text-blue-900">
-                    <strong>💡 Good News:</strong> WhatsApp Business API and Instagram Graph API are <strong>FREE</strong> from Meta!
-                    You only need to pay for our Power Plan to access these features in our platform.
-                  </p>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    )
-  }
+  // Remove Power Plan Gate - WhatsApp is now available on all plans
+  // Instagram is still Power plan only (handled in the Instagram tab)
 
   if (loading) {
     return (
@@ -525,10 +480,10 @@ export function ChannelsPage() {
                 <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm">
                   <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0 text-amber-600" />
                   <div className="text-amber-800">
-                    <strong>Warning:</strong> localhost URLs won't work with Meta webhooks.
-                    For testing, use <a href="https://ngrok.com" target="_blank" rel="noopener noreferrer" className="underline">ngrok</a> to create a public URL, then set <code className="bg-amber-100 px-1 rounded">VITE_WEBHOOK_URL</code> in your .env file.
+                    <strong>Development Mode:</strong> localhost URLs won't work with Meta webhooks.
+                    For production, deploy your app to a public URL (e.g., https://kribaat.com) and set <code className="bg-amber-100 px-1 rounded">VITE_API_URL</code> in your .env file.
                     <br />
-                    <span className="text-xs mt-1 block">Example: VITE_WEBHOOK_URL=https://abc123.ngrok-free.app</span>
+                    <span className="text-xs mt-1 block">Example: VITE_API_URL=https://kribaat.com/api</span>
                   </div>
                 </div>
               )}
@@ -728,6 +683,45 @@ export function ChannelsPage() {
 
         {/* Instagram Tab */}
         <TabsContent value="instagram" className="mt-4 space-y-4">
+          {/* Power Plan Gate for Instagram */}
+          {!isPowerPlan ? (
+            <Card className="border-amber-200 bg-amber-50">
+              <CardContent className="pt-6">
+                <div className="flex items-start gap-4">
+                  <div className="p-3 bg-amber-100 rounded-full">
+                    <Crown className="h-8 w-8 text-amber-600" />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-lg font-semibold text-amber-900">Power Plan Required</h3>
+                    <p className="text-amber-800 mt-1">
+                      Instagram integration is available on the Power plan only.
+                      Contact your administrator to upgrade your organization.
+                    </p>
+                    <div className="mt-4 space-y-2">
+                      <p className="text-sm font-medium text-amber-900">Power Plan includes:</p>
+                      <ul className="text-sm text-amber-800 space-y-1">
+                        <li className="flex items-center gap-2">
+                          <CheckCircle2 className="h-4 w-4" /> Instagram DM automation (FREE from Meta)
+                        </li>
+                        <li className="flex items-center gap-2">
+                          <CheckCircle2 className="h-4 w-4" /> Multi-channel inbox
+                        </li>
+                        <li className="flex items-center gap-2">
+                          <CheckCircle2 className="h-4 w-4" /> Advanced analytics
+                        </li>
+                      </ul>
+                    </div>
+                    <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                      <p className="text-sm text-blue-900">
+                        <strong>💡 Good News:</strong> You already have WhatsApp on your Basic plan! Upgrade to Power to unlock Instagram.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <>
           {/* Webhook Info Card */}
           <Card>
             <CardHeader>
@@ -928,6 +922,8 @@ export function ChannelsPage() {
               <Plus className="h-4 w-4 mr-2" />
               Connect Instagram Business
             </Button>
+          )}
+            </>
           )}
         </TabsContent>
       </Tabs>

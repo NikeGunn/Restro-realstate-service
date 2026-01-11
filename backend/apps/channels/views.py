@@ -212,11 +212,8 @@ class WhatsAppConfigViewSet(viewsets.ModelViewSet):
             from rest_framework.exceptions import PermissionDenied
             raise PermissionDenied("Not a member of this organization")
         
-        # Check for Power plan (WhatsApp requires Power plan)
-        org = Organization.objects.get(id=org_id)
-        if not org.is_power_plan:
-            from rest_framework.exceptions import PermissionDenied
-            raise PermissionDenied("WhatsApp integration requires Power plan")
+        # WhatsApp is available on both Basic and Power plans
+        # No plan restriction needed for WhatsApp
         
         serializer.save()
     

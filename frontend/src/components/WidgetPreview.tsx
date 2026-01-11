@@ -9,9 +9,19 @@ interface WidgetPreviewProps {
 
 export function WidgetPreview({ widgetKey, onClose }: WidgetPreviewProps) {
   useEffect(() => {
+    // Generate widget URL based on environment
+    const getWidgetUrl = () => {
+      const apiUrl = import.meta.env.VITE_API_URL || '';
+      if (apiUrl && !apiUrl.includes('localhost')) {
+        // Extract base URL from API URL
+        return apiUrl.replace(/\/api$/, '') + '/api/v1/widget/widget.js';
+      }
+      return 'http://localhost:8000/api/v1/widget/widget.js';
+    };
+
     // Load widget script dynamically
     const script = document.createElement('script')
-    script.src = 'http://localhost:8000/api/v1/widget/widget.js'
+    script.src = getWidgetUrl()
     script.setAttribute('data-widget-key', widgetKey)
     script.async = true
     document.body.appendChild(script)

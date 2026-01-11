@@ -134,9 +134,22 @@ export function SettingsPage() {
 
   const [showPreview, setShowPreview] = useState(false)
 
+  // Generate widget embed code based on environment
+  const getWidgetBaseUrl = () => {
+    // In production, use the API URL or default to kribaat.com
+    const apiUrl = import.meta.env.VITE_API_URL || '';
+    if (apiUrl && !apiUrl.includes('localhost')) {
+      // Extract base URL from API URL (e.g., https://kribaat.com/api -> https://kribaat.com)
+      return apiUrl.replace(/\/api$/, '');
+    }
+    // Fallback for development
+    return 'http://localhost:8000';
+  }
+
   const getWidgetCode = () => {
     if (!currentOrganization) return ''
-    return `<script src="http://localhost:8000/api/v1/widget/widget.js" data-widget-key="${currentOrganization.widget_key}"></script>`
+    const baseUrl = getWidgetBaseUrl();
+    return `<script src="${baseUrl}/api/v1/widget/widget.js" data-widget-key="${currentOrganization.widget_key}"></script>`
   }
 
   const copyWidgetCode = () => {
