@@ -352,9 +352,25 @@ export function KnowledgePage() {
               </CardHeader>
               <CardContent className="space-y-4">
                 {!knowledgeBase ? (
-                  <p className="text-sm text-muted-foreground">
-                    {t('knowledge.saveGeneralFirst')}
-                  </p>
+                  <div className="border-2 border-dashed border-muted rounded-lg p-6 text-center">
+                    <BookOpen className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
+                    <p className="text-sm font-medium text-foreground mb-2">
+                      {t('knowledge.saveGeneralFirst') || 'Save General Information First'}
+                    </p>
+                    <p className="text-xs text-muted-foreground mb-4">
+                      To add FAQs, you need to create a knowledge base first. Go to the "General Info" tab and save your business information.
+                    </p>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => {
+                        const generalTab = document.querySelector('[value="general"]') as HTMLButtonElement
+                        generalTab?.click()
+                      }}
+                    >
+                      Go to General Info
+                    </Button>
+                  </div>
                 ) : (
                   <>
                     <div className="space-y-2">
@@ -380,7 +396,10 @@ export function KnowledgePage() {
                         }
                       />
                     </div>
-                    <Button onClick={handleAddFaq}>
+                    <Button 
+                      onClick={handleAddFaq}
+                      disabled={!newFaq.question.trim() || !newFaq.answer.trim()}
+                    >
                       <Plus className="h-4 w-4 mr-2" />
                       {t('knowledge.addFaq')}
                     </Button>
