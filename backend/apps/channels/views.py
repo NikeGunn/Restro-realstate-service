@@ -59,6 +59,7 @@ class WhatsAppWebhookView(View):
         """
         Handle incoming WhatsApp webhook events.
         """
+        webhook_log = None
         try:
             # Get signature from headers
             signature = request.headers.get('X-Hub-Signature-256', '')
@@ -66,51 +67,88 @@ class WhatsAppWebhookView(View):
             # Parse body
             body = json.loads(request.body)
             
-            # Log the raw webhook
-            WebhookLog.objects.create(
-                source=WebhookLog.Source.WHATSAPP,
-                headers=dict(request.headers),
-                body=body
-            )
-            
-            # Find the organization from phone_number_id
+            # Find the organization from phone_number_id FIRST
             phone_number_id = None
+            config = None
             try:
                 entry = body.get('entry', [{}])[0]
                 changes = entry.get('changes', [{}])[0]
                 value = changes.get('value', {})
                 phone_number_id = value.get('metadata', {}).get('phone_number_id')
-            except (IndexError, KeyError):
-                pass
-            
-            if phone_number_id:
-                try:
+                
+                if phone_number_id:
                     config = WhatsAppConfig.objects.get(
                         phone_number_id=phone_number_id,
                         is_active=True
                     )
+            except (IndexError, KeyError) as e:
+                logger.error(f"Could not extract phone_number_id from webhook: {e}")
+            except WhatsAppConfig.DoesNotExist:
+                logger.error(f"❌ CRITICAL: No active WhatsApp config for phone_number_id: {phone_number_id}")
+                logger.error(f"Check that WhatsApp config exists and is_active=True in database")
+            
+            # Log the raw webhook with organization context
+            webhook_log = WebhookLog.objects.create(
+                source=WebhookLog.Source.WHATSAPP,
+                organization=config.organization if config else None,
+                headers=dict(request.headers),
+                body=body,
+                is_processed=False
+            )
+            logger.info(f"📨 WhatsApp webhook received - Phone ID: {phone_number_id}, Org: {config.organization.name if config else 'Unknown'}")
+            
+            if config:
+                try:
                     service = WhatsAppService(config)
                     
                     # Verify signature in production
                     if signature:
                         if not service.verify_webhook_signature(request.body, signature):
-                            logger.warning("WhatsApp webhook signature verification failed")
+                            error_msg = "WhatsApp webhook signature verification failed"
+                            logger.error(f"❌ {error_msg}")
+                            webhook_log.error_message = error_msg
+                            webhook_log.save()
                             return HttpResponse('Invalid signature', status=401)
                     
                     # Process the webhook
-                    service.process_webhook(body)
+                    success = service.process_webhook(body)
                     
-                except WhatsAppConfig.DoesNotExist:
-                    logger.warning(f"No WhatsApp config for phone_number_id: {phone_number_id}")
+                    if success:
+                        webhook_log.is_processed = True
+                        webhook_log.save()
+                        logger.info(f"✅ WhatsApp webhook processed successfully for {config.organization.name}")
+                    else:
+                        error_msg = "Webhook processing returned False"
+                        logger.error(f"❌ {error_msg}")
+                        webhook_log.error_message = error_msg
+                        webhook_log.save()
+                    
+                except Exception as e:
+                    error_msg = f"Error in WhatsApp service processing: {str(e)}"
+                    logger.exception(f"❌ {error_msg}")
+                    if webhook_log:
+                        webhook_log.error_message = error_msg
+                        webhook_log.save()
+            else:
+                error_msg = f"No active WhatsApp config found for phone_number_id: {phone_number_id}"
+                logger.error(f"❌ {error_msg}")
+                if webhook_log:
+                    webhook_log.error_message = error_msg
+                    webhook_log.save()
             
             # Always return 200 to acknowledge receipt
             return HttpResponse('OK', status=200)
             
-        except json.JSONDecodeError:
-            logger.error("Invalid JSON in WhatsApp webhook")
+        except json.JSONDecodeError as e:
+            error_msg = f"Invalid JSON in WhatsApp webhook: {e}"
+            logger.error(f"❌ {error_msg}")
             return HttpResponse('Invalid JSON', status=400)
         except Exception as e:
-            logger.exception(f"Error processing WhatsApp webhook: {e}")
+            error_msg = f"Unexpected error processing WhatsApp webhook: {str(e)}"
+            logger.exception(f"❌ {error_msg}")
+            if webhook_log:
+                webhook_log.error_message = error_msg
+                webhook_log.save()
             return HttpResponse('OK', status=200)  # Still return 200 to prevent retries
 
 
@@ -246,6 +284,90 @@ class WhatsAppConfigViewSet(viewsets.ModelViewSet):
                 'success': False,
                 'error': str(e)
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    @action(detail=True, methods=['get'])
+    def health(self, request, pk=None):
+        """
+        Comprehensive health check for WhatsApp configuration.
+        Returns detailed status of credentials, webhook, and recent activity.
+        """
+        config = self.get_object()
+        service = WhatsAppService(config)
+        
+        health_data = {
+            'organization': config.organization.name,
+            'is_active': config.is_active,
+            'is_verified': config.is_verified,
+            'configuration': {
+                'phone_number_id': bool(config.phone_number_id),
+                'business_account_id': bool(config.business_account_id),
+                'access_token': bool(config.access_token),
+            },
+            'api_connection': 'unknown',
+            'recent_webhooks': {
+                'total_24h': 0,
+                'processed_24h': 0,
+                'failed_24h': 0,
+            },
+            'issues': []
+        }
+        
+        # Check API connection
+        if config.access_token and config.phone_number_id:
+            try:
+                import requests
+                from django.utils import timezone
+                
+                url = f"{service.GRAPH_API_URL}/{config.phone_number_id}"
+                headers = {"Authorization": f"Bearer {config.access_token}"}
+                response = requests.get(url, headers=headers, timeout=10)
+                
+                if response.ok:
+                    health_data['api_connection'] = 'ok'
+                    health_data['phone_info'] = response.json()
+                else:
+                    health_data['api_connection'] = 'failed'
+                    health_data['api_error'] = response.text
+                    health_data['issues'].append('Meta API connection failed - access token may be expired')
+            except Exception as e:
+                health_data['api_connection'] = 'error'
+                health_data['api_error'] = str(e)
+                health_data['issues'].append(f'API connection error: {str(e)}')
+        else:
+            health_data['issues'].append('Missing access_token or phone_number_id')
+        
+        # Check recent webhook activity
+        from datetime import timedelta
+        from django.utils import timezone
+        
+        cutoff = timezone.now() - timedelta(hours=24)
+        webhooks = WebhookLog.objects.filter(
+            source=WebhookLog.Source.WHATSAPP,
+            organization=config.organization,
+            created_at__gte=cutoff
+        )
+        
+        health_data['recent_webhooks']['total_24h'] = webhooks.count()
+        health_data['recent_webhooks']['processed_24h'] = webhooks.filter(is_processed=True).count()
+        health_data['recent_webhooks']['failed_24h'] = webhooks.filter(is_processed=False).count()
+        
+        if health_data['recent_webhooks']['failed_24h'] > 0:
+            health_data['issues'].append(f"{health_data['recent_webhooks']['failed_24h']} failed webhooks in last 24h")
+        
+        # Overall health status
+        if not config.is_active:
+            health_data['issues'].append('Configuration is inactive')
+        
+        if not config.is_verified:
+            health_data['issues'].append('Webhook not verified with Meta')
+        
+        from django.conf import settings
+        if not settings.OPENAI_API_KEY:
+            health_data['issues'].append('CRITICAL: OPENAI_API_KEY not configured - AI will not respond')
+        
+        health_data['overall_status'] = 'healthy' if len(health_data['issues']) == 0 else 'degraded'
+        
+        return Response(health_data)
 
 
 class InstagramConfigViewSet(viewsets.ModelViewSet):

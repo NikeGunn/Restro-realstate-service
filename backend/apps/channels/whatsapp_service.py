@@ -179,10 +179,20 @@ class WhatsAppService:
     def _process_with_ai(self, conversation: Conversation, message: Message):
         """Process message with AI and send response."""
         try:
+            logger.info(f"🤖 Processing message with AI for conversation {conversation.id}")
             ai_service = AIService(conversation)
+            
+            # Check if AI service is properly initialized
+            if not ai_service.client:
+                logger.error(f"❌ CRITICAL: OpenAI client not initialized - check OPENAI_API_KEY in environment")
+                logger.error(f"AI responses will fail until OPENAI_API_KEY is set")
+                return
+            
             response = ai_service.process_message(message.content)
             
             if response:
+                logger.info(f"✅ AI response generated - Intent: {response.get('intent')}, Confidence: {response.get('confidence')}")
+                
                 # Create AI message
                 ai_message = Message.objects.create(
                     conversation=conversation,
@@ -198,6 +208,7 @@ class WhatsAppService:
                 )
                 
                 # Send via WhatsApp
+                logger.info(f"📤 Sending WhatsApp message to {conversation.customer_phone}")
                 sent_message_id = self.send_message(
                     to=conversation.customer_phone,
                     text=response['content']
@@ -206,13 +217,20 @@ class WhatsAppService:
                 if sent_message_id:
                     ai_message.channel_message_id = sent_message_id
                     ai_message.save()
+                    logger.info(f"✅ WhatsApp message sent successfully - ID: {sent_message_id}")
+                else:
+                    logger.error(f"❌ CRITICAL: Failed to send WhatsApp message - check access_token and phone_number_id")
+                    logger.error(f"Org: {self.organization.name}, Phone ID: {self.config.phone_number_id}")
                 
                 # Update conversation state
                 conversation.state = ConversationState.AWAITING_USER
                 conversation.save()
+            else:
+                logger.error(f"❌ No response from AI service")
                 
         except Exception as e:
-            logger.exception(f"Error processing with AI: {e}")
+            logger.exception(f"❌ CRITICAL: Error processing with AI: {e}")
+            logger.error(f"This will prevent replies from being sent to customer")
     
     def _handle_status_update(self, status: Dict):
         """Handle message status update (sent, delivered, read)."""
@@ -237,8 +255,19 @@ class WhatsAppService:
         Send a text message via WhatsApp.
         Returns message ID on success.
         """
-        if not self.config.is_active or not self.config.access_token:
-            logger.warning("WhatsApp not configured or inactive")
+        if not self.config.is_active:
+            logger.error(f"❌ CRITICAL: WhatsApp config is_active=False for {self.organization.name}")
+            logger.error(f"Set is_active=True in WhatsApp configuration to enable messaging")
+            return None
+            
+        if not self.config.access_token:
+            logger.error(f"❌ CRITICAL: WhatsApp access_token is empty for {self.organization.name}")
+            logger.error(f"Add valid Meta API access token to WhatsApp configuration")
+            return None
+            
+        if not self.config.phone_number_id:
+            logger.error(f"❌ CRITICAL: WhatsApp phone_number_id is empty for {self.organization.name}")
+            logger.error(f"Add phone_number_id from Meta Business to WhatsApp configuration")
             return None
         
         url = f"{self.GRAPH_API_URL}/{self.config.phone_number_id}/messages"
