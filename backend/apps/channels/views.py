@@ -253,7 +253,48 @@ class WhatsAppConfigViewSet(viewsets.ModelViewSet):
         # WhatsApp is available on both Basic and Power plans
         # No plan restriction needed for WhatsApp
         
-        serializer.save()
+        config = serializer.save()
+        
+        # Auto-verify credentials by testing API connection
+        self._auto_verify_credentials(config)
+    
+    def perform_update(self, serializer):
+        """Auto-verify credentials when token or phone ID is updated."""
+        config = serializer.save()
+        
+        # Check if critical fields were updated
+        if 'access_token' in serializer.validated_data or 'phone_number_id' in serializer.validated_data:
+            self._auto_verify_credentials(config)
+    
+    def _auto_verify_credentials(self, config):
+        """
+        Automatically verify credentials by testing Meta API connection.
+        Sets is_verified=True if successful, False otherwise.
+        """
+        if not config.access_token or not config.phone_number_id:
+            logger.warning(f"Cannot auto-verify WhatsApp config {config.id}: missing credentials")
+            return
+        
+        try:
+            import requests
+            service = WhatsAppService(config)
+            
+            url = f"{service.GRAPH_API_URL}/{config.phone_number_id}"
+            headers = {"Authorization": f"Bearer {config.access_token}"}
+            response = requests.get(url, headers=headers, timeout=10)
+            
+            if response.ok:
+                config.is_verified = True
+                config.save(update_fields=['is_verified'])
+                logger.info(f"✅ Auto-verified WhatsApp config for {config.organization.name}")
+            else:
+                config.is_verified = False
+                config.save(update_fields=['is_verified'])
+                logger.warning(f"❌ Auto-verification failed for WhatsApp config {config.id}: {response.text}")
+        except Exception as e:
+            config.is_verified = False
+            config.save(update_fields=['is_verified'])
+            logger.error(f"❌ Auto-verification error for WhatsApp config {config.id}: {str(e)}")
     
     @action(detail=True, methods=['post'])
     def test_connection(self, request, pk=None):
@@ -399,7 +440,50 @@ class InstagramConfigViewSet(viewsets.ModelViewSet):
             from rest_framework.exceptions import PermissionDenied
             raise PermissionDenied("Instagram integration requires Power plan")
         
-        serializer.save()
+        config = serializer.save()
+        
+        # Auto-verify credentials by testing API connection
+        self._auto_verify_credentials(config)
+    
+    def perform_update(self, serializer):
+        """Auto-verify credentials when token or business ID is updated."""
+        config = serializer.save()
+        
+        # Check if critical fields were updated
+        if 'access_token' in serializer.validated_data or 'instagram_business_id' in serializer.validated_data:
+            self._auto_verify_credentials(config)
+    
+    def _auto_verify_credentials(self, config):
+        """
+        Automatically verify credentials by testing Meta API connection.
+        Sets is_verified=True if successful, False otherwise.
+        """
+        if not config.access_token or not config.instagram_business_id:
+            logger.warning(f"Cannot auto-verify Instagram config {config.id}: missing credentials")
+            return
+        
+        try:
+            import requests
+            
+            url = f"https://graph.facebook.com/v18.0/{config.instagram_business_id}"
+            params = {
+                "fields": "id,username",
+                "access_token": config.access_token
+            }
+            response = requests.get(url, params=params, timeout=10)
+            
+            if response.ok:
+                config.is_verified = True
+                config.save(update_fields=['is_verified'])
+                logger.info(f"✅ Auto-verified Instagram config for {config.organization.name}")
+            else:
+                config.is_verified = False
+                config.save(update_fields=['is_verified'])
+                logger.warning(f"❌ Auto-verification failed for Instagram config {config.id}: {response.text}")
+        except Exception as e:
+            config.is_verified = False
+            config.save(update_fields=['is_verified'])
+            logger.error(f"❌ Auto-verification error for Instagram config {config.id}: {str(e)}")
     
     @action(detail=True, methods=['post'])
     def test_connection(self, request, pk=None):

@@ -62,6 +62,7 @@ export function ChannelsPage() {
 
   const [whatsappConfigs, setWhatsappConfigs] = useState<WhatsAppConfig[]>([])
   const [instagramConfigs, setInstagramConfigs] = useState<InstagramConfig[]>([])
+  const [verifyingId, setVerifyingId] = useState<string | null>(null)
 
   const [showWhatsAppForm, setShowWhatsAppForm] = useState(false)
   const [showInstagramForm, setShowInstagramForm] = useState(false)
@@ -142,13 +143,43 @@ export function ChannelsPage() {
         organization: currentOrganization.id,
         ...whatsappForm,
       })
-      setWhatsappConfigs([...whatsappConfigs, newConfig])
+      
+      // Show verifying state
+      setVerifyingId(newConfig.id)
+      setWhatsappConfigs([...whatsappConfigs, { ...newConfig, is_verified: false }])
+      
+      // Auto-verification happens on backend - wait a moment then fetch updated config
+      setTimeout(async () => {
+        try {
+          const updatedConfig = await channelsApi.whatsapp.get(newConfig.id)
+          setWhatsappConfigs(configs => 
+            configs.map(c => c.id === newConfig.id ? updatedConfig : c)
+          )
+          setVerifyingId(null)
+          
+          if (updatedConfig.is_verified) {
+            toast({
+              title: 'WhatsApp Connected & Verified! ✅',
+              description: 'Your credentials are valid and WhatsApp is ready to use.',
+            })
+          } else {
+            toast({
+              title: 'WhatsApp Connected',
+              description: 'Configuration saved, but credentials verification failed. Please check your access token.',
+              variant: 'destructive',
+            })
+          }
+        } catch (e) {
+          setVerifyingId(null)
+          toast({
+            title: 'WhatsApp Connected',
+            description: 'Configuration saved. Please refresh to see verification status.',
+          })
+        }
+      }, 1500) // Give backend time to verify
+      
       setWhatsappForm({ phone_number_id: '', business_account_id: '', access_token: '', verify_token: '' })
       setShowWhatsAppForm(false)
-      toast({
-        title: 'WhatsApp Connected',
-        description: 'WhatsApp Business configuration saved. Configure your webhook to complete setup.',
-      })
     } catch (error: any) {
       console.error('Error saving WhatsApp config:', error)
       toast({
@@ -170,13 +201,43 @@ export function ChannelsPage() {
         organization: currentOrganization.id,
         ...instagramForm,
       })
-      setInstagramConfigs([...instagramConfigs, newConfig])
+      
+      // Show verifying state
+      setVerifyingId(newConfig.id)
+      setInstagramConfigs([...instagramConfigs, { ...newConfig, is_verified: false }])
+      
+      // Auto-verification happens on backend - wait a moment then fetch updated config
+      setTimeout(async () => {
+        try {
+          const updatedConfig = await channelsApi.instagram.get(newConfig.id)
+          setInstagramConfigs(configs => 
+            configs.map(c => c.id === newConfig.id ? updatedConfig : c)
+          )
+          setVerifyingId(null)
+          
+          if (updatedConfig.is_verified) {
+            toast({
+              title: 'Instagram Connected & Verified! ✅',
+              description: 'Your credentials are valid and Instagram is ready to use.',
+            })
+          } else {
+            toast({
+              title: 'Instagram Connected',
+              description: 'Configuration saved, but credentials verification failed. Please check your access token.',
+              variant: 'destructive',
+            })
+          }
+        } catch (e) {
+          setVerifyingId(null)
+          toast({
+            title: 'Instagram Connected',
+            description: 'Configuration saved. Please refresh to see verification status.',
+          })
+        }
+      }, 1500) // Give backend time to verify
+      
       setInstagramForm({ instagram_business_id: '', page_id: '', access_token: '', verify_token: '' })
       setShowInstagramForm(false)
-      toast({
-        title: 'Instagram Connected',
-        description: 'Instagram configuration saved. Configure your webhook to complete setup.',
-      })
     } catch (error: any) {
       console.error('Error saving Instagram config:', error)
       toast({
@@ -530,7 +591,12 @@ export function ChannelsPage() {
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
-                    {config.is_verified ? (
+                    {verifyingId === config.id ? (
+                      <Badge variant="secondary" className="bg-blue-100">
+                        <RefreshCw className="h-3 w-3 mr-1 animate-spin" />
+                        Verifying...
+                      </Badge>
+                    ) : config.is_verified ? (
                       <Badge variant="default" className="bg-green-600">
                         <CheckCircle2 className="h-3 w-3 mr-1" />
                         Verified
@@ -774,7 +840,12 @@ export function ChannelsPage() {
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
-                    {config.is_verified ? (
+                    {verifyingId === config.id ? (
+                      <Badge variant="secondary" className="bg-blue-100">
+                        <RefreshCw className="h-3 w-3 mr-1 animate-spin" />
+                        Verifying...
+                      </Badge>
+                    ) : config.is_verified ? (
                       <Badge variant="default" className="bg-green-600">
                         <CheckCircle2 className="h-3 w-3 mr-1" />
                         Verified
