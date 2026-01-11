@@ -120,7 +120,7 @@ class InstagramService:
             conversation=conversation,
             sender=MessageSender.CUSTOMER,
             content=content,
-            metadata={
+            ai_metadata={
                 'ig_message_id': message_id,
                 'sender_id': sender_id,
                 'timestamp': timestamp
@@ -182,27 +182,42 @@ class InstagramService:
         return conversation
     
     def _process_with_ai(self, conversation: Conversation, message: Message):
-        """Process message with AI and send response."""
+        """Process message with AI and send response. Supports multilingual responses."""
         try:
-            ai_service = AIService(self.organization)
-            response = ai_service.process_message(conversation, message.content)
+            # AIService takes conversation as parameter (not organization)
+            ai_service = AIService(conversation)
+            
+            # Check if AI service is properly initialized
+            if not ai_service.client:
+                logger.error(f"❌ CRITICAL: OpenAI client not initialized - check OPENAI_API_KEY in environment")
+                return
+            
+            response = ai_service.process_message(message.content)
             
             if response:
+                detected_lang = response.get('language', 'en')
+                logger.info(f"✅ Instagram AI response - Intent: {response.get('intent')}, Confidence: {response.get('confidence')}, Language: {detected_lang}")
+                
                 # Create AI message
                 ai_message = Message.objects.create(
                     conversation=conversation,
                     sender=MessageSender.AI,
-                    content=response['reply'],
-                    metadata={
+                    content=response['content'],
+                    confidence_score=response.get('confidence', 0),
+                    intent=response.get('intent', 'unknown'),
+                    ai_metadata={
                         'confidence': response.get('confidence', 0),
-                        'intent': response.get('intent', 'unknown')
+                        'intent': response.get('intent', 'unknown'),
+                        'needs_handoff': response.get('needs_handoff', False),
+                        'language': detected_lang,
                     }
                 )
                 
                 # Send via Instagram
+                logger.info(f"📤 Sending Instagram message in {detected_lang}")
                 self.send_message(
                     recipient_id=conversation.external_id,
-                    text=response['reply']
+                    text=response['content']
                 )
                 
                 conversation.state = ConversationState.AWAITING_USER

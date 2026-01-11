@@ -1,5 +1,6 @@
 """
 Widget views for website chatbot.
+Supports multilingual conversations (English, Simplified Chinese, Traditional Chinese).
 """
 from rest_framework import status, permissions
 from rest_framework.views import APIView
@@ -8,7 +9,7 @@ from django.utils import timezone
 
 from .models import (
     Conversation, Message, WidgetSession,
-    Channel, ConversationState, MessageSender
+    Channel, ConversationState, MessageSender, LanguageChoice
 )
 from .serializers import (
     WidgetInitSerializer,
@@ -17,6 +18,7 @@ from .serializers import (
     MessageSerializer,
 )
 from apps.accounts.models import Organization, Location
+from apps.ai_engine.language_service import LanguageService, LanguageCode
 
 
 class WidgetInitView(APIView):
@@ -60,7 +62,9 @@ class WidgetInitView(APIView):
             if not location:
                 location = organization.locations.filter(is_active=True).first()
 
-        # Create widget session
+        # Create widget session with browser language detection
+        browser_lang = self._detect_browser_language(request)
+        
         session = WidgetSession.objects.create(
             organization=organization,
             location=location,
@@ -69,10 +73,14 @@ class WidgetInitView(APIView):
             user_agent=request.META.get('HTTP_USER_AGENT', ''),
             ip_address=self._get_client_ip(request),
             referrer=request.META.get('HTTP_REFERER', ''),
+            preferred_language=browser_lang,
         )
 
         # Get available locations for selection
         locations = organization.locations.filter(is_active=True).values('id', 'name', 'city')
+        
+        # Get greeting in detected language
+        greeting = LanguageService.get_greeting_for_language(browser_lang, organization.name)
 
         return Response({
             'session_token': str(session.session_token),
@@ -83,7 +91,7 @@ class WidgetInitView(APIView):
             'widget': {
                 'color': organization.widget_color,
                 'position': organization.widget_position,
-                'greeting': organization.widget_greeting,
+                'greeting': greeting if browser_lang != LanguageCode.ENGLISH else organization.widget_greeting,
             },
             'location': {
                 'id': str(location.id) if location else None,
@@ -91,7 +99,36 @@ class WidgetInitView(APIView):
             },
             'locations': list(locations),
             'needs_location_selection': len(locations) > 1 and not location_id,
+            'detected_language': browser_lang,
+            'supported_languages': [
+                {'code': LanguageCode.ENGLISH, 'name': 'English'},
+                {'code': LanguageCode.SIMPLIFIED_CHINESE, 'name': '简体中文'},
+                {'code': LanguageCode.TRADITIONAL_CHINESE, 'name': '繁體中文'},
+            ],
         })
+    
+    def _detect_browser_language(self, request) -> str:
+        """
+        Detect preferred language from browser Accept-Language header.
+        """
+        accept_language = request.META.get('HTTP_ACCEPT_LANGUAGE', '')
+        
+        # Parse Accept-Language header (e.g., "zh-TW,zh;q=0.9,en;q=0.8")
+        if accept_language:
+            # Get the primary language
+            parts = accept_language.split(',')
+            for part in parts:
+                lang = part.split(';')[0].strip().lower()
+                
+                # Check for Chinese variants
+                if lang.startswith('zh-tw') or lang.startswith('zh-hant'):
+                    return LanguageCode.TRADITIONAL_CHINESE
+                elif lang.startswith('zh-cn') or lang.startswith('zh-hans') or lang == 'zh':
+                    return LanguageCode.SIMPLIFIED_CHINESE
+                elif lang.startswith('en'):
+                    return LanguageCode.ENGLISH
+        
+        return LanguageCode.ENGLISH
 
     def _get_client_ip(self, request):
         x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
@@ -185,7 +222,10 @@ class WidgetMessageView(APIView):
             sender=MessageSender.AI,
             confidence_score=ai_response.get('confidence', 0),
             intent=ai_response.get('intent', ''),
-            ai_metadata=ai_response.get('metadata', {}),
+            ai_metadata={
+                **ai_response.get('metadata', {}),
+                'language': ai_response.get('language', 'en'),
+            },
         )
 
         # Update conversation state
@@ -207,6 +247,7 @@ class WidgetMessageView(APIView):
             'message': MessageSerializer(customer_message).data,
             'response': MessageSerializer(ai_message).data,
             'is_human_handling': False,
+            'detected_language': ai_response.get('language', 'en'),
         })
 
 
@@ -235,12 +276,16 @@ class WidgetHistoryView(APIView):
             )
 
         if not session.conversation:
-            return Response({'messages': []})
+            return Response({
+                'messages': [],
+                'detected_language': session.preferred_language,
+            })
 
         messages = session.conversation.messages.all()[:50]
         return Response({
             'messages': MessageSerializer(messages, many=True).data,
             'is_human_handling': session.conversation.is_locked,
+            'detected_language': session.conversation.detected_language or session.preferred_language,
         })
 
 
@@ -295,4 +340,59 @@ class WidgetLocationSelectView(APIView):
                 'id': str(location.id),
                 'name': location.name,
             }
+        })
+
+
+class WidgetLanguageSelectView(APIView):
+    """
+    Select/change language for widget session.
+    Allows users to manually set their preferred language.
+    """
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        session_token = request.data.get('session_token')
+        language_code = request.data.get('language')
+
+        if not session_token or not language_code:
+            return Response(
+                {'error': 'Session token and language code required.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Validate language code
+        valid_languages = [LanguageCode.ENGLISH, LanguageCode.SIMPLIFIED_CHINESE, LanguageCode.TRADITIONAL_CHINESE]
+        if language_code not in valid_languages:
+            return Response(
+                {'error': f'Invalid language. Supported: {valid_languages}'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            session = WidgetSession.objects.select_related('conversation').get(
+                session_token=session_token
+            )
+        except WidgetSession.DoesNotExist:
+            return Response(
+                {'error': 'Invalid session token.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Update session language preference
+        session.preferred_language = language_code
+        session.save(update_fields=['preferred_language'])
+
+        # Update conversation language if exists
+        if session.conversation:
+            session.conversation.detected_language = language_code
+            session.conversation.save(update_fields=['detected_language'])
+
+        # Get greeting in new language
+        org_name = session.organization.name
+        greeting = LanguageService.get_greeting_for_language(language_code, org_name)
+
+        return Response({
+            'language': language_code,
+            'language_name': LanguageService.get_language_display_name(language_code),
+            'greeting': greeting,
         })

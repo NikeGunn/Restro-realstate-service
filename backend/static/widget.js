@@ -330,6 +330,61 @@
   let isOpen = false;
   let isTyping = false;
   let hasStarted = false;
+  let currentLanguage = 'en'; // Current language code
+  let supportedLanguages = []; // Available languages from server
+
+  // Language display names
+  const LANGUAGE_NAMES = {
+    'en': 'English',
+    'zh-CN': '简体中文',
+    'zh-TW': '繁體中文'
+  };
+
+  // Localized strings
+  const LOCALIZED_STRINGS = {
+    'en': {
+      welcome: '👋 Welcome!',
+      greeting: "Start a conversation and we'll be happy to help you.",
+      namePlaceholder: 'Your name (optional)',
+      emailPlaceholder: 'Email (optional)',
+      startChat: 'Start Chat',
+      typePlaceholder: 'Type your message...',
+      replyTime: 'We typically reply instantly',
+      humanHandoff: 'A human agent will be with you shortly.',
+      sendError: 'Failed to send message. Please try again.',
+      selectLanguage: 'Select Language'
+    },
+    'zh-CN': {
+      welcome: '👋 欢迎！',
+      greeting: '开始对话，我们将很乐意为您提供帮助。',
+      namePlaceholder: '您的姓名（可选）',
+      emailPlaceholder: '电子邮箱（可选）',
+      startChat: '开始聊天',
+      typePlaceholder: '输入您的消息...',
+      replyTime: '我们通常会立即回复',
+      humanHandoff: '人工客服将很快为您服务。',
+      sendError: '发送消息失败，请重试。',
+      selectLanguage: '选择语言'
+    },
+    'zh-TW': {
+      welcome: '👋 歡迎！',
+      greeting: '開始對話，我們將很樂意為您提供幫助。',
+      namePlaceholder: '您的姓名（可選）',
+      emailPlaceholder: '電子郵件（可選）',
+      startChat: '開始聊天',
+      typePlaceholder: '輸入您的訊息...',
+      replyTime: '我們通常會立即回覆',
+      humanHandoff: '人工客服將很快為您服務。',
+      sendError: '傳送訊息失敗，請重試。',
+      selectLanguage: '選擇語言'
+    }
+  };
+
+  // Get localized string
+  function t(key) {
+    const strings = LOCALIZED_STRINGS[currentLanguage] || LOCALIZED_STRINGS['en'];
+    return strings[key] || LOCALIZED_STRINGS['en'][key] || key;
+  }
 
   // Initialize widget
   function init() {
@@ -356,6 +411,21 @@
       if (!response.ok) throw new Error('Failed to fetch widget config');
 
       widgetConfig = await response.json();
+      
+      // Set language from config if available
+      if (widgetConfig.detected_language) {
+        currentLanguage = widgetConfig.detected_language;
+      }
+      if (widgetConfig.supported_languages) {
+        supportedLanguages = widgetConfig.supported_languages;
+      } else {
+        supportedLanguages = [
+          { code: 'en', name: 'English' },
+          { code: 'zh-CN', name: '简体中文' },
+          { code: 'zh-TW', name: '繁體中文' }
+        ];
+      }
+      
       createWidget();
     } catch (error) {
       console.error('Chat widget: Failed to initialize', error);
@@ -368,6 +438,11 @@
     container.className = widgetConfig.position || 'bottom-right';
 
     const color = widgetConfig.color || '#3B82F6';
+    
+    // Build language selector options
+    const languageOptions = supportedLanguages.map(lang => 
+      `<option value="${lang.code}" ${lang.code === currentLanguage ? 'selected' : ''}>${lang.name}</option>`
+    ).join('');
 
     container.innerHTML = `
       <button id="chat-widget-button" style="background-color: ${color}">
@@ -380,27 +455,32 @@
         <div id="chat-widget-header" style="background-color: ${color}">
           <div>
             <h3>${widgetConfig.business_name || 'Chat with us'}</h3>
-            <p>We typically reply instantly</p>
+            <p>${t('replyTime')}</p>
           </div>
-          <button id="chat-widget-close">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <line x1="18" y1="6" x2="6" y2="18"></line>
-              <line x1="6" y1="6" x2="18" y2="18"></line>
-            </svg>
-          </button>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <select id="chat-widget-language" title="${t('selectLanguage')}" style="background: rgba(255,255,255,0.2); border: none; color: white; border-radius: 4px; padding: 4px 8px; font-size: 12px; cursor: pointer;">
+              ${languageOptions}
+            </select>
+            <button id="chat-widget-close">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </button>
+          </div>
         </div>
 
         <div id="chat-widget-content">
           <div id="chat-widget-intro">
-            <h4>👋 Welcome!</h4>
-            <p>${widgetConfig.greeting || 'Start a conversation and we\'ll be happy to help you.'}</p>
+            <h4>${t('welcome')}</h4>
+            <p id="chat-widget-greeting">${widgetConfig.greeting || t('greeting')}</p>
           </div>
 
           <form id="chat-widget-start-form">
-            <input type="text" id="chat-customer-name" placeholder="Your name (optional)">
-            <input type="email" id="chat-customer-email" placeholder="Email (optional)">
+            <input type="text" id="chat-customer-name" placeholder="${t('namePlaceholder')}">
+            <input type="email" id="chat-customer-email" placeholder="${t('emailPlaceholder')}">
             <button type="submit" id="chat-widget-start-btn" style="background-color: ${color}">
-              Start Chat
+              ${t('startChat')}
             </button>
           </form>
         </div>
@@ -409,7 +489,7 @@
           <div id="chat-widget-messages"></div>
 
           <div id="chat-widget-input-area">
-            <input type="text" id="chat-widget-input" placeholder="Type your message...">
+            <input type="text" id="chat-widget-input" placeholder="${t('typePlaceholder')}">
             <button id="chat-widget-send" style="background-color: ${color}">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <line x1="22" y1="2" x2="11" y2="13"></line>
@@ -429,6 +509,7 @@
     document.getElementById('chat-widget-start-form').addEventListener('submit', startChat);
     document.getElementById('chat-widget-input').addEventListener('keypress', handleInputKeypress);
     document.getElementById('chat-widget-send').addEventListener('click', sendMessage);
+    document.getElementById('chat-widget-language').addEventListener('change', handleLanguageChange);
 
     // Check for existing session
     const savedSession = localStorage.getItem('chat_widget_session');
@@ -437,11 +518,81 @@
       if (session.widgetKey === widgetConfig.widget_key && session.conversationId) {
         sessionId = session.sessionId;
         conversationId = session.conversationId;
+        if (session.language) {
+          currentLanguage = session.language;
+          document.getElementById('chat-widget-language').value = currentLanguage;
+        }
         hasStarted = true;
         showChatInterface();
         loadConversation();
       }
     }
+  }
+
+  // Handle language change
+  async function handleLanguageChange(e) {
+    const newLanguage = e.target.value;
+    currentLanguage = newLanguage;
+    
+    // Update UI strings
+    updateUIStrings();
+    
+    // If we have a session, notify the server of language change
+    if (sessionId) {
+      try {
+        const response = await fetch(`${API_BASE_URL}/widget/language/`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            session_token: sessionId,
+            language: newLanguage,
+          }),
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          if (data.greeting && !hasStarted) {
+            document.getElementById('chat-widget-greeting').textContent = data.greeting;
+          }
+        }
+      } catch (error) {
+        console.error('Failed to update language preference:', error);
+      }
+    }
+    
+    // Update saved session
+    const savedSession = localStorage.getItem('chat_widget_session');
+    if (savedSession) {
+      const session = JSON.parse(savedSession);
+      session.language = currentLanguage;
+      localStorage.setItem('chat_widget_session', JSON.stringify(session));
+    }
+  }
+
+  // Update UI strings based on current language
+  function updateUIStrings() {
+    const introHeading = document.querySelector('#chat-widget-intro h4');
+    if (introHeading) introHeading.textContent = t('welcome');
+    
+    const greetingText = document.getElementById('chat-widget-greeting');
+    if (greetingText && !widgetConfig.greeting) {
+      greetingText.textContent = t('greeting');
+    }
+    
+    const nameInput = document.getElementById('chat-customer-name');
+    if (nameInput) nameInput.placeholder = t('namePlaceholder');
+    
+    const emailInput = document.getElementById('chat-customer-email');
+    if (emailInput) emailInput.placeholder = t('emailPlaceholder');
+    
+    const startBtn = document.getElementById('chat-widget-start-btn');
+    if (startBtn) startBtn.textContent = t('startChat');
+    
+    const msgInput = document.getElementById('chat-widget-input');
+    if (msgInput) msgInput.placeholder = t('typePlaceholder');
+    
+    const replyTime = document.querySelector('#chat-widget-header p');
+    if (replyTime) replyTime.textContent = t('replyTime');
   }
 
   function toggleWidget() {
@@ -491,11 +642,12 @@
       conversationId = sessionData.conversation_id;
       hasStarted = true;
 
-      // Save session
+      // Save session with language
       localStorage.setItem('chat_widget_session', JSON.stringify({
         widgetKey: widgetConfig.widget_key,
         sessionId,
         conversationId,
+        language: currentLanguage,
       }));
 
       showChatInterface();
@@ -584,13 +736,13 @@
 
       // Handle handoff notification
       if (data.handoff_initiated) {
-        addMessage('system', 'A human agent will be with you shortly.');
+        addMessage('system', t('humanHandoff'));
       }
 
     } catch (error) {
       console.error('Chat widget: Failed to send message', error);
       hideTyping();
-      addMessage('system', 'Failed to send message. Please try again.');
+      addMessage('system', t('sendError'));
     } finally {
       input.disabled = false;
       document.getElementById('chat-widget-send').disabled = false;

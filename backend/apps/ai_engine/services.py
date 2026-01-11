@@ -1,5 +1,6 @@
 """
 AI Service - Core AI processing logic.
+Supports multilingual conversations: English, Simplified Chinese, Traditional Chinese.
 """
 import json
 import logging
@@ -14,6 +15,7 @@ from openai import OpenAI
 from apps.messaging.models import Conversation, Message, MessageSender
 from apps.knowledge.models import KnowledgeBase, FAQ
 from .models import AILog
+from .language_service import LanguageService, LanguageCode, detect_language
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +24,7 @@ class AIService:
     """
     Service for processing messages with AI.
     Uses OpenAI API with knowledge base context.
+    Supports multilingual conversations (English, Simplified Chinese, Traditional Chinese).
     """
 
     CONFIDENCE_THRESHOLD = getattr(settings, 'AI_CONFIDENCE_THRESHOLD', 0.7)
@@ -32,29 +35,56 @@ class AIService:
         self.organization = conversation.organization
         self.location = conversation.location
         self.client = None
+        self.detected_language = LanguageCode.ENGLISH  # Default language
 
         if settings.OPENAI_API_KEY:
             self.client = OpenAI(api_key=settings.OPENAI_API_KEY)
+    
+    def _detect_and_set_language(self, user_message: str) -> str:
+        """
+        Detect the language of the user message and update conversation if needed.
+        Returns the detected language code.
+        """
+        detected = detect_language(user_message)
+        self.detected_language = detected
+        
+        # Update conversation language if it has changed or not set
+        current_lang = getattr(self.conversation, 'detected_language', None)
+        if current_lang != detected:
+            try:
+                self.conversation.detected_language = detected
+                self.conversation.save(update_fields=['detected_language'])
+                logger.info(f"Updated conversation {self.conversation.id} language to: {detected}")
+            except Exception as e:
+                # Field might not exist yet (before migration)
+                logger.debug(f"Could not update conversation language: {e}")
+        
+        return detected
 
     def process_message(self, user_message: str) -> Dict[str, Any]:
         """
         Process a user message and generate AI response.
+        Automatically detects language and responds in the same language.
 
         Returns:
-            Dict with keys: content, confidence, intent, metadata, needs_handoff, handoff_reason
+            Dict with keys: content, confidence, intent, metadata, needs_handoff, handoff_reason, language
         """
         start_time = time.time()
+        
+        # Detect user's language first
+        detected_lang = self._detect_and_set_language(user_message)
+        logger.info(f"Processing message in language: {detected_lang}")
 
-        # If no OpenAI key, return handoff response
+        # If no OpenAI key, return handoff response in detected language
         if not self.client:
             return self._create_handoff_response(
-                "I'll connect you with a team member who can help you better.",
+                LanguageService.get_handoff_message(detected_lang),
                 "no_api_key",
                 0.0
             )
 
         try:
-            # Build context
+            # Build context with language awareness
             system_prompt = self._build_system_prompt()
             messages = self._build_message_history(user_message)
 
@@ -70,6 +100,9 @@ class AIService:
             # Parse response
             content = response.choices[0].message.content
             parsed = self._parse_ai_response(content)
+            
+            # Add language to response
+            parsed['language'] = detected_lang
 
             latency_ms = int((time.time() - start_time) * 1000)
 
@@ -82,6 +115,7 @@ class AIService:
                 model=settings.OPENAI_MODEL,
                 tokens=response.usage.total_tokens if response.usage else 0,
                 latency_ms=latency_ms,
+                language=detected_lang,
             )
 
             # Check if handoff needed
@@ -106,15 +140,16 @@ class AIService:
                 tokens=0,
                 latency_ms=int((time.time() - start_time) * 1000),
                 error=str(e),
+                language=detected_lang,
             )
             return self._create_handoff_response(
-                "I apologize, but I'm having trouble processing your request. Let me connect you with a team member.",
+                LanguageService.get_error_message(detected_lang),
                 "ai_error",
                 0.0
             )
 
     def _build_system_prompt(self) -> str:
-        """Build the system prompt with knowledge base context."""
+        """Build the system prompt with knowledge base context and language awareness."""
         # Get knowledge base
         knowledge = self._get_knowledge_context()
         
@@ -125,55 +160,55 @@ class AIService:
         business_name = self.organization.name
         location_name = self.location.name if self.location else "Main Location"
         
-        # Base prompt
+        # Get language-specific greeting
+        greeting_text = LanguageService.get_greeting_for_language(self.detected_language, business_name)
+        handoff_text = LanguageService.get_handoff_message(self.detected_language)
+        language_instruction = LanguageService.get_language_instruction(self.detected_language)
+        language_display = LanguageService.get_language_display_name(self.detected_language)
+        
+        # Base prompt with multilingual support
         prompt = f"""You are an AI assistant (NOT a human) for {business_name}, a {business_type} business.
 You are currently helping customers at the {location_name} location.
 
+🌍 MULTILINGUAL SUPPORT - CRITICAL RULES:
+==========================================
+{language_instruction}
+
+The customer's detected language is: {language_display}
+ALL your responses MUST be in {language_display}.
+
+DO NOT mix languages.
+DO NOT respond in English if the customer writes in Chinese.
+DO NOT respond in Chinese if the customer writes in English.
+MATCH the customer's language EXACTLY.
+==========================================
+
 🚨 CRITICAL GREETING RULE - THIS IS MANDATORY - NO EXCEPTIONS:
 ==========================================
-When a customer greets you (hello, hi, hey, etc.), you MUST ALWAYS respond with:
-"Hello! I'm AI Assistant, your AI assistant for {business_name}. How can I help you today?"
-
-DO NOT use generic greetings like "Hello! How can I assist you today?"
-DO NOT skip identifying yourself as AI
-DO NOT skip mentioning the business name "{business_name}"
+When a customer greets you (hello, hi, hey, 你好, 您好, 嗨, etc.), you MUST ALWAYS respond with:
+"{greeting_text}"
 
 CORRECT greeting response (use this exact format):
-{{"content": "Hello! I'm AI Assistant, your AI assistant for {business_name}. How can I help you today?", "confidence": 1.0, "intent": "greeting", "escalate": false}}
-
-WRONG greeting responses (NEVER use these):
-❌ "Hello! How can I assist you today?"
-❌ "Hi there! How can I help you?"
-❌ Any response that doesn't identify as AI or mention the business name
+{{"content": "{greeting_text}", "confidence": 1.0, "intent": "greeting", "escalate": false}}
 
 ==========================================
 
 IMPORTANT RULES:
-1. 🚨 RULE #1 (HIGHEST PRIORITY): For ANY greeting (hello/hi/hey), ALWAYS include "I'm AI Assistant, your AI assistant for {business_name}" - NO EXCEPTIONS
-2. Only answer questions using the provided knowledge base information below
-3. If you don't know the answer or are uncertain, say "I'll connect you with a team member who can help you better"
-4. Never make up information or hallucinate facts
-5. Be friendly, professional, and concise
-6. Always respond in JSON format with the following structure:
+1. 🚨 RULE #1 (HIGHEST PRIORITY): ALWAYS respond in the same language as the customer
+2. For ANY greeting, ALWAYS include "I'm AI Assistant" (or equivalent in customer's language)
+3. Only answer questions using the provided knowledge base information below
+4. If you don't know the answer or are uncertain, say "{handoff_text}"
+5. Never make up information or hallucinate facts
+6. Be friendly, professional, and concise
+7. Always respond in JSON format with the following structure:
    {{
-     "content": "Your response to the customer",
+     "content": "Your response to the customer IN THEIR LANGUAGE",
      "confidence": 0.0-1.0,
      "intent": "category of the question",
      "escalate": true/false,
      "escalate_reason": "reason if escalate is true",
      "extracted_data": {{}}
    }}
-
-MANDATORY GREETING RESPONSE TEMPLATE:
-When intent is "greeting", your JSON response MUST be:
-{{
-  "content": "Hello! I'm AI Assistant, your AI assistant for {business_name}. How can I help you today?",
-  "confidence": 1.0,
-  "intent": "greeting",
-  "escalate": false,
-  "escalate_reason": "",
-  "extracted_data": {{}}
-}}
 
 KNOWLEDGE BASE:
 {knowledge}
@@ -340,8 +375,17 @@ If the customer seems frustrated, has a complaint, or requests to speak to someo
         return context
     
     def _get_restaurant_prompt(self, context: Dict[str, Any]) -> str:
-        """Generate restaurant-specific prompt section."""
-        prompt = """
+        """Generate restaurant-specific prompt section with multilingual support."""
+        # Get language-specific booking prompts
+        lang = self.detected_language
+        booking_intro = LanguageService.get_template(lang, 'booking_intro')
+        booking_date = LanguageService.get_template(lang, 'booking_date')
+        booking_time = LanguageService.get_template(lang, 'booking_time')
+        booking_party = LanguageService.get_template(lang, 'booking_party_size')
+        booking_name = LanguageService.get_template(lang, 'booking_name')
+        booking_phone = LanguageService.get_template(lang, 'booking_phone')
+        
+        prompt = f"""
 RESTAURANT-SPECIFIC CAPABILITIES:
 You can help customers with:
 1. Menu questions - answer about dishes, prices, ingredients, dietary options
@@ -349,31 +393,29 @@ You can help customers with:
 3. Reservations/Bookings - collect booking information (date, time, party size, name, phone)
 4. Daily specials - inform about current promotions
 
-GREETING EXAMPLES FOR RESTAURANT:
-- "Hello! I'm your AI dining assistant for [Restaurant Name]. I can help you with our menu, hours, or make a reservation. What would you like to know?"
-- "Hi there! I'm the AI assistant at [Restaurant Name]. How can I help you today - menu questions, reservations, or something else?"
+REMEMBER: Always respond in the customer's language ({LanguageService.get_language_display_name(lang)})
 
 FOR BOOKING REQUESTS:
-When a customer wants to make a reservation, collect this information:
-- Preferred date
-- Preferred time  
-- Party size (number of guests)
-- Customer name
-- Contact phone number
+When a customer wants to make a reservation, collect this information in THEIR language:
+- Preferred date ("{booking_date}")
+- Preferred time ("{booking_time}")
+- Party size ("{booking_party}")
+- Customer name ("{booking_name}")
+- Contact phone ("{booking_phone}")
 
 Include collected booking data in the "extracted_data" field like:
-{
-  "extracted_data": {
+{{
+  "extracted_data": {{
     "booking_intent": true,
     "date": "2025-01-15",
     "time": "19:00",
     "party_size": 4,
     "customer_name": "John Smith",
     "customer_phone": "555-1234"
-  }
-}
+  }}
+}}
 
-If any required booking info is missing, ask for it in a friendly way.
+If any required booking info is missing, ask for it in a friendly way in the customer's language.
 If the restaurant might be fully booked or it's a large party (8+), escalate to human.
 
 """
@@ -411,8 +453,14 @@ If the restaurant might be fully booked or it's a large party (8+), escalate to 
         return prompt
     
     def _get_realestate_prompt(self, context: Dict[str, Any]) -> str:
-        """Generate real estate-specific prompt section."""
-        prompt = """
+        """Generate real estate-specific prompt section with multilingual support."""
+        lang = self.detected_language
+        property_intro = LanguageService.get_template(lang, 'property_intro')
+        lead_budget = LanguageService.get_template(lang, 'lead_budget')
+        lead_area = LanguageService.get_template(lang, 'lead_area')
+        lead_timeline = LanguageService.get_template(lang, 'lead_timeline')
+        
+        prompt = f"""
 REAL ESTATE-SPECIFIC CAPABILITIES:
 You can help customers with:
 1. Property searches - help find properties matching their criteria
@@ -420,23 +468,21 @@ You can help customers with:
 3. Lead qualification - collect buyer/renter information
 4. Appointment scheduling - schedule property viewings
 
-GREETING EXAMPLES FOR REAL ESTATE:
-- "Hello! I'm your AI property assistant for [Company Name]. I can help you find properties, answer questions, or schedule a viewing. What are you looking for today?"
-- "Hi there! I'm the AI assistant at [Company Name]. Are you looking to buy, rent, or sell a property?"
+REMEMBER: Always respond in the customer's language ({LanguageService.get_language_display_name(lang)})
 
 FOR LEAD QUALIFICATION:
-When a customer shows interest, collect this information:
-- Intent: Buy, Rent, or Sell?
-- Budget range (min/max)
-- Preferred areas/neighborhoods
+When a customer shows interest, collect this information in THEIR language:
+- Intent: "{property_intro}"
+- Budget: "{lead_budget}"
+- Preferred areas: "{lead_area}"
 - Property type preference (house, apartment, etc.)
 - Number of bedrooms needed
-- Timeline (when do they need to move?)
+- Timeline: "{lead_timeline}"
 - Name and contact phone
 
 Include collected lead data in the "extracted_data" field like:
-{
-  "extracted_data": {
+{{
+  "extracted_data": {{
     "lead_intent": "buy",
     "budget_min": 300000,
     "budget_max": 500000,
@@ -446,8 +492,8 @@ Include collected lead data in the "extracted_data" field like:
     "timeline": "3 months",
     "customer_name": "Jane Doe",
     "customer_phone": "555-5678"
-  }
-}
+  }}
+}}
 
 FOR HIGH-INTENT LEADS (ready to buy, pre-approved, specific property interest), set escalate to true.
 
@@ -570,6 +616,7 @@ FOR HIGH-INTENT LEADS (ready to buy, pre-approved, specific property interest), 
                 'metadata': parsed,
                 'needs_handoff': False,
                 'handoff_reason': '',
+                'language': self.detected_language,
             }
         except json.JSONDecodeError:
             # If not valid JSON, return as plain text with low confidence
@@ -581,6 +628,7 @@ FOR HIGH-INTENT LEADS (ready to buy, pre-approved, specific property interest), 
                 'metadata': {},
                 'needs_handoff': False,
                 'handoff_reason': '',
+                'language': self.detected_language,
             }
 
     def _create_handoff_response(
@@ -589,7 +637,7 @@ FOR HIGH-INTENT LEADS (ready to buy, pre-approved, specific property interest), 
         reason: str,
         confidence: float
     ) -> Dict[str, Any]:
-        """Create a handoff response."""
+        """Create a handoff response in the detected language."""
         return {
             'content': message,
             'confidence': confidence,
@@ -597,6 +645,7 @@ FOR HIGH-INTENT LEADS (ready to buy, pre-approved, specific property interest), 
             'metadata': {},
             'needs_handoff': True,
             'handoff_reason': reason,
+            'language': self.detected_language,
         }
 
     def _log_interaction(
@@ -609,14 +658,18 @@ FOR HIGH-INTENT LEADS (ready to buy, pre-approved, specific property interest), 
         tokens: int,
         latency_ms: int,
         error: str = "",
+        language: str = "en",
     ):
-        """Log the AI interaction."""
+        """Log the AI interaction with language info."""
         try:
             AILog.objects.create(
                 organization=self.organization,
                 conversation=self.conversation,
                 prompt=prompt,
-                context={'location': str(self.location.id) if self.location else None},
+                context={
+                    'location': str(self.location.id) if self.location else None,
+                    'language': language,
+                },
                 response=response,
                 confidence_score=confidence,
                 intent=intent,

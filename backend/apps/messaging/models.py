@@ -1,11 +1,19 @@
 """
 Messaging models - Conversations, Messages, Channels
 Implements unified inbox and conversation state machine.
+Supports multilingual conversations (English, Simplified Chinese, Traditional Chinese).
 """
 import uuid
 from django.db import models
 from django.conf import settings
 from apps.accounts.models import Organization, Location
+
+
+class LanguageChoice(models.TextChoices):
+    """Supported languages for conversations."""
+    ENGLISH = 'en', 'English'
+    SIMPLIFIED_CHINESE = 'zh-CN', '简体中文 (Simplified Chinese)'
+    TRADITIONAL_CHINESE = 'zh-TW', '繁體中文 (Traditional Chinese)'
 
 
 class Channel(models.TextChoices):
@@ -92,6 +100,14 @@ class Conversation(models.Model):
     intent = models.CharField(max_length=100, blank=True)
     sentiment = models.CharField(max_length=50, blank=True)
     tags = models.JSONField(default=list, blank=True)
+    
+    # Language detection - tracks customer's preferred language
+    detected_language = models.CharField(
+        max_length=10,
+        choices=LanguageChoice.choices,
+        default=LanguageChoice.ENGLISH,
+        help_text='Detected language of the customer (auto-updated based on messages)'
+    )
     
     # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)
@@ -273,6 +289,14 @@ class WidgetSession(models.Model):
         on_delete=models.SET_NULL,
         null=True,
         blank=True
+    )
+    
+    # Language preference from browser or user selection
+    preferred_language = models.CharField(
+        max_length=10,
+        choices=LanguageChoice.choices,
+        default=LanguageChoice.ENGLISH,
+        help_text='Preferred language for this session (from browser or user selection)'
     )
     
     # Timestamps

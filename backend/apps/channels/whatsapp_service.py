@@ -177,7 +177,7 @@ class WhatsAppService:
         return conversation
     
     def _process_with_ai(self, conversation: Conversation, message: Message):
-        """Process message with AI and send response."""
+        """Process message with AI and send response. Supports multilingual responses."""
         try:
             logger.info(f"🤖 Processing message with AI for conversation {conversation.id}")
             ai_service = AIService(conversation)
@@ -191,7 +191,8 @@ class WhatsAppService:
             response = ai_service.process_message(message.content)
             
             if response:
-                logger.info(f"✅ AI response generated - Intent: {response.get('intent')}, Confidence: {response.get('confidence')}")
+                detected_lang = response.get('language', 'en')
+                logger.info(f"✅ AI response generated - Intent: {response.get('intent')}, Confidence: {response.get('confidence')}, Language: {detected_lang}")
                 
                 # Create AI message
                 ai_message = Message.objects.create(
@@ -203,12 +204,13 @@ class WhatsAppService:
                     ai_metadata={
                         'confidence': response.get('confidence', 0),
                         'intent': response.get('intent', 'unknown'),
-                        'needs_handoff': response.get('needs_handoff', False)
+                        'needs_handoff': response.get('needs_handoff', False),
+                        'language': detected_lang,
                     }
                 )
                 
                 # Send via WhatsApp
-                logger.info(f"📤 Sending WhatsApp message to {conversation.customer_phone}")
+                logger.info(f"📤 Sending WhatsApp message to {conversation.customer_phone} in {detected_lang}")
                 sent_message_id = self.send_message(
                     to=conversation.customer_phone,
                     text=response['content']
