@@ -77,3 +77,15 @@ celerybeat.pid
 
 # Deployment logs
 deploy/logs/
+
+# Temporary debug/test scripts
+**/debug_*.py
+**/test_*.py
+**/diagnose_*.py
+**/check_*.py
+**/*_diagnostic*.py
+**/*_debug*.py
+debug-*.ps1
+fix-*.ps1
+*-diagnostic.ps1
+QUICK_REFERENCE.txt

@@ -43,19 +43,34 @@ class WhatsAppService:
     def verify_webhook_signature(self, payload: bytes, signature: str) -> bool:
         """
         Verify the webhook signature from Meta.
+        Payload must be the raw request body bytes, not parsed JSON.
         """
         app_secret = getattr(settings, 'META_APP_SECRET', '')
         if not app_secret:
-            logger.warning("META_APP_SECRET not configured")
+            logger.warning("META_APP_SECRET not configured - skipping signature verification")
             return True  # Skip verification in dev
         
+        # Calculate expected signature using raw bytes
         expected_signature = hmac.new(
             app_secret.encode('utf-8'),
             payload,
             hashlib.sha256
         ).hexdigest()
         
-        return hmac.compare_digest(f"sha256={expected_signature}", signature)
+        expected_full = f"sha256={expected_signature}"
+        is_valid = hmac.compare_digest(expected_full, signature)
+        
+        if not is_valid:
+            logger.error(f"❌ Webhook signature verification FAILED")
+            logger.error(f"   Expected: {expected_full[:60]}...")
+            logger.error(f"   Received: {signature[:60]}...")
+            logger.error(f"   App Secret: {app_secret[:8]}...{app_secret[-4:]}")
+            logger.error(f"   Payload length: {len(payload)} bytes")
+            logger.error(f"   This means the META_APP_SECRET doesn't match the app sending webhooks")
+        else:
+            logger.info(f"✅ Webhook signature verified successfully")
+        
+        return is_valid
     
     def process_webhook(self, data: Dict[str, Any]) -> bool:
         """
