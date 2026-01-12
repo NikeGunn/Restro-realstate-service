@@ -150,6 +150,9 @@ class WidgetMessageView(APIView):
                 ai_service = AIService(conversation)
                 ai_result = ai_service.process_message(content)
 
+                # Process any extracted booking data
+                self._process_extracted_data(session.organization, conversation, ai_result)
+
                 # Create AI message
                 ai_message = Message.objects.create(
                     conversation=conversation,
@@ -181,6 +184,57 @@ class WidgetMessageView(APIView):
                 print(traceback.format_exc())
 
         return Response(response_data)
+    
+    def _process_extracted_data(self, organization, conversation, ai_result):
+        """
+        Process extracted data from AI response.
+        Creates bookings, leads, appointments etc. based on the extracted data.
+        """
+        extracted_data = ai_result.get('extracted_data', {})
+        
+        if not extracted_data:
+            return
+        
+        # Handle booking intent for restaurant businesses
+        if extracted_data.get('booking_intent') and organization.business_type == 'restaurant':
+            try:
+                from apps.restaurant.booking_service import process_booking_from_ai_response
+                
+                booking = process_booking_from_ai_response(
+                    organization=organization,
+                    conversation=conversation,
+                    ai_response=ai_result,
+                    source='website'
+                )
+                
+                if booking:
+                    print(f"📅 Booking created from widget: {booking.confirmation_code}")
+            except Exception as e:
+                import traceback
+                print(f"Error processing booking data: {e}")
+                print(traceback.format_exc())
+        
+        # Handle lead/appointment intent for real estate businesses
+        if organization.business_type == 'real_estate':
+            if extracted_data.get('lead_intent') or extracted_data.get('appointment_intent'):
+                try:
+                    from apps.realestate.lead_service import process_realestate_from_ai_response
+                    
+                    result = process_realestate_from_ai_response(
+                        organization=organization,
+                        conversation=conversation,
+                        ai_response=ai_result,
+                        source='website'
+                    )
+                    
+                    if result.get('lead'):
+                        print(f"🏠 Lead created from widget: {result['lead'].id}")
+                    if result.get('appointment'):
+                        print(f"📅 Appointment created from widget: {result['appointment'].confirmation_code}")
+                except Exception as e:
+                    import traceback
+                    print(f"Error processing real estate data: {e}")
+                    print(traceback.format_exc())
 
 
 class WidgetConversationView(APIView):

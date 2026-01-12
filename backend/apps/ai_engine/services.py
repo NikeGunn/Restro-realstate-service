@@ -397,23 +397,36 @@ REMEMBER: Always respond in the customer's language ({LanguageService.get_langua
 
 FOR BOOKING REQUESTS:
 When a customer wants to make a reservation, collect this information in THEIR language:
-- Preferred date ("{booking_date}")
-- Preferred time ("{booking_time}")
+- Preferred date ("{booking_date}") - Accept "today", "tonight", "tomorrow", or specific dates
+- Preferred time ("{booking_time}") - Accept formats like "7pm", "19:00", "12:30 PM"
 - Party size ("{booking_party}")
 - Customer name ("{booking_name}")
 - Contact phone ("{booking_phone}")
 
-Include collected booking data in the "extracted_data" field like:
+🚨 CRITICAL BOOKING RULE - WHEN ALL INFO IS COLLECTED:
+When you have collected ALL required booking information (date, time, party_size, name, phone),
+you MUST include the complete booking data in "extracted_data" to create the reservation:
+
 {{
+  "content": "Your confirmation message to the customer",
+  "confidence": 0.95,
+  "intent": "booking",
   "extracted_data": {{
     "booking_intent": true,
-    "date": "2025-01-15",
-    "time": "19:00",
-    "party_size": 4,
-    "customer_name": "John Smith",
-    "customer_phone": "555-1234"
+    "date": "today",
+    "time": "12:30",
+    "party_size": 2,
+    "customer_name": "Nikhil",
+    "customer_phone": "9705651002"
   }}
 }}
+
+IMPORTANT: 
+- "booking_intent" MUST be set to true when confirming a booking
+- Include ALL collected data in extracted_data when confirming
+- For date, use the customer's words like "today", "tonight", "tomorrow" or actual date
+- For time, use 24-hour format like "12:30" or "19:00" if possible, or customer's format
+- Track and accumulate booking info across messages in the conversation
 
 If any required booking info is missing, ask for it in a friendly way in the customer's language.
 If the restaurant might be fully booked or it's a large party (8+), escalate to human.
@@ -471,17 +484,23 @@ You can help customers with:
 REMEMBER: Always respond in the customer's language ({LanguageService.get_language_display_name(lang)})
 
 FOR LEAD QUALIFICATION:
-When a customer shows interest, collect this information in THEIR language:
-- Intent: "{property_intro}"
-- Budget: "{lead_budget}"
-- Preferred areas: "{lead_area}"
-- Property type preference (house, apartment, etc.)
+When a customer shows interest in buying, renting, or learning about properties, collect this information:
+- Intent: "{property_intro}" (buy, rent, sell, or invest)
+- Budget: "{lead_budget}" (e.g., $300,000 - $500,000)
+- Preferred areas: "{lead_area}" (neighborhoods/cities)
+- Property type preference (house, apartment, condo, etc.)
 - Number of bedrooms needed
-- Timeline: "{lead_timeline}"
+- Timeline: "{lead_timeline}" (when they want to move)
 - Name and contact phone
 
-Include collected lead data in the "extracted_data" field like:
+🚨 CRITICAL LEAD CAPTURE RULE - WHEN KEY INFO IS COLLECTED:
+When you have collected the customer's intent, name, and phone number (minimum required),
+you MUST include the lead data in "extracted_data" to capture the lead:
+
 {{
+  "content": "Your confirmation message to the customer",
+  "confidence": 0.95,
+  "intent": "lead_capture",
   "extracted_data": {{
     "lead_intent": "buy",
     "budget_min": 300000,
@@ -491,11 +510,43 @@ Include collected lead data in the "extracted_data" field like:
     "bedrooms": 3,
     "timeline": "3 months",
     "customer_name": "Jane Doe",
+    "customer_phone": "555-5678",
+    "customer_email": "jane@example.com"
+  }}
+}}
+
+FOR APPOINTMENT/VIEWING SCHEDULING:
+When a customer wants to schedule a property viewing or meeting, collect:
+- Preferred date
+- Preferred time
+- Property they want to see (if specific)
+- Name and phone (if not already collected)
+
+🚨 CRITICAL APPOINTMENT RULE - WHEN SCHEDULING INFO IS COMPLETE:
+When you have collected date, time, name, and phone, include appointment data:
+
+{{
+  "content": "Your appointment confirmation message",
+  "confidence": 0.95,
+  "intent": "appointment",
+  "extracted_data": {{
+    "appointment_intent": true,
+    "appointment_date": "tomorrow",
+    "appointment_time": "2:00 PM",
+    "appointment_type": "viewing",
+    "property_reference": "PROP123456",
+    "customer_name": "Jane Doe",
     "customer_phone": "555-5678"
   }}
 }}
 
-FOR HIGH-INTENT LEADS (ready to buy, pre-approved, specific property interest), set escalate to true.
+IMPORTANT:
+- "lead_intent" should be the intent type: "buy", "rent", "sell", "invest", or "general"
+- "appointment_intent" MUST be set to true when confirming an appointment
+- You can include BOTH lead_intent AND appointment_intent in the same response if customer is both interested and scheduling a viewing
+- Track and accumulate customer info across messages in the conversation
+- For dates, use customer's words like "today", "tomorrow", or actual date
+- For high-intent leads (ready to buy, pre-approved, specific property interest), set escalate to true
 
 """
         

@@ -209,6 +209,9 @@ class WhatsAppService:
                 detected_lang = response.get('language', 'en')
                 logger.info(f"✅ AI response generated - Intent: {response.get('intent')}, Confidence: {response.get('confidence')}, Language: {detected_lang}")
                 
+                # Process any extracted booking data
+                self._process_extracted_data(conversation, response)
+                
                 # Create AI message
                 ai_message = Message.objects.create(
                     conversation=conversation,
@@ -248,6 +251,80 @@ class WhatsAppService:
         except Exception as e:
             logger.exception(f"❌ CRITICAL: Error processing with AI: {e}")
             logger.error(f"This will prevent replies from being sent to customer")
+    
+    def _process_extracted_data(self, conversation: Conversation, ai_response: dict):
+        """
+        Process extracted data from AI response.
+        Creates bookings, leads, appointments etc. based on the extracted data.
+        """
+        extracted_data = ai_response.get('extracted_data', {})
+        
+        if not extracted_data:
+            return
+        
+        logger.info(f"📊 Processing extracted data: {extracted_data}")
+        
+        # Handle booking intent for restaurant businesses
+        if extracted_data.get('booking_intent') and self.organization.business_type == 'restaurant':
+            self._process_booking_data(conversation, ai_response)
+        
+        # Handle lead/appointment intent for real estate businesses
+        if self.organization.business_type == 'real_estate':
+            if extracted_data.get('lead_intent') or extracted_data.get('appointment_intent'):
+                self._process_realestate_data(conversation, ai_response)
+    
+    def _process_booking_data(self, conversation: Conversation, ai_response: dict):
+        """
+        Process booking data and create a reservation.
+        """
+        try:
+            from apps.restaurant.booking_service import process_booking_from_ai_response
+            
+            booking = process_booking_from_ai_response(
+                organization=self.organization,
+                conversation=conversation,
+                ai_response=ai_response,
+                source='whatsapp'
+            )
+            
+            if booking:
+                logger.info(f"📅 Booking created from WhatsApp: {booking.confirmation_code}")
+                logger.info(f"   Customer: {booking.customer_name}")
+                logger.info(f"   Date: {booking.booking_date} at {booking.booking_time}")
+                logger.info(f"   Party size: {booking.party_size}")
+                logger.info(f"   Status: {booking.status}")
+        except Exception as e:
+            logger.exception(f"❌ Error processing booking data: {e}")
+    
+    def _process_realestate_data(self, conversation: Conversation, ai_response: dict):
+        """
+        Process real estate lead and appointment data.
+        """
+        try:
+            from apps.realestate.lead_service import process_realestate_from_ai_response
+            
+            result = process_realestate_from_ai_response(
+                organization=self.organization,
+                conversation=conversation,
+                ai_response=ai_response,
+                source='whatsapp'
+            )
+            
+            if result.get('lead'):
+                lead = result['lead']
+                logger.info(f"🏠 Lead created from WhatsApp: {lead.id}")
+                logger.info(f"   Customer: {lead.name}")
+                logger.info(f"   Intent: {lead.intent}")
+                logger.info(f"   Score: {lead.lead_score}")
+            
+            if result.get('appointment'):
+                apt = result['appointment']
+                logger.info(f"📅 Appointment created from WhatsApp: {apt.confirmation_code}")
+                logger.info(f"   Lead: {apt.lead.name}")
+                logger.info(f"   Date: {apt.appointment_date} at {apt.appointment_time}")
+                logger.info(f"   Type: {apt.appointment_type}")
+        except Exception as e:
+            logger.exception(f"❌ Error processing real estate data: {e}")
     
     def _handle_status_update(self, status: Dict):
         """Handle message status update (sent, delivered, read)."""
