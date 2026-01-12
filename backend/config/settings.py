@@ -151,8 +151,8 @@ SIMPLE_JWT = {
 }
 
 # CORS Settings
-# Allow all origins for widget (since it's embedded on customer websites)
-CORS_ALLOW_ALL_ORIGINS = config('CORS_ALLOW_ALL_ORIGINS', default=True, cast=bool)
+# In production, use specific origins. In dev, allow all for easier testing.
+CORS_ALLOW_ALL_ORIGINS = config('CORS_ALLOW_ALL_ORIGINS', default=DEBUG, cast=bool)
 
 # If not allowing all origins, use specific origins list
 if not CORS_ALLOW_ALL_ORIGINS:
@@ -160,17 +160,40 @@ if not CORS_ALLOW_ALL_ORIGINS:
         'CORS_ALLOWED_ORIGINS',
         default='http://localhost:3000,http://127.0.0.1:3000,http://localhost:8080,http://127.0.0.1:8080,https://kribaat.com,https://www.kribaat.com'
     ).split(',')
+    # Clean up whitespace
+    CORS_ALLOWED_ORIGINS = [origin.strip() for origin in CORS_ALLOWED_ORIGINS if origin.strip()]
 else:
     CORS_ALLOWED_ORIGINS = []
 
-# Don't use credentials with wildcard origin (causes CORS error)
-CORS_ALLOW_CREDENTIALS = False
+# Allow credentials for authenticated requests
+CORS_ALLOW_CREDENTIALS = True
+
+# Allow specific headers
+CORS_ALLOW_HEADERS = [
+    'accept',
+    'accept-encoding',
+    'authorization',
+    'content-type',
+    'dnt',
+    'origin',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
+]
 
 # CSRF Settings for HTTPS
 CSRF_TRUSTED_ORIGINS = config(
     'CSRF_TRUSTED_ORIGINS',
     default='https://kribaat.com,https://www.kribaat.com,http://localhost:3000,http://127.0.0.1:3000'
 ).split(',')
+# Clean up whitespace
+CSRF_TRUSTED_ORIGINS = [origin.strip() for origin in CSRF_TRUSTED_ORIGINS if origin.strip()]
+
+# For API-only endpoints, we can use session auth exemption
+# But we still want CSRF protection for authenticated endpoints using sessions
+CSRF_COOKIE_HTTPONLY = False  # Allow JavaScript to read CSRF token
+CSRF_COOKIE_SAMESITE = 'Lax'  # Changed from 'Strict' for cross-origin requests
+CSRF_COOKIE_SECURE = not DEBUG  # Only send cookie over HTTPS in production
 
 # Celery Configuration
 CELERY_BROKER_URL = config('REDIS_URL', default='redis://localhost:6379/0')

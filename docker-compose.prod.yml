@@ -57,6 +57,7 @@ services:
       - REDIS_URL=redis://redis:6379/0
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - ALLOWED_HOSTS=${ALLOWED_HOSTS:-kribaat.com,www.kribaat.com,localhost,127.0.0.1}
+      - CORS_ALLOW_ALL_ORIGINS=False
       - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS:-https://kribaat.com,https://www.kribaat.com}
       - CSRF_TRUSTED_ORIGINS=${CSRF_TRUSTED_ORIGINS:-https://kribaat.com,https://www.kribaat.com}
       - META_APP_SECRET=${META_APP_SECRET:-}
