@@ -400,15 +400,17 @@ export function AnalyticsPage() {
 
       {/* Power Plan Notice for Basic Users */}
       {!isPowerPlan && (
-        <Card className="mt-6 border-blue-200 bg-blue-50 dark:bg-blue-900/20">
+        <Card className="mt-6 border-blue-300 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950 dark:to-indigo-950 shadow-sm">
           <CardContent className="pt-6">
             <div className="flex items-start gap-4">
-              <TrendingUp className="h-6 w-6 text-blue-600 flex-shrink-0" />
-              <div>
-                <h3 className="font-semibold text-blue-900 dark:text-blue-100">
+              <div className="flex-shrink-0 rounded-lg bg-blue-100 dark:bg-blue-900 p-2">
+                <TrendingUp className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+              </div>
+              <div className="flex-1">
+                <h3 className="font-bold text-lg text-gray-900 dark:text-gray-100">
                   Upgrade to Power Plan
                 </h3>
-                <p className="text-sm text-blue-700 dark:text-blue-300 mt-1">
+                <p className="text-sm text-gray-700 dark:text-gray-300 mt-1 leading-relaxed">
                   Get access to advanced analytics features: aggregated multi-location analytics,
                   custom dashboards, escalation rules, and detailed performance reports.
                 </p>
