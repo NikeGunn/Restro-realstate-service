@@ -10,16 +10,26 @@ import {
   Users,
   AlertTriangle,
   TrendingUp,
+  TrendingDown,
   Globe,
   Phone,
+  Clock,
+  Zap,
+  MapPin,
+  Calendar,
+  BarChart3,
+  Activity,
+  Crown,
 } from 'lucide-react'
-import type { AnalyticsOverview, ChannelStats } from '@/types'
+import type { AnalyticsOverview, ChannelStats, DailyTrendResponse, LocationAnalyticsResponse } from '@/types'
 
 export function AnalyticsPage() {
   const { t } = useTranslation()
   const { currentOrganization } = useAuthStore()
   const [overview, setOverview] = useState<AnalyticsOverview | null>(null)
   const [channelStats, setChannelStats] = useState<ChannelStats[]>([])
+  const [dailyTrends, setDailyTrends] = useState<DailyTrendResponse | null>(null)
+  const [locationStats, setLocationStats] = useState<LocationAnalyticsResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [days, setDays] = useState(30)
 
@@ -34,19 +44,49 @@ export function AnalyticsPage() {
     if (!currentOrganization) return
 
     try {
-      const [overviewData, channelData] = await Promise.all([
+      const promises: Promise<unknown>[] = [
         analyticsApi.overview({ organization: currentOrganization.id, days }),
         analyticsApi.byChannel({ organization: currentOrganization.id, days }),
-      ])
+      ]
 
-      setOverview(overviewData)
-      // Backend returns {by_channel: [...]} but we need just the array
+      // Fetch Power Plan exclusive data
+      if (isPowerPlan) {
+        promises.push(
+          analyticsApi.daily({ organization: currentOrganization.id, days }),
+          analyticsApi.byLocation({ organization: currentOrganization.id, days })
+        )
+      }
+
+      const results = await Promise.all(promises)
+
+      setOverview(results[0] as AnalyticsOverview)
+      const channelData = results[1] as ChannelStats[] | { by_channel: ChannelStats[] }
       setChannelStats(Array.isArray(channelData) ? channelData : channelData.by_channel || [])
+
+      if (isPowerPlan && results.length > 2) {
+        setDailyTrends(results[2] as DailyTrendResponse)
+        setLocationStats(results[3] as LocationAnalyticsResponse)
+      }
     } catch (error) {
       console.error('Error fetching analytics:', error)
     } finally {
       setLoading(false)
     }
+  }
+
+  // Helper function to format seconds as human readable time
+  const formatTime = (seconds: number | null): string => {
+    if (seconds === null) return 'N/A'
+    if (seconds < 60) return `${seconds}s`
+    if (seconds < 3600) return `${Math.floor(seconds / 60)}m ${seconds % 60}s`
+    return `${Math.floor(seconds / 3600)}h ${Math.floor((seconds % 3600) / 60)}m`
+  }
+
+  // Helper function to format hour (0-23) as readable time
+  const formatHour = (hour: number): string => {
+    const suffix = hour >= 12 ? 'PM' : 'AM'
+    const displayHour = hour % 12 || 12
+    return `${displayHour}${suffix}`
   }
 
   if (!currentOrganization) {
@@ -418,6 +458,327 @@ export function AnalyticsPage() {
             </div>
           </CardContent>
         </Card>
+      )}
+
+      {/* ================================================= */}
+      {/* POWER PLAN EXCLUSIVE ANALYTICS SECTION */}
+      {/* ================================================= */}
+      {isPowerPlan && (
+        <>
+          {/* Power Plan Header */}
+          <div className="mt-8 mb-4">
+            <div className="flex items-center gap-2 mb-2">
+              <Crown className="h-5 w-5 text-amber-500" />
+              <h2 className="text-xl font-bold text-amber-600 dark:text-amber-400">
+                Power Plan Analytics
+              </h2>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Advanced insights and detailed performance metrics exclusive to Power Plan subscribers
+            </p>
+          </div>
+
+          {/* Response Time & AI Efficiency Metrics */}
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <Card className="border-amber-200 dark:border-amber-800">
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium">Avg Response Time</CardTitle>
+                <Clock className="h-4 w-4 text-amber-500" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-amber-600">
+                  {formatTime(overview?.power_analytics?.response_time?.avg_seconds ?? null)}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Based on {overview?.power_analytics?.response_time?.sample_size || 0} messages
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card className="border-amber-200 dark:border-amber-800">
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium">Fastest Response</CardTitle>
+                <Zap className="h-4 w-4 text-green-500" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-green-600">
+                  {formatTime(overview?.power_analytics?.response_time?.min_seconds ?? null)}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Best response time achieved
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card className="border-amber-200 dark:border-amber-800">
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium">AI Resolution Rate</CardTitle>
+                <Bot className="h-4 w-4 text-blue-500" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-blue-600">
+                  {overview?.power_analytics?.ai_efficiency?.ai_resolution_rate || 0}%
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {overview?.power_analytics?.ai_efficiency?.ai_only_resolved || 0} resolved without human
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card className="border-amber-200 dark:border-amber-800">
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium">Conversation Trend</CardTitle>
+                {dailyTrends?.trend?.direction === 'up' ? (
+                  <TrendingUp className="h-4 w-4 text-green-500" />
+                ) : dailyTrends?.trend?.direction === 'down' ? (
+                  <TrendingDown className="h-4 w-4 text-red-500" />
+                ) : (
+                  <Activity className="h-4 w-4 text-gray-500" />
+                )}
+              </CardHeader>
+              <CardContent>
+                <div className={`text-2xl font-bold ${
+                  dailyTrends?.trend?.direction === 'up' ? 'text-green-600' :
+                  dailyTrends?.trend?.direction === 'down' ? 'text-red-600' : 'text-gray-600'
+                }`}>
+                  {dailyTrends?.trend?.direction === 'up' ? '+' : dailyTrends?.trend?.direction === 'down' ? '-' : ''}
+                  {dailyTrends?.trend?.percent || 0}%
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  vs. first half of period
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Daily Trends Chart */}
+          <div className="grid gap-4 md:grid-cols-2 mt-4">
+            <Card className="border-amber-200 dark:border-amber-800">
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <Calendar className="h-5 w-5 text-amber-500" />
+                  <CardTitle>Daily Conversation Trends</CardTitle>
+                </div>
+                <CardDescription>Daily breakdown of conversations and resolutions</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2 max-h-64 overflow-y-auto">
+                  {dailyTrends?.daily?.length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-4">
+                      No daily data available
+                    </p>
+                  ) : (
+                    dailyTrends?.daily?.slice(-14).map((day) => {
+                      const maxConv = Math.max(...(dailyTrends.daily?.map(d => d.conversations) || [1]))
+                      const width = (day.conversations / maxConv) * 100
+                      return (
+                        <div key={day.date} className="space-y-1">
+                          <div className="flex justify-between text-xs">
+                            <span>{new Date(day.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+                            <span className="text-muted-foreground">
+                              {day.conversations} conv / {day.messages} msg
+                            </span>
+                          </div>
+                          <div className="h-2 bg-muted rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-gradient-to-r from-amber-400 to-orange-500 rounded-full"
+                              style={{ width: `${width}%` }}
+                            />
+                          </div>
+                        </div>
+                      )
+                    })
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Peak Hours */}
+            <Card className="border-amber-200 dark:border-amber-800">
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <BarChart3 className="h-5 w-5 text-amber-500" />
+                  <CardTitle>Peak Activity Hours</CardTitle>
+                </div>
+                <CardDescription>When your customers are most active</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {/* Top 3 Peak Hours */}
+                  {overview?.power_analytics?.peak_hours?.peak_hours?.length ? (
+                    <div className="flex flex-wrap gap-2 mb-4">
+                      {overview.power_analytics.peak_hours.peak_hours.map((hour, idx) => (
+                        <div
+                          key={hour}
+                          className={`px-3 py-1 rounded-full text-sm font-medium ${
+                            idx === 0 ? 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200' :
+                            idx === 1 ? 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200' :
+                            'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
+                          }`}
+                        >
+                          #{idx + 1} {formatHour(hour)}
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+
+                  {/* Hourly Distribution Bar Chart */}
+                  <div className="grid grid-cols-12 gap-1 h-24">
+                    {Array.from({ length: 24 }, (_, hour) => {
+                      const hourData = overview?.power_analytics?.peak_hours?.hourly_distribution?.find(
+                        h => h.hour === hour
+                      )
+                      const count = hourData?.count || 0
+                      const maxCount = Math.max(
+                        ...(overview?.power_analytics?.peak_hours?.hourly_distribution?.map(h => h.count) || [1])
+                      )
+                      const height = maxCount > 0 ? (count / maxCount) * 100 : 0
+                      const isPeak = overview?.power_analytics?.peak_hours?.peak_hours?.includes(hour)
+
+                      return hour % 2 === 0 ? (
+                        <div key={hour} className="flex flex-col items-center justify-end h-full">
+                          <div
+                            className={`w-full rounded-t ${isPeak ? 'bg-amber-500' : 'bg-gray-300 dark:bg-gray-600'}`}
+                            style={{ height: `${height}%`, minHeight: count > 0 ? '4px' : '0' }}
+                          />
+                          <span className="text-[10px] text-muted-foreground mt-1">{hour}</span>
+                        </div>
+                      ) : null
+                    })}
+                  </div>
+                  <p className="text-xs text-muted-foreground text-center mt-2">Hour of day (24h)</p>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Day of Week & Location Analytics */}
+          <div className="grid gap-4 md:grid-cols-2 mt-4">
+            {/* Day of Week Distribution */}
+            <Card className="border-amber-200 dark:border-amber-800">
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <Activity className="h-5 w-5 text-amber-500" />
+                  <CardTitle>Weekly Activity Pattern</CardTitle>
+                </div>
+                <CardDescription>Conversation distribution by day of week</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {overview?.power_analytics?.day_of_week?.length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-4">
+                      No weekly data available
+                    </p>
+                  ) : (
+                    overview?.power_analytics?.day_of_week?.map((day) => {
+                      const maxCount = Math.max(
+                        ...(overview?.power_analytics?.day_of_week?.map(d => d.count) || [1])
+                      )
+                      const width = (day.count / maxCount) * 100
+                      return (
+                        <div key={day.day_of_week} className="space-y-1">
+                          <div className="flex justify-between text-sm">
+                            <span className="font-medium">{day.day_name}</span>
+                            <span className="text-muted-foreground">{day.count} conversations</span>
+                          </div>
+                          <div className="h-2 bg-muted rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-gradient-to-r from-purple-400 to-pink-500 rounded-full"
+                              style={{ width: `${width}%` }}
+                            />
+                          </div>
+                        </div>
+                      )
+                    })
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Location Analytics */}
+            <Card className="border-amber-200 dark:border-amber-800">
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <MapPin className="h-5 w-5 text-amber-500" />
+                  <CardTitle>Location Performance</CardTitle>
+                </div>
+                <CardDescription>Analytics breakdown by location</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {locationStats?.by_location?.length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-4">
+                      No location data available
+                    </p>
+                  ) : (
+                    locationStats?.by_location?.map((loc) => (
+                      <div
+                        key={loc.location_id || 'primary'}
+                        className="p-3 bg-muted rounded-lg"
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="font-medium">{loc.location_name}</span>
+                          <span className={`text-xs px-2 py-1 rounded-full ${
+                            loc.resolution_rate >= 70 
+                              ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                              : loc.resolution_rate >= 40
+                              ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
+                              : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+                          }`}>
+                            {loc.resolution_rate}% resolved
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-3 gap-2 text-xs text-muted-foreground">
+                          <div>
+                            <span className="font-semibold text-foreground">{loc.conversations}</span> conv
+                          </div>
+                          <div>
+                            <span className="font-semibold text-foreground">{loc.messages}</span> msg
+                          </div>
+                          <div>
+                            <span className="font-semibold text-foreground">{loc.handoffs}</span> handoffs
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Channel Performance Comparison */}
+          <Card className="mt-4 border-amber-200 dark:border-amber-800">
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <BarChart3 className="h-5 w-5 text-amber-500" />
+                <CardTitle>Channel Performance Comparison</CardTitle>
+              </div>
+              <CardDescription>Compare resolution rates across different channels</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-4 md:grid-cols-3">
+                {overview?.power_analytics?.channel_performance?.map((ch) => (
+                  <div
+                    key={ch.channel}
+                    className="p-4 bg-muted rounded-lg text-center"
+                  >
+                    <div className="flex items-center justify-center gap-2 mb-2">
+                      {channelIcons[ch.channel] || <Globe className="h-5 w-5" />}
+                      <span className="font-medium capitalize">{ch.channel}</span>
+                    </div>
+                    <div className="text-3xl font-bold text-amber-600 mb-1">
+                      {ch.resolution_rate}%
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {ch.resolved} of {ch.total} resolved
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </>
       )}
     </div>
   )

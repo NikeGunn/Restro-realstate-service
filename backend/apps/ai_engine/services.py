@@ -439,7 +439,14 @@ If the restaurant might be fully booked or it's a large party (8+), escalate to 
             for cat in context['menu']:
                 prompt += f"\n{cat['category']}:\n"
                 for item in cat['items']:
-                    dietary = ', '.join(k for k, v in item['dietary'].items() if v) if item['dietary'] else ''
+                    # dietary can be a list of strings like ["vegetarian", "vegan"] or a dict
+                    dietary_info = item.get('dietary', [])
+                    if isinstance(dietary_info, list):
+                        dietary = ', '.join(dietary_info) if dietary_info else ''
+                    elif isinstance(dietary_info, dict):
+                        dietary = ', '.join(k for k, v in dietary_info.items() if v) if dietary_info else ''
+                    else:
+                        dietary = ''
                     prompt += f"  - {item['name']}: ${item['price']:.2f}"
                     if dietary:
                         prompt += f" ({dietary})"

@@ -187,6 +187,7 @@ export interface AnalyticsOverview {
     pending: number;
   };
   avg_response_time_seconds: number | null;
+  power_analytics?: PowerAnalytics;
   restaurant?: {
     bookings?: {
       total: number;
@@ -221,6 +222,70 @@ export interface ChannelStats {
   channel: 'website' | 'whatsapp' | 'instagram';
   conversations: number;
   messages: number;
+}
+
+// Power Plan exclusive analytics types
+export interface PowerAnalytics {
+  response_time: {
+    avg_seconds: number | null;
+    min_seconds: number | null;
+    max_seconds: number | null;
+    sample_size: number;
+  };
+  peak_hours: {
+    hourly_distribution: Array<{ hour: number; count: number }>;
+    peak_hours: number[];
+  };
+  day_of_week: Array<{
+    day_of_week: number;
+    day_name: string;
+    count: number;
+  }>;
+  ai_efficiency: {
+    ai_only_resolved: number;
+    total_resolved: number;
+    ai_resolution_rate: number;
+  };
+  channel_performance: Array<{
+    channel: string;
+    total: number;
+    resolved: number;
+    resolution_rate: number;
+  }>;
+}
+
+export interface LocationStats {
+  location_id: string | null;
+  location_name: string;
+  conversations: number;
+  messages: number;
+  resolved: number;
+  handoffs: number;
+  resolution_rate: number;
+}
+
+export interface DailyStats {
+  date: string;
+  conversations: number;
+  resolved: number;
+  messages: number;
+  ai_messages: number;
+  human_messages: number;
+  customer_messages: number;
+}
+
+export interface DailyTrendResponse {
+  daily: DailyStats[];
+  period_days: number;
+  trend: {
+    direction: 'up' | 'down' | 'flat';
+    percent: number;
+  };
+}
+
+export interface LocationAnalyticsResponse {
+  by_location: LocationStats[];
+  period_days: number;
 }
 
 export interface PaginatedResponse<T> {
