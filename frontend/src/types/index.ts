@@ -28,6 +28,7 @@ export interface Organization {
   updated_at: string;
   locations: Location[];
   locations_count: number;
+  is_power_plan: boolean;
 }
 
 export interface Location {
@@ -186,6 +187,40 @@ export interface AnalyticsOverview {
     pending: number;
   };
   avg_response_time_seconds: number | null;
+  restaurant?: {
+    bookings?: {
+      total: number;
+      confirmed: number;
+      completed: number;
+      cancelled: number;
+      no_shows: number;
+      total_guests: number;
+      by_source?: Record<string, number>;
+    };
+  };
+  real_estate?: {
+    leads?: {
+      total: number;
+      by_status?: Record<string, number>;
+      by_intent?: Record<string, number>;
+      avg_score: number;
+      conversion_rate: number;
+    };
+    appointments?: {
+      total: number;
+      by_status?: Record<string, number>;
+    };
+    properties?: {
+      active_listings: number;
+      sold_in_period: number;
+    };
+  };
+}
+
+export interface ChannelStats {
+  channel: 'website' | 'whatsapp' | 'instagram';
+  conversations: number;
+  messages: number;
 }
 
 export interface PaginatedResponse<T> {

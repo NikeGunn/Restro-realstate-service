@@ -77,15 +77,17 @@ class OrganizationSerializer(serializers.ModelSerializer):
     """Serializer for Organization model."""
     locations = LocationSerializer(many=True, read_only=True)
     locations_count = serializers.SerializerMethodField()
+    is_power_plan = serializers.BooleanField(read_only=True)
 
     class Meta:
         model = Organization
         fields = [
             'id', 'name', 'business_type', 'plan', 'email', 'phone', 'website',
             'widget_key', 'widget_color', 'widget_position', 'widget_greeting',
-            'is_active', 'created_at', 'updated_at', 'locations', 'locations_count'
+            'is_active', 'created_at', 'updated_at', 'locations', 'locations_count',
+            'is_power_plan'
         ]
-        read_only_fields = ['id', 'widget_key', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'widget_key', 'created_at', 'updated_at', 'is_power_plan']
 
     def get_locations_count(self, obj):
         return obj.locations.filter(is_active=True).count()
@@ -156,6 +158,7 @@ class CurrentUserSerializer(serializers.ModelSerializer):
                 'id': m.organization.id,
                 'name': m.organization.name,
                 'business_type': m.organization.business_type,
+                'plan': m.organization.plan,
                 'role': m.role,
             }
             for m in memberships

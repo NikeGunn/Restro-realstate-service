@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/store/auth'
 import { analyticsApi } from '@/services/api'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   MessageSquare,
   Bot,
@@ -22,6 +22,9 @@ export function AnalyticsPage() {
   const [channelStats, setChannelStats] = useState<ChannelStats[]>([])
   const [loading, setLoading] = useState(true)
   const [days, setDays] = useState(30)
+
+  // Check if current organization is on Power plan
+  const isPowerPlan = currentOrganization?.is_power_plan || currentOrganization?.plan === 'power'
 
   useEffect(() => {
     fetchAnalytics()
@@ -286,7 +289,7 @@ export function AnalyticsPage() {
                   {overview?.handoffs.pending || 0}
                 </span>
               </div>
-              {overview?.handoffs.total > 0 && (
+              {(overview?.handoffs.total ?? 0) > 0 && (
                 <div className="pt-2 border-t">
                   <p className="text-sm text-muted-foreground">
                     {resolutionRate}% {t('analytics.handoffsResolved')}
@@ -297,6 +300,123 @@ export function AnalyticsPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Business-Specific Metrics (Restaurant) */}
+      {currentOrganization?.business_type === 'restaurant' && overview?.restaurant && (
+        <Card className="mt-6">
+          <CardHeader>
+            <CardTitle>🍽️ Restaurant Metrics</CardTitle>
+            <CardDescription>Booking and guest analytics for your restaurant</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+              <div className="space-y-2">
+                <p className="text-sm text-muted-foreground">Total Bookings</p>
+                <p className="text-2xl font-bold">{overview.restaurant.bookings?.total || 0}</p>
+              </div>
+              <div className="space-y-2">
+                <p className="text-sm text-muted-foreground">Confirmed</p>
+                <p className="text-2xl font-bold text-green-600">
+                  {overview.restaurant.bookings?.confirmed || 0}
+                </p>
+              </div>
+              <div className="space-y-2">
+                <p className="text-sm text-muted-foreground">Completed</p>
+                <p className="text-2xl font-bold text-blue-600">
+                  {overview.restaurant.bookings?.completed || 0}
+                </p>
+              </div>
+              <div className="space-y-2">
+                <p className="text-sm text-muted-foreground">Total Guests</p>
+                <p className="text-2xl font-bold">{overview.restaurant.bookings?.total_guests || 0}</p>
+              </div>
+            </div>
+            {(overview.restaurant.bookings?.cancelled ?? 0) > 0 && (
+              <div className="mt-4 p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg">
+                <p className="text-sm text-yellow-800 dark:text-yellow-200">
+                  ⚠️ {overview.restaurant.bookings?.cancelled ?? 0} cancelled bookings,{' '}
+                  {overview.restaurant.bookings?.no_shows ?? 0} no-shows
+                </p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Business-Specific Metrics (Real Estate) */}
+      {currentOrganization?.business_type === 'real_estate' && overview?.real_estate && (
+        <div className="grid gap-4 md:grid-cols-2 mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>🏠 Lead Analytics</CardTitle>
+              <CardDescription>Property leads and conversion metrics</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <span>Total Leads</span>
+                  <span className="font-bold">{overview.real_estate.leads?.total || 0}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span>Avg Lead Score</span>
+                  <span className="font-bold">{overview.real_estate.leads?.avg_score || 0}/100</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span>Conversion Rate</span>
+                  <span className="font-bold text-green-600">
+                    {overview.real_estate.leads?.conversion_rate || 0}%
+                  </span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>📅 Appointments</CardTitle>
+              <CardDescription>Property viewing appointments</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <span>Total Appointments</span>
+                  <span className="font-bold">{overview.real_estate.appointments?.total || 0}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span>Active Listings</span>
+                  <span className="font-bold">{overview.real_estate.properties?.active_listings || 0}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span>Sold This Period</span>
+                  <span className="font-bold text-green-600">
+                    {overview.real_estate.properties?.sold_in_period || 0}
+                  </span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Power Plan Notice for Basic Users */}
+      {!isPowerPlan && (
+        <Card className="mt-6 border-blue-200 bg-blue-50 dark:bg-blue-900/20">
+          <CardContent className="pt-6">
+            <div className="flex items-start gap-4">
+              <TrendingUp className="h-6 w-6 text-blue-600 flex-shrink-0" />
+              <div>
+                <h3 className="font-semibold text-blue-900 dark:text-blue-100">
+                  Upgrade to Power Plan
+                </h3>
+                <p className="text-sm text-blue-700 dark:text-blue-300 mt-1">
+                  Get access to advanced analytics features: aggregated multi-location analytics,
+                  custom dashboards, escalation rules, and detailed performance reports.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   )
 }

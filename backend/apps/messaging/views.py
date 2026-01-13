@@ -120,9 +120,23 @@ class ConversationViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'])
     def resolve(self, request, pk=None):
-        """Mark conversation as resolved."""
+        """Mark conversation as resolved and auto-resolve associated alerts."""
         conversation = self.get_object()
         conversation.transition_state(ConversationState.RESOLVED)
+        
+        # Auto-resolve all handoff alerts for this conversation
+        from apps.handoff.models import HandoffAlert
+        unresolved_alerts = HandoffAlert.objects.filter(
+            conversation=conversation,
+            is_resolved=False
+        )
+        
+        for alert in unresolved_alerts:
+            alert.resolve(
+                user=request.user,
+                notes="Auto-resolved when conversation was marked as resolved"
+            )
+        
         return Response(ConversationDetailSerializer(conversation).data)
 
     @action(detail=True, methods=['post'])
