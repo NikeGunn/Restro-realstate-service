@@ -227,6 +227,20 @@ class WhatsAppService:
                     }
                 )
                 
+                # Check if handoff is needed and create alert
+                if response.get('needs_handoff', False):
+                    from apps.handoff.services import create_alert_from_ai_response
+                    alert = create_alert_from_ai_response(
+                        conversation=conversation,
+                        ai_response=response,
+                        user_message=message.content
+                    )
+                    if alert:
+                        logger.info(f"🚨 Handoff alert created: {alert.id}")
+                        # Transition conversation to human handoff state
+                        conversation.state = ConversationState.HUMAN_HANDOFF
+                        conversation.save()
+                
                 # Send via WhatsApp
                 logger.info(f"📤 Sending WhatsApp message to {conversation.customer_phone} in {detected_lang}")
                 sent_message_id = self.send_message(

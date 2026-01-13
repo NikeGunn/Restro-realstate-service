@@ -235,12 +235,12 @@ class WidgetMessageView(APIView):
         # Check if handoff is needed
         if ai_response.get('needs_handoff', False):
             conversation.transition_state(ConversationState.HUMAN_HANDOFF)
-            # Create handoff alert
-            from apps.handoff.models import HandoffAlert
-            HandoffAlert.objects.create(
+            # Create handoff alert using the service
+            from apps.handoff.services import create_alert_from_ai_response
+            create_alert_from_ai_response(
                 conversation=conversation,
-                reason=ai_response.get('handoff_reason', 'Low confidence'),
-                priority='high' if ai_response.get('confidence', 0) < 0.3 else 'medium',
+                ai_response=ai_response,
+                user_message=content
             )
 
         return Response({

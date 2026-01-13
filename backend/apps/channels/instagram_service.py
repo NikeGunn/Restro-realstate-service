@@ -216,6 +216,19 @@ class InstagramService:
                     }
                 )
                 
+                # Check if handoff is needed and create alert
+                if response.get('needs_handoff', False):
+                    from apps.handoff.services import create_alert_from_ai_response
+                    alert = create_alert_from_ai_response(
+                        conversation=conversation,
+                        ai_response=response,
+                        user_message=message.content
+                    )
+                    if alert:
+                        logger.info(f"🚨 Instagram handoff alert created: {alert.id}")
+                        conversation.state = ConversationState.HUMAN_HANDOFF
+                        conversation.save()
+                
                 # Send via Instagram
                 logger.info(f"📤 Sending Instagram message in {detected_lang}")
                 self.send_message(

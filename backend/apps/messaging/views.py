@@ -1,13 +1,14 @@
 """
 Messaging views for unified inbox.
 """
+import logging
 from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.utils import timezone
 from django.db.models import Q
 
-from .models import Conversation, Message, ConversationState, MessageSender
+from .models import Conversation, Message, ConversationState, MessageSender, Channel
 from .serializers import (
     ConversationSerializer,
     ConversationDetailSerializer,
@@ -16,6 +17,8 @@ from .serializers import (
     MessageCreateSerializer,
 )
 from apps.accounts.models import OrganizationMembership
+
+logger = logging.getLogger(__name__)
 
 
 class ConversationViewSet(viewsets.ModelViewSet):
@@ -88,6 +91,11 @@ class ConversationViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_409_CONFLICT
             )
         conversation.lock(request.user)
+        
+        # Create a handoff alert for this conversation
+        from apps.handoff.services import create_alert_for_manual_handoff
+        create_alert_for_manual_handoff(conversation, locked_by_user=request.user)
+        
         return Response(ConversationDetailSerializer(conversation).data)
 
     @action(detail=True, methods=['post'])
@@ -166,12 +174,12 @@ class MessageViewSet(viewsets.ModelViewSet):
         return MessageSerializer
 
     def perform_create(self, serializer):
-        """Create a human message in the conversation."""
+        """Create a human message in the conversation and send it to the channel."""
         conversation_id = self.kwargs.get('conversation_pk')
         conversation = Conversation.objects.get(pk=conversation_id)
 
         # Create message from human agent
-        serializer.save(
+        message = serializer.save(
             conversation=conversation,
             sender=MessageSender.HUMAN,
             sent_by=self.request.user
@@ -180,6 +188,72 @@ class MessageViewSet(viewsets.ModelViewSet):
         # Update conversation state
         if conversation.state != ConversationState.HUMAN_HANDOFF:
             conversation.lock(self.request.user)
+        
+        # Send message to the appropriate channel
+        self._send_to_channel(conversation, message)
+    
+    def _send_to_channel(self, conversation: Conversation, message: Message):
+        """Send the human agent's message to the customer via the appropriate channel."""
+        try:
+            if conversation.channel == Channel.WHATSAPP:
+                self._send_whatsapp_message(conversation, message)
+            elif conversation.channel == Channel.INSTAGRAM:
+                self._send_instagram_message(conversation, message)
+            # Website widget messages are shown in real-time via polling, no push needed
+        except Exception as e:
+            logger.exception(f"Failed to send message to channel {conversation.channel}: {e}")
+    
+    def _send_whatsapp_message(self, conversation: Conversation, message: Message):
+        """Send message via WhatsApp."""
+        from apps.channels.whatsapp_service import WhatsAppService
+        
+        if not conversation.customer_phone:
+            logger.warning(f"No phone number for conversation {conversation.id}, cannot send WhatsApp message")
+            return
+        
+        whatsapp_service = WhatsAppService.get_for_organization(conversation.organization)
+        if not whatsapp_service:
+            logger.warning(f"WhatsApp not configured for organization {conversation.organization.name}")
+            return
+        
+        # Send the message
+        sent_message_id = whatsapp_service.send_message(
+            to=conversation.customer_phone,
+            text=message.content
+        )
+        
+        if sent_message_id:
+            # Update message with channel message ID
+            message.channel_message_id = sent_message_id
+            message.save(update_fields=['channel_message_id'])
+            logger.info(f"✅ Human agent message sent to WhatsApp: {sent_message_id}")
+        else:
+            logger.error(f"❌ Failed to send human agent message to WhatsApp for conversation {conversation.id}")
+    
+    def _send_instagram_message(self, conversation: Conversation, message: Message):
+        """Send message via Instagram."""
+        from apps.channels.instagram_service import InstagramService
+        
+        # Instagram uses channel_conversation_id to identify the thread
+        if not conversation.channel_conversation_id:
+            logger.warning(f"No Instagram thread ID for conversation {conversation.id}")
+            return
+        
+        instagram_service = InstagramService.get_for_organization(conversation.organization)
+        if not instagram_service:
+            logger.warning(f"Instagram not configured for organization {conversation.organization.name}")
+            return
+        
+        # Send the message
+        sent_message_id = instagram_service.send_message(
+            recipient_id=conversation.channel_conversation_id,
+            text=message.content
+        )
+        
+        if sent_message_id:
+            message.channel_message_id = sent_message_id
+            message.save(update_fields=['channel_message_id'])
+            logger.info(f"✅ Human agent message sent to Instagram: {sent_message_id}")
 
     @action(detail=False, methods=['post'])
     def mark_read(self, request, conversation_pk=None):

@@ -114,10 +114,15 @@ export type MessageSender = 'customer' | 'ai' | 'human' | 'system';
 
 export interface HandoffAlert {
   id: string;
-  conversation: Conversation;
+  conversation: string;
+  conversation_customer_name: string | null;
+  conversation_channel: string;
   alert_type: string;
+  type: string;  // alias for alert_type
   priority: 'low' | 'medium' | 'high' | 'urgent';
   reason: string;
+  status: 'pending' | 'acknowledged' | 'resolved';
+  trigger_message: string | null;
   is_acknowledged: boolean;
   acknowledged_by: string | null;
   acknowledged_by_name: string | null;
