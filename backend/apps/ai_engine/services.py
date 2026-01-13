@@ -255,6 +255,9 @@ If the customer seems frustrated, has a complaint, or requests to speak to someo
             'menu': [],
             'specials': [],
             'hours': [],
+            'customer_bookings': [],
+            'customer_phone': self.conversation.customer_phone if self.conversation else None,
+            'channel': str(self.conversation.channel) if self.conversation else 'website',
         }
         
         try:
@@ -317,6 +320,25 @@ If the customer seems frustrated, has a complaint, or requests to speak to someo
                         'open': str(h.open_time) if h.open_time else None,
                         'close': str(h.close_time) if h.close_time else None,
                         'closed': h.is_closed,
+                    })
+            
+            # Get customer's existing bookings (for WhatsApp/returning customers)
+            if self.conversation and self.conversation.customer_phone:
+                from apps.restaurant.models import Booking
+                customer_bookings = Booking.objects.filter(
+                    organization=self.organization,
+                    customer_phone=self.conversation.customer_phone,
+                    status__in=[Booking.Status.PENDING, Booking.Status.CONFIRMED]
+                ).order_by('booking_date', 'booking_time')[:5]
+                
+                for booking in customer_bookings:
+                    context['customer_bookings'].append({
+                        'confirmation_code': booking.confirmation_code,
+                        'date': str(booking.booking_date),
+                        'time': str(booking.booking_time),
+                        'party_size': booking.party_size,
+                        'status': booking.status,
+                        'customer_name': booking.customer_name,
                     })
                     
         except Exception as e:
@@ -385,27 +407,72 @@ If the customer seems frustrated, has a complaint, or requests to speak to someo
         booking_name = LanguageService.get_template(lang, 'booking_name')
         booking_phone = LanguageService.get_template(lang, 'booking_phone')
         
+        # Get customer info from context
+        customer_phone = context.get('customer_phone', '')
+        channel = context.get('channel', 'website')
+        customer_bookings = context.get('customer_bookings', [])
+        
+        # Determine if phone is already known (WhatsApp/Instagram)
+        phone_known = bool(customer_phone) and channel in ['whatsapp', 'instagram']
+        
         prompt = f"""
 RESTAURANT-SPECIFIC CAPABILITIES:
 You can help customers with:
 1. Menu questions - answer about dishes, prices, ingredients, dietary options
 2. Opening hours - tell customers when the restaurant is open
-3. Reservations/Bookings - collect booking information (date, time, party size, name, phone)
+3. Reservations/Bookings - CREATE new bookings, VIEW existing bookings, CANCEL bookings
 4. Daily specials - inform about current promotions
+5. Booking management - check reservation status, provide booking details, cancel reservations
 
 REMEMBER: Always respond in the customer's language ({LanguageService.get_language_display_name(lang)})
 
-FOR BOOKING REQUESTS:
-When a customer wants to make a reservation, collect this information in THEIR language:
+"""
+        
+        # Add phone context for WhatsApp/Instagram
+        if phone_known:
+            prompt += f"""
+📱 CHANNEL INFO: This customer is contacting via {channel.upper()}.
+   Customer phone: {customer_phone}
+   🚨 DO NOT ask for phone number - use the phone above automatically for bookings!
+   
+"""
+        
+        # Add existing bookings context
+        if customer_bookings:
+            prompt += """
+📅 CUSTOMER'S EXISTING RESERVATIONS:
+"""
+            for b in customer_bookings:
+                prompt += f"""  - Confirmation: {b['confirmation_code']}
+    Date: {b['date']} at {b['time']}
+    Party size: {b['party_size']} guests
+    Name: {b['customer_name']}
+    Status: {b['status']}
+"""
+            prompt += """
+When the customer asks about their reservation, booking details, or wants to cancel:
+- Use the booking information above to answer their questions
+- Provide the confirmation code and details
+- For cancellations, include cancel_booking_code in extracted_data
+
+"""
+        
+        prompt += f"""
+FOR NEW BOOKING REQUESTS:
+When a customer wants to make a NEW reservation, collect this information:
 - Preferred date ("{booking_date}") - Accept "today", "tonight", "tomorrow", or specific dates
 - Preferred time ("{booking_time}") - Accept formats like "7pm", "19:00", "12:30 PM"
 - Party size ("{booking_party}")
-- Customer name ("{booking_name}")
-- Contact phone ("{booking_phone}")
+- Customer name ("{booking_name}")"""
+        
+        if not phone_known:
+            prompt += f"""
+- Contact phone ("{booking_phone}")"""
+        
+        prompt += f"""
 
 🚨 CRITICAL BOOKING RULE - WHEN ALL INFO IS COLLECTED:
-When you have collected ALL required booking information (date, time, party_size, name, phone),
-you MUST include the complete booking data in "extracted_data" to create the reservation:
+When you have collected ALL required booking information, you MUST include the data in "extracted_data":
 
 {{
   "content": "Your confirmation message to the customer",
@@ -414,21 +481,44 @@ you MUST include the complete booking data in "extracted_data" to create the res
   "extracted_data": {{
     "booking_intent": true,
     "date": "today",
-    "time": "12:30",
-    "party_size": 2,
-    "customer_name": "Nikhil",
-    "customer_phone": "9705651002"
+    "time": "16:00",
+    "party_size": 5,
+    "customer_name": "Neha Bhagat",
+    "customer_phone": "{customer_phone if phone_known else '9705651002'}"
   }}
 }}
 
-IMPORTANT: 
-- "booking_intent" MUST be set to true when confirming a booking
-- Include ALL collected data in extracted_data when confirming
-- For date, use the customer's words like "today", "tonight", "tomorrow" or actual date
-- For time, use 24-hour format like "12:30" or "19:00" if possible, or customer's format
-- Track and accumulate booking info across messages in the conversation
+"""
+        if phone_known:
+            prompt += f"""⚠️ IMPORTANT: For {channel.upper()} customers, ALWAYS use "{customer_phone}" as customer_phone!
+"""
+        
+        prompt += """
+🚨 FOR BOOKING QUERIES (view reservation, check booking, what's my reservation):
+When customer asks about their existing booking, provide the details from their reservations above.
+If they have no reservations, tell them they don't have any active bookings.
 
-If any required booking info is missing, ask for it in a friendly way in the customer's language.
+🚨 FOR CANCELLATION REQUESTS:
+When customer wants to cancel a booking:
+1. If they have bookings listed above, confirm which one they want to cancel
+2. Include the cancellation in extracted_data:
+
+{
+  "content": "Your cancellation confirmation message",
+  "confidence": 0.95,
+  "intent": "booking_cancel",
+  "extracted_data": {
+    "cancel_booking_code": "RES123ABC"
+  }
+}
+
+IMPORTANT: 
+- "booking_intent" MUST be set to true when confirming a NEW booking
+- "cancel_booking_code" should contain the confirmation code to cancel
+- Track and accumulate booking info across messages in the conversation
+- For date, use "today", "tonight", "tomorrow" or actual date
+- For time, use 24-hour format like "16:00" or "19:00"
+
 If the restaurant might be fully booked or it's a large party (8+), escalate to human.
 
 """

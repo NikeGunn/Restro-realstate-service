@@ -278,7 +278,11 @@ class WhatsAppService:
         
         logger.info(f"📊 Processing extracted data: {extracted_data}")
         
-        # Handle booking intent for restaurant businesses
+        # Handle booking cancellation for restaurant businesses
+        if extracted_data.get('cancel_booking_code') and self.organization.business_type == 'restaurant':
+            self._process_booking_cancellation(conversation, extracted_data)
+        
+        # Handle new booking intent for restaurant businesses
         if extracted_data.get('booking_intent') and self.organization.business_type == 'restaurant':
             self._process_booking_data(conversation, ai_response)
         
@@ -286,6 +290,33 @@ class WhatsAppService:
         if self.organization.business_type == 'real_estate':
             if extracted_data.get('lead_intent') or extracted_data.get('appointment_intent'):
                 self._process_realestate_data(conversation, ai_response)
+    
+    def _process_booking_cancellation(self, conversation: Conversation, extracted_data: dict):
+        """
+        Process booking cancellation request.
+        """
+        try:
+            from apps.restaurant.models import Booking
+            
+            cancel_code = extracted_data.get('cancel_booking_code', '').strip().upper()
+            if not cancel_code:
+                logger.warning("Cancel request but no booking code provided")
+                return
+            
+            # Find the booking
+            booking = Booking.objects.filter(
+                organization=self.organization,
+                confirmation_code=cancel_code,
+                status__in=[Booking.Status.PENDING, Booking.Status.CONFIRMED]
+            ).first()
+            
+            if booking:
+                booking.cancel(reason="Cancelled by customer via WhatsApp")
+                logger.info(f"❌ Booking cancelled via WhatsApp: {cancel_code}")
+            else:
+                logger.warning(f"Booking not found for cancellation: {cancel_code}")
+        except Exception as e:
+            logger.exception(f"❌ Error cancelling booking: {e}")
     
     def _process_booking_data(self, conversation: Conversation, ai_response: dict):
         """

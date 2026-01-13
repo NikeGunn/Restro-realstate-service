@@ -195,6 +195,27 @@ class WidgetMessageView(APIView):
         if not extracted_data:
             return
         
+        # Handle booking cancellation for restaurant businesses
+        if extracted_data.get('cancel_booking_code') and organization.business_type == 'restaurant':
+            try:
+                from apps.restaurant.models import Booking
+                
+                cancel_code = extracted_data.get('cancel_booking_code', '').strip().upper()
+                if cancel_code:
+                    booking = Booking.objects.filter(
+                        organization=organization,
+                        confirmation_code=cancel_code,
+                        status__in=[Booking.Status.PENDING, Booking.Status.CONFIRMED]
+                    ).first()
+                    
+                    if booking:
+                        booking.cancel(reason="Cancelled by customer via website widget")
+                        print(f"❌ Booking cancelled via widget: {cancel_code}")
+            except Exception as e:
+                import traceback
+                print(f"Error cancelling booking: {e}")
+                print(traceback.format_exc())
+        
         # Handle booking intent for restaurant businesses
         if extracted_data.get('booking_intent') and organization.business_type == 'restaurant':
             try:

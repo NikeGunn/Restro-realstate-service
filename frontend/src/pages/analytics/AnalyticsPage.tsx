@@ -371,9 +371,9 @@ export function AnalyticsPage() {
                 <p className="text-2xl font-bold">{overview.restaurant.bookings?.total_guests || 0}</p>
               </div>
             </div>
-            {(overview.restaurant.bookings?.cancelled ?? 0) > 0 && (
-              <div className="mt-4 p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg">
-                <p className="text-sm text-yellow-800 dark:text-yellow-200">
+            {((overview.restaurant.bookings?.cancelled ?? 0) > 0 || (overview.restaurant.bookings?.no_shows ?? 0) > 0) && (
+              <div className="mt-4 p-3 bg-amber-50 dark:bg-amber-900/30 rounded-lg border border-amber-200 dark:border-amber-700">
+                <p className="text-sm font-medium text-amber-800 dark:text-amber-300">
                   ⚠️ {overview.restaurant.bookings?.cancelled ?? 0} cancelled bookings,{' '}
                   {overview.restaurant.bookings?.no_shows ?? 0} no-shows
                 </p>

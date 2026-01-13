@@ -68,6 +68,12 @@ class BookingService:
         if not extracted_data.get('booking_intent'):
             return None, "No booking intent detected"
         
+        # For WhatsApp/Instagram, use conversation phone if not provided in extracted_data
+        if not extracted_data.get('customer_phone') and self.conversation:
+            if self.conversation.customer_phone:
+                extracted_data['customer_phone'] = self.conversation.customer_phone
+                logger.info(f"Using conversation phone for booking: {self.conversation.customer_phone}")
+        
         # Check if we have all required fields
         required_fields = ['date', 'time', 'party_size', 'customer_name', 'customer_phone']
         missing_fields = []
