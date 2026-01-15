@@ -23,6 +23,10 @@ import { BookingsPage } from '@/pages/restaurant/BookingsPage'
 import { PropertiesPage } from '@/pages/realestate/PropertiesPage'
 import { LeadsPage } from '@/pages/realestate/LeadsPage'
 
+// Public pages
+import { PrivacyPolicy } from '@/pages/PrivacyPolicy'
+import { TermsOfService } from '@/pages/TermsOfService'
+
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { tokens } = useAuthStore()
 
@@ -62,6 +66,10 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
+        {/* Public Pages (no auth required) */}
+        <Route path="/privacy" element={<PrivacyPolicy />} />
+        <Route path="/terms" element={<TermsOfService />} />
+        
         {/* Auth Routes */}
         <Route element={
           <PublicRoute>
