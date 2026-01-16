@@ -89,3 +89,21 @@ debug-*.ps1
 fix-*.ps1
 *-diagnostic.ps1
 QUICK_REFERENCE.txt
+
+
+# Deployment scripts (local only)
+*.ps1
+redeploy.ps1
+deploy.ps1
+deploy-ssl.ps1
+quick-fix.ps1
+build-frontend-direct.ps1
+
+# Development tools (local only)
+*.postman_collection.json
+AI_Chat_Platform_API.postman_collection.json
+agent.md
+
+# Local documentation
+SSH_DEPLOYMENT_GUIDE.md
+DEPLOYMENT_COMMANDS.md
