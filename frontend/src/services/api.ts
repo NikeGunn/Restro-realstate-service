@@ -1039,6 +1039,94 @@ export const channelsApi = {
     },
   },
 
+  // Manager Numbers - for receiving WhatsApp commands from managers
+  managerNumbers: {
+    list: async (params?: { organization?: string }) => {
+      const response = await api.get('/channels/manager-numbers/', { params })
+      return Array.isArray(response.data) ? response.data : (response.data.results || [])
+    },
+
+    get: async (id: string) => {
+      const response = await api.get(`/channels/manager-numbers/${id}/`)
+      return response.data
+    },
+
+    create: async (data: {
+      organization: string
+      phone_number: string
+      name: string
+      role?: string
+      can_update_hours?: boolean
+      can_respond_queries?: boolean
+      can_view_bookings?: boolean
+    }) => {
+      const response = await api.post('/channels/manager-numbers/', data)
+      return response.data
+    },
+
+    update: async (id: string, data: Partial<{
+      name: string
+      role: string
+      can_update_hours: boolean
+      can_respond_queries: boolean
+      can_view_bookings: boolean
+      is_active: boolean
+    }>) => {
+      const response = await api.patch(`/channels/manager-numbers/${id}/`, data)
+      return response.data
+    },
+
+    delete: async (id: string) => {
+      const response = await api.delete(`/channels/manager-numbers/${id}/`)
+      return response.data
+    },
+
+    testMessage: async (id: string) => {
+      const response = await api.post(`/channels/manager-numbers/${id}/test_message/`)
+      return response.data
+    },
+
+    checkWhatsAppReady: async (organizationId: string) => {
+      const response = await api.get('/channels/manager-numbers/check_whatsapp_ready/', {
+        params: { organization: organizationId }
+      })
+      return response.data
+    },
+  },
+
+  // Temporary Overrides - view/manage manager-created overrides
+  temporaryOverrides: {
+    list: async (params?: { organization?: string; active?: string }) => {
+      const response = await api.get('/channels/temporary-overrides/', { params })
+      return Array.isArray(response.data) ? response.data : (response.data.results || [])
+    },
+
+    deactivate: async (id: string) => {
+      const response = await api.post(`/channels/temporary-overrides/${id}/deactivate/`)
+      return response.data
+    },
+
+    deactivateAll: async (organizationId: string) => {
+      const response = await api.post('/channels/temporary-overrides/deactivate_all/', {
+        organization: organizationId
+      })
+      return response.data
+    },
+  },
+
+  // Manager Queries - view escalated queries to managers
+  managerQueries: {
+    list: async (params?: { organization?: string; status?: string }) => {
+      const response = await api.get('/channels/manager-queries/', { params })
+      return Array.isArray(response.data) ? response.data : (response.data.results || [])
+    },
+
+    pending: async (params?: { organization?: string }) => {
+      const response = await api.get('/channels/manager-queries/pending/', { params })
+      return response.data
+    },
+  },
+
   // Webhook Logs (for debugging)
   webhookLogs: {
     list: async (params?: { organization?: string; source?: string; is_processed?: boolean }) => {

@@ -1,6 +1,7 @@
 """
 Channel webhook views.
 Handles incoming webhooks from WhatsApp and Instagram.
+Includes Manager Number management endpoints.
 """
 import json
 import logging
@@ -13,13 +14,17 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 
 from apps.accounts.models import Organization, OrganizationMembership
-from .models import WhatsAppConfig, InstagramConfig, WebhookLog
+from .models import WhatsAppConfig, InstagramConfig, WebhookLog, ManagerNumber, TemporaryOverride, ManagerQuery
 from .whatsapp_service import WhatsAppService
 from .instagram_service import InstagramService
 from .serializers import (
     WhatsAppConfigSerializer, 
     InstagramConfigSerializer,
-    WebhookLogSerializer
+    WebhookLogSerializer,
+    ManagerNumberSerializer,
+    ManagerNumberCreateSerializer,
+    TemporaryOverrideSerializer,
+    ManagerQuerySerializer
 )
 
 logger = logging.getLogger(__name__)
@@ -675,3 +680,269 @@ class WebhookLogViewSet(viewsets.ReadOnlyModelViewSet):
             queryset = queryset.filter(source=source)
         
         return queryset[:100]  # Limit to last 100 logs
+
+
+class ManagerNumberViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for managing Manager WhatsApp Numbers.
+    Managers can receive commands via WhatsApp to control the chatbot.
+    Uses existing WhatsApp configuration credentials automatically.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get_serializer_class(self):
+        if self.action == 'create':
+            return ManagerNumberCreateSerializer
+        return ManagerNumberSerializer
+    
+    def get_queryset(self):
+        user = self.request.user
+        org_ids = OrganizationMembership.objects.filter(
+            user=user
+        ).values_list('organization_id', flat=True)
+        
+        queryset = ManagerNumber.objects.filter(organization_id__in=org_ids)
+        
+        # Filter by organization if provided
+        org_id = self.request.query_params.get('organization')
+        if org_id:
+            queryset = queryset.filter(organization_id=org_id)
+        
+        return queryset.order_by('-is_active', 'name')
+    
+    def create(self, request, *args, **kwargs):
+        """
+        Create manager number and return full serialized object.
+        Override to return ManagerNumberSerializer response instead of
+        ManagerNumberCreateSerializer (which doesn't include id).
+        """
+        create_serializer = self.get_serializer(data=request.data)
+        create_serializer.is_valid(raise_exception=True)
+        self.perform_create(create_serializer)
+        
+        # Re-serialize with full serializer to include id and all fields
+        instance = create_serializer.instance
+        response_serializer = ManagerNumberSerializer(instance, context={'request': request})
+        headers = self.get_success_headers(response_serializer.data)
+        return Response(response_serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+    
+    def perform_create(self, serializer):
+        """Create manager number with permission check."""
+        org_id = self.request.data.get('organization')
+        
+        # Check membership
+        membership = OrganizationMembership.objects.filter(
+            user=self.request.user,
+            organization_id=org_id
+        ).first()
+        
+        if not membership:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("Not a member of this organization")
+        
+        # Only owners and managers can add manager numbers
+        if membership.role not in ['owner', 'manager']:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("Only owners and managers can add manager numbers")
+        
+        serializer.save()
+        logger.info(f"✅ Manager number added: {self.request.data.get('phone_number')} for org {org_id}")
+    
+    def perform_destroy(self, instance):
+        """Log deletion of manager number."""
+        logger.info(f"🗑️ Manager number removed: {instance.phone_number} ({instance.name})")
+        instance.delete()
+    
+    @action(detail=True, methods=['post'])
+    def test_message(self, request, pk=None):
+        """
+        Send a test message to verify the manager number is working.
+        Uses the organization's WhatsApp configuration.
+        """
+        manager = self.get_object()
+        
+        try:
+            whatsapp_config = WhatsAppConfig.objects.get(
+                organization=manager.organization,
+                is_active=True
+            )
+        except WhatsAppConfig.DoesNotExist:
+            return Response({
+                'success': False,
+                'error': 'WhatsApp is not configured or not active for this organization'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            service = WhatsAppService(whatsapp_config)
+            message_id = service.send_message(
+                manager.phone_number,
+                f"🤖 Test Message from {manager.organization.name}\n\n"
+                f"Hello {manager.name}! This is a test message to confirm your manager number is configured correctly.\n\n"
+                f"You can now send commands to control the chatbot. Send 'help' to see available commands."
+            )
+            
+            if message_id:
+                return Response({
+                    'success': True,
+                    'message': 'Test message sent successfully',
+                    'message_id': message_id
+                })
+            else:
+                return Response({
+                    'success': False,
+                    'error': 'Failed to send message - check WhatsApp configuration'
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                
+        except Exception as e:
+            logger.exception(f"Error sending test message to manager: {e}")
+            return Response({
+                'success': False,
+                'error': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    @action(detail=False, methods=['get'])
+    def check_whatsapp_ready(self, request):
+        """
+        Check if WhatsApp is configured and ready for an organization.
+        Returns whether manager numbers can be added.
+        """
+        org_id = request.query_params.get('organization')
+        if not org_id:
+            return Response({
+                'ready': False,
+                'error': 'organization parameter required'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            config = WhatsAppConfig.objects.get(
+                organization_id=org_id,
+                is_active=True
+            )
+            return Response({
+                'ready': True,
+                'whatsapp_verified': config.is_verified,
+                'message': 'WhatsApp is configured. You can add manager numbers.'
+            })
+        except WhatsAppConfig.DoesNotExist:
+            return Response({
+                'ready': False,
+                'error': 'Please configure and activate WhatsApp first before adding manager numbers.'
+            })
+
+
+class TemporaryOverrideViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for viewing and managing Temporary Overrides.
+    Overrides are typically created by managers via WhatsApp,
+    but can also be viewed/cancelled from the dashboard.
+    """
+    serializer_class = TemporaryOverrideSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get_queryset(self):
+        user = self.request.user
+        org_ids = OrganizationMembership.objects.filter(
+            user=user
+        ).values_list('organization_id', flat=True)
+        
+        queryset = TemporaryOverride.objects.filter(organization_id__in=org_ids)
+        
+        # Filter by organization
+        org_id = self.request.query_params.get('organization')
+        if org_id:
+            queryset = queryset.filter(organization_id=org_id)
+        
+        # Filter by active status
+        active_only = self.request.query_params.get('active')
+        if active_only == 'true':
+            from django.utils import timezone
+            queryset = queryset.filter(
+                is_active=True,
+                expires_at__gt=timezone.now()
+            )
+        
+        return queryset.order_by('-priority', '-created_at')
+    
+    @action(detail=True, methods=['post'])
+    def deactivate(self, request, pk=None):
+        """Deactivate an override early."""
+        override = self.get_object()
+        override.is_active = False
+        override.save()
+        
+        return Response({
+            'success': True,
+            'message': 'Override deactivated'
+        })
+    
+    @action(detail=False, methods=['post'])
+    def deactivate_all(self, request):
+        """Deactivate all active overrides for an organization."""
+        org_id = request.data.get('organization')
+        if not org_id:
+            return Response({
+                'error': 'organization parameter required'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Check permission
+        if not OrganizationMembership.objects.filter(
+            user=request.user,
+            organization_id=org_id
+        ).exists():
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("Not a member of this organization")
+        
+        from django.utils import timezone
+        count = TemporaryOverride.objects.filter(
+            organization_id=org_id,
+            is_active=True,
+            expires_at__gt=timezone.now()
+        ).update(is_active=False)
+        
+        return Response({
+            'success': True,
+            'deactivated_count': count,
+            'message': f'Deactivated {count} override(s)'
+        })
+
+
+class ManagerQueryViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    ViewSet for viewing Manager Queries (read-only from dashboard).
+    Queries are created automatically when AI needs manager input.
+    """
+    serializer_class = ManagerQuerySerializer
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get_queryset(self):
+        user = self.request.user
+        org_ids = OrganizationMembership.objects.filter(
+            user=user
+        ).values_list('organization_id', flat=True)
+        
+        queryset = ManagerQuery.objects.filter(organization_id__in=org_ids)
+        
+        # Filter by organization
+        org_id = self.request.query_params.get('organization')
+        if org_id:
+            queryset = queryset.filter(organization_id=org_id)
+        
+        # Filter by status
+        status_filter = self.request.query_params.get('status')
+        if status_filter:
+            queryset = queryset.filter(status=status_filter)
+        
+        return queryset.order_by('-created_at')[:100]
+    
+    @action(detail=False, methods=['get'])
+    def pending(self, request):
+        """Get all pending queries."""
+        org_id = request.query_params.get('organization')
+        
+        queryset = self.get_queryset().filter(status=ManagerQuery.Status.PENDING)
+        
+        if org_id:
+            queryset = queryset.filter(organization_id=org_id)
+        
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)

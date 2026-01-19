@@ -1,6 +1,7 @@
 """
 AI Service - Core AI processing logic.
 Supports multilingual conversations: English, Simplified Chinese, Traditional Chinese.
+Includes temporary override support for manager updates.
 """
 import json
 import logging
@@ -65,6 +66,7 @@ class AIService:
         """
         Process a user message and generate AI response.
         Automatically detects language and responds in the same language.
+        Checks for pending manager queries and temporary overrides.
 
         Returns:
             Dict with keys: content, confidence, intent, metadata, needs_handoff, handoff_reason, language
@@ -74,6 +76,19 @@ class AIService:
         # Detect user's language first
         detected_lang = self._detect_and_set_language(user_message)
         logger.info(f"Processing message in language: {detected_lang}")
+        
+        # Check if there's a pending manager query for this conversation
+        pending_response = self._check_pending_manager_query()
+        if pending_response:
+            return {
+                'content': pending_response,
+                'confidence': 0.9,
+                'intent': 'manager_response',
+                'metadata': {'source': 'manager_query'},
+                'needs_handoff': False,
+                'handoff_reason': '',
+                'language': detected_lang,
+            }
 
         # If no OpenAI key, return handoff response in detected language
         if not self.client:
@@ -155,6 +170,9 @@ class AIService:
         
         # Get vertical-specific context
         vertical_context = self._get_vertical_context()
+        
+        # Get temporary overrides from manager
+        override_context = self._get_temporary_override_context()
 
         business_type = self.organization.business_type
         business_name = self.organization.name
@@ -192,7 +210,22 @@ CORRECT greeting response (use this exact format):
 {{"content": "{greeting_text}", "confidence": 1.0, "intent": "greeting", "escalate": false}}
 
 ==========================================
+"""
 
+        # Add URGENT temporary overrides from manager (HIGHEST PRIORITY)
+        if override_context:
+            prompt += f"""
+🚨🚨🚨 URGENT MANAGER UPDATES - HIGHEST PRIORITY 🚨🚨🚨
+==========================================
+{override_context}
+==========================================
+IMPORTANT: The above updates from management take PRIORITY over regular knowledge base.
+If a customer asks about hours, availability, or related topics, USE THIS INFORMATION FIRST.
+==========================================
+
+"""
+
+        prompt += f"""
 IMPORTANT RULES:
 1. 🚨 RULE #1 (HIGHEST PRIORITY): ALWAYS respond in the same language as the customer
 2. For ANY greeting, ALWAYS include "I'm AI Assistant" (or equivalent in customer's language)
@@ -667,6 +700,110 @@ IMPORTANT:
             prompt += f"\nAVAILABLE AREAS: {', '.join(context['areas'])}\n"
         
         return prompt
+
+    def _get_temporary_override_context(self) -> str:
+        """
+        Get active temporary overrides from manager messages.
+        These take PRIORITY over regular knowledge base.
+        """
+        try:
+            from apps.channels.models import TemporaryOverride
+            
+            overrides = TemporaryOverride.get_active_overrides(self.organization)
+            
+            if not overrides.exists():
+                logger.info(f"📋 No active overrides for {self.organization.name}")
+                return ""
+            
+            override_parts = []
+            for override in overrides[:5]:  # Limit to 5 most important
+                priority_emoji = {
+                    'urgent': '🚨',
+                    'high': '⚠️',
+                    'medium': 'ℹ️',
+                    'low': '📌'
+                }.get(override.priority, 'ℹ️')
+                
+                override_parts.append(
+                    f"{priority_emoji} {override.override_type.upper()}: {override.processed_content}"
+                )
+            
+            result = "\n".join(override_parts)
+            logger.info(f"📋 Using {overrides.count()} active override(s) for AI context: {result[:100]}...")
+            return result
+            
+        except Exception as e:
+            logger.warning(f"Error getting temporary overrides: {e}")
+            return ""
+    
+    def _check_pending_manager_query(self) -> Optional[str]:
+        """
+        Check if there's a pending or answered manager query for this conversation.
+        Returns response text if manager has answered, None otherwise.
+        """
+        try:
+            from apps.channels.models import ManagerQuery
+            
+            # Check for answered queries that haven't been sent to customer
+            answered_query = ManagerQuery.objects.filter(
+                conversation=self.conversation,
+                status=ManagerQuery.Status.ANSWERED,
+                customer_response_sent=False
+            ).first()
+            
+            if answered_query:
+                # Return the manager's processed response
+                answered_query.customer_response_sent = True
+                answered_query.save()
+                return answered_query.customer_response or answered_query.manager_response
+            
+            # Check for expired queries
+            expired_query = ManagerQuery.objects.filter(
+                conversation=self.conversation,
+                status=ManagerQuery.Status.PENDING
+            ).first()
+            
+            if expired_query and expired_query.is_expired:
+                expired_query.mark_expired()
+                # Return a polite message about manager unavailability
+                return (
+                    "I apologize for the wait. Unfortunately, I couldn't get a quick response from our team. "
+                    f"For this specific question, you may want to contact us directly. "
+                    "Is there anything else I can help you with?"
+                )
+            
+            return None
+            
+        except Exception as e:
+            logger.warning(f"Error checking pending manager query: {e}")
+            return None
+    
+    def escalate_to_manager(self, user_message: str) -> Optional[str]:
+        """
+        Escalate a query to the manager via WhatsApp.
+        Returns a "please wait" message if escalation successful, None otherwise.
+        """
+        try:
+            from apps.channels.manager_service import ManagerService
+            
+            query = ManagerService.escalate_to_manager(
+                organization=self.organization,
+                conversation=self.conversation,
+                customer_query=user_message,
+                wait_minutes=5
+            )
+            
+            if query:
+                return (
+                    "That's a great question! Let me quickly check with my team to get you the most accurate answer. "
+                    "Please give me just a moment..."
+                )
+            
+            return None
+            
+        except Exception as e:
+            logger.warning(f"Error escalating to manager: {e}")
+            return None
 
     def _get_knowledge_context(self) -> str:
         """Get knowledge base context for the organization/location."""

@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge'
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useToast } from '@/hooks/use-toast'
+import { Checkbox } from '@/components/ui/checkbox'
 import {
   Instagram,
   Phone,
@@ -25,6 +26,10 @@ import {
   Eye,
   EyeOff,
   Crown,
+  UserCog,
+  MessageSquare,
+  Clock,
+  Send,
 } from 'lucide-react'
 
 interface WhatsAppConfig {
@@ -53,6 +58,48 @@ interface InstagramConfig {
   updated_at: string
 }
 
+interface ManagerNumber {
+  id: string
+  organization: string
+  phone_number: string
+  name: string
+  role: string
+  can_update_hours: boolean
+  can_respond_queries: boolean
+  can_view_bookings: boolean
+  is_active: boolean
+  created_at: string
+  user_email?: string
+}
+
+interface TemporaryOverride {
+  id: string
+  organization: string
+  override_type: string
+  original_message: string
+  processed_content: string
+  priority: string
+  expires_at: string | null
+  is_active: boolean
+  is_expired: boolean
+  created_at: string
+  created_by_manager_name: string | null
+}
+
+interface ManagerQuery {
+  id: string
+  organization: string
+  conversation: string
+  customer_query: string
+  query_summary: string
+  manager_response: string | null
+  status: string
+  created_at: string
+  response_received_at: string | null
+  manager_name: string
+  customer_name: string
+}
+
 export function ChannelsPage() {
   const { t } = useTranslation()
   const { currentOrganization, setCurrentOrganization } = useAuthStore()
@@ -62,12 +109,18 @@ export function ChannelsPage() {
 
   const [whatsappConfigs, setWhatsappConfigs] = useState<WhatsAppConfig[]>([])
   const [instagramConfigs, setInstagramConfigs] = useState<InstagramConfig[]>([])
+  const [managerNumbers, setManagerNumbers] = useState<ManagerNumber[]>([])
+  const [temporaryOverrides, setTemporaryOverrides] = useState<TemporaryOverride[]>([])
+  const [managerQueries, setManagerQueries] = useState<ManagerQuery[]>([])
   const [verifyingId, setVerifyingId] = useState<string | null>(null)
+  const [whatsappReady, setWhatsappReady] = useState(false)
 
   const [showWhatsAppForm, setShowWhatsAppForm] = useState(false)
   const [showInstagramForm, setShowInstagramForm] = useState(false)
+  const [showManagerForm, setShowManagerForm] = useState(false)
   const [showAccessTokens, setShowAccessTokens] = useState<Record<string, boolean>>({})
   const [showGuide, setShowGuide] = useState(false)
+  const [sendingTestMessage, setSendingTestMessage] = useState<string | null>(null)
 
   const [whatsappForm, setWhatsappForm] = useState({
     phone_number_id: '',
@@ -81,6 +134,15 @@ export function ChannelsPage() {
     page_id: '',
     access_token: '',
     verify_token: '',
+  })
+
+  const [managerForm, setManagerForm] = useState({
+    phone_number: '',
+    name: '',
+    role: 'Manager',
+    can_update_hours: true,
+    can_respond_queries: true,
+    can_view_bookings: true,
   })
 
   // Check if organization has Power plan (only needed for Instagram)
@@ -113,12 +175,26 @@ export function ChannelsPage() {
 
     setLoading(true)
     try {
-      const [whatsapp, instagram] = await Promise.all([
+      const [whatsapp, instagram, managers, overrides, queries] = await Promise.all([
         channelsApi.whatsapp.list({ organization: currentOrganization.id }),
         channelsApi.instagram.list({ organization: currentOrganization.id }),
+        channelsApi.managerNumbers.list({ organization: currentOrganization.id }).catch(() => []),
+        channelsApi.temporaryOverrides.list({ organization: currentOrganization.id, active: 'true' }).catch(() => []),
+        channelsApi.managerQueries.list({ organization: currentOrganization.id }).catch(() => []),
       ])
       setWhatsappConfigs(whatsapp)
       setInstagramConfigs(instagram)
+      setManagerNumbers(managers)
+      setTemporaryOverrides(overrides)
+      setManagerQueries(queries)
+      
+      // Check if WhatsApp is ready for manager numbers
+      try {
+        const readyCheck = await channelsApi.managerNumbers.checkWhatsAppReady(currentOrganization.id)
+        setWhatsappReady(readyCheck.ready)
+      } catch {
+        setWhatsappReady(false)
+      }
     } catch (error: any) {
       console.error('Error fetching channels:', error)
       // Don't show error for 403 - that's expected for non-power plans
@@ -313,6 +389,145 @@ export function ChannelsPage() {
         variant: 'destructive',
         title: 'Error',
         description: 'Failed to update channel status.',
+      })
+    }
+  }
+
+  // Manager Number Handlers
+  const handleSaveManager = async () => {
+    if (!currentOrganization) return
+
+    setSaving(true)
+    try {
+      const newManager = await channelsApi.managerNumbers.create({
+        organization: currentOrganization.id,
+        ...managerForm,
+      })
+      setManagerNumbers([...managerNumbers, newManager])
+      setManagerForm({
+        phone_number: '',
+        name: '',
+        role: 'Manager',
+        can_update_hours: true,
+        can_respond_queries: true,
+        can_view_bookings: true,
+      })
+      setShowManagerForm(false)
+      toast({
+        title: 'Manager Added',
+        description: `${newManager.name} can now send commands to the chatbot via WhatsApp.`,
+      })
+    } catch (error: any) {
+      console.error('Error saving manager:', error)
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: error.response?.data?.detail || error.response?.data?.non_field_errors?.[0] || 'Failed to add manager.',
+      })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleDeleteManager = async (id: string) => {
+    if (!confirm('Are you sure you want to remove this manager?')) return
+
+    try {
+      await channelsApi.managerNumbers.delete(id)
+      setManagerNumbers(managerNumbers.filter((m) => m.id !== id))
+      toast({
+        title: 'Manager Removed',
+        description: 'Manager number has been removed.',
+      })
+    } catch (error) {
+      console.error('Error deleting manager:', error)
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Failed to remove manager.',
+      })
+    }
+  }
+
+  const handleToggleManagerActive = async (id: string, isActive: boolean) => {
+    try {
+      await channelsApi.managerNumbers.update(id, { is_active: !isActive })
+      setManagerNumbers(
+        managerNumbers.map((m) => (m.id === id ? { ...m, is_active: !isActive } : m))
+      )
+      toast({
+        title: isActive ? 'Manager Disabled' : 'Manager Enabled',
+        description: `Manager is now ${isActive ? 'inactive' : 'active'}.`,
+      })
+    } catch (error) {
+      console.error('Error toggling manager:', error)
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Failed to update manager status.',
+      })
+    }
+  }
+
+  const handleSendTestMessage = async (id: string) => {
+    setSendingTestMessage(id)
+    try {
+      await channelsApi.managerNumbers.testMessage(id)
+      toast({
+        title: 'Test Message Sent',
+        description: 'A test message has been sent to the manager\'s WhatsApp.',
+      })
+    } catch (error: any) {
+      console.error('Error sending test message:', error)
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: error.response?.data?.error || 'Failed to send test message.',
+      })
+    } finally {
+      setSendingTestMessage(null)
+    }
+  }
+
+  const handleDeactivateOverride = async (id: string) => {
+    try {
+      await channelsApi.temporaryOverrides.deactivate(id)
+      setTemporaryOverrides(
+        temporaryOverrides.map((o) => (o.id === id ? { ...o, is_active: false } : o))
+      )
+      toast({
+        title: 'Override Deactivated',
+        description: 'The temporary override has been deactivated.',
+      })
+    } catch (error) {
+      console.error('Error deactivating override:', error)
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Failed to deactivate override.',
+      })
+    }
+  }
+
+  const handleDeactivateAllOverrides = async () => {
+    if (!currentOrganization) return
+    if (!confirm('Are you sure you want to deactivate all temporary overrides?')) return
+
+    try {
+      await channelsApi.temporaryOverrides.deactivateAll(currentOrganization.id)
+      setTemporaryOverrides(
+        temporaryOverrides.map((o) => ({ ...o, is_active: false }))
+      )
+      toast({
+        title: 'All Overrides Deactivated',
+        description: 'All temporary overrides have been deactivated.',
+      })
+    } catch (error) {
+      console.error('Error deactivating overrides:', error)
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Failed to deactivate overrides.',
       })
     }
   }
@@ -521,6 +736,15 @@ export function ChannelsPage() {
             {instagramConfigs.length > 0 && (
               <Badge variant="secondary" className="ml-1">
                 {instagramConfigs.length}
+              </Badge>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="managers" className="flex items-center gap-2">
+            <UserCog className="h-4 w-4" />
+            Manager Control
+            {managerNumbers.length > 0 && (
+              <Badge variant="secondary" className="ml-1">
+                {managerNumbers.length}
               </Badge>
             )}
           </TabsTrigger>
@@ -996,6 +1220,380 @@ export function ChannelsPage() {
           )}
             </>
           )}
+        </TabsContent>
+
+        {/* Manager Control Tab */}
+        <TabsContent value="managers" className="mt-4 space-y-4">
+          {/* Info Card */}
+          <Card className="border-blue-200 bg-blue-50">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-blue-900">
+                <UserCog className="h-5 w-5" />
+                Manager WhatsApp Control
+              </CardTitle>
+              <CardDescription className="text-blue-800">
+                Allow managers to control the chatbot directly via WhatsApp without logging into the panel.
+                Managers can update hours, respond to escalated queries, and more!
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="bg-white p-3 rounded-lg border border-blue-200">
+                  <h4 className="font-medium text-blue-900 flex items-center gap-2">
+                    <Clock className="h-4 w-4" />
+                    Update Hours
+                  </h4>
+                  <p className="text-sm text-blue-700 mt-1">
+                    "We're closed today from 5PM" - chatbot updates instantly
+                  </p>
+                </div>
+                <div className="bg-white p-3 rounded-lg border border-blue-200">
+                  <h4 className="font-medium text-blue-900 flex items-center gap-2">
+                    <MessageSquare className="h-4 w-4" />
+                    Answer Queries
+                  </h4>
+                  <p className="text-sm text-blue-700 mt-1">
+                    Chatbot asks manager when unsure, formats reply professionally
+                  </p>
+                </div>
+                <div className="bg-white p-3 rounded-lg border border-blue-200">
+                  <h4 className="font-medium text-blue-900 flex items-center gap-2">
+                    <Phone className="h-4 w-4" />
+                    No Extra Setup
+                  </h4>
+                  <p className="text-sm text-blue-700 mt-1">
+                    Uses your existing WhatsApp Business config automatically
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* WhatsApp Not Ready Warning */}
+          {!whatsappReady && (
+            <Card className="border-amber-200 bg-amber-50">
+              <CardContent className="pt-6">
+                <div className="flex items-start gap-3">
+                  <AlertCircle className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <h4 className="font-medium text-amber-900">WhatsApp Not Configured</h4>
+                    <p className="text-sm text-amber-800 mt-1">
+                      Please set up WhatsApp Business in the WhatsApp tab first before adding manager numbers.
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Existing Manager Numbers */}
+          {managerNumbers.length > 0 && (
+            <div className="space-y-3">
+              <h3 className="text-lg font-semibold">Registered Managers</h3>
+              {managerNumbers.map((manager) => (
+                <Card key={manager.id}>
+                  <CardContent className="pt-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 bg-purple-100 rounded-lg">
+                          <UserCog className="h-5 w-5 text-purple-600" />
+                        </div>
+                        <div>
+                          <h4 className="font-medium">{manager.name}</h4>
+                          <p className="text-sm text-muted-foreground">
+                            {manager.phone_number} • {manager.role}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <Badge variant={manager.is_active ? "default" : "secondary"}>
+                          {manager.is_active ? 'Active' : 'Inactive'}
+                        </Badge>
+                        <Switch
+                          checked={manager.is_active}
+                          onCheckedChange={() => handleToggleManagerActive(manager.id, manager.is_active)}
+                        />
+                      </div>
+                    </div>
+                    
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      {manager.can_update_hours && (
+                        <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                          <Clock className="h-3 w-3 mr-1" />
+                          Update Hours
+                        </Badge>
+                      )}
+                      {manager.can_respond_queries && (
+                        <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                          <MessageSquare className="h-3 w-3 mr-1" />
+                          Answer Queries
+                        </Badge>
+                      )}
+                      {manager.can_view_bookings && (
+                        <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">
+                          <Eye className="h-3 w-3 mr-1" />
+                          View Bookings
+                        </Badge>
+                      )}
+                    </div>
+
+                    <div className="mt-4 flex justify-between items-center">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleSendTestMessage(manager.id)}
+                        disabled={sendingTestMessage === manager.id || !whatsappReady}
+                      >
+                        {sendingTestMessage === manager.id ? (
+                          <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                        ) : (
+                          <Send className="h-4 w-4 mr-2" />
+                        )}
+                        Send Test Message
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-destructive hover:text-destructive"
+                        onClick={() => handleDeleteManager(manager.id)}
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Remove
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+
+          {/* Add Manager Form */}
+          {showManagerForm ? (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Plus className="h-5 w-5" />
+                  Add Manager Number
+                </CardTitle>
+                <CardDescription>
+                  Add a WhatsApp number that can control the chatbot
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="manager_phone">Phone Number *</Label>
+                    <Input
+                      id="manager_phone"
+                      placeholder="+1234567890"
+                      value={managerForm.phone_number}
+                      onChange={(e) => setManagerForm({ ...managerForm, phone_number: e.target.value })}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Include country code (e.g., +1 for US)
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="manager_name">Name *</Label>
+                    <Input
+                      id="manager_name"
+                      placeholder="John Smith"
+                      value={managerForm.name}
+                      onChange={(e) => setManagerForm({ ...managerForm, name: e.target.value })}
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="manager_role">Role</Label>
+                  <Input
+                    id="manager_role"
+                    placeholder="Manager"
+                    value={managerForm.role}
+                    onChange={(e) => setManagerForm({ ...managerForm, role: e.target.value })}
+                  />
+                </div>
+                
+                <div className="space-y-3">
+                  <Label>Permissions</Label>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="can_update_hours"
+                        checked={managerForm.can_update_hours}
+                        onCheckedChange={(checked) => 
+                          setManagerForm({ ...managerForm, can_update_hours: !!checked })
+                        }
+                      />
+                      <Label htmlFor="can_update_hours" className="text-sm font-normal">
+                        Update Business Hours
+                      </Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="can_respond_queries"
+                        checked={managerForm.can_respond_queries}
+                        onCheckedChange={(checked) => 
+                          setManagerForm({ ...managerForm, can_respond_queries: !!checked })
+                        }
+                      />
+                      <Label htmlFor="can_respond_queries" className="text-sm font-normal">
+                        Respond to Queries
+                      </Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="can_view_bookings"
+                        checked={managerForm.can_view_bookings}
+                        onCheckedChange={(checked) => 
+                          setManagerForm({ ...managerForm, can_view_bookings: !!checked })
+                        }
+                      />
+                      <Label htmlFor="can_view_bookings" className="text-sm font-normal">
+                        View Bookings
+                      </Label>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex gap-2 justify-end">
+                  <Button variant="outline" onClick={() => setShowManagerForm(false)}>
+                    Cancel
+                  </Button>
+                  <Button 
+                    onClick={handleSaveManager} 
+                    disabled={saving || !managerForm.phone_number || !managerForm.name}
+                  >
+                    <Save className="h-4 w-4 mr-2" />
+                    {saving ? 'Adding...' : 'Add Manager'}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <Button 
+              onClick={() => setShowManagerForm(true)} 
+              className="w-full"
+              disabled={!whatsappReady}
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Add Manager Number
+            </Button>
+          )}
+
+          {/* Active Temporary Overrides */}
+          {temporaryOverrides.filter(o => o.is_active && !o.is_expired).length > 0 && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold">Active Temporary Overrides</h3>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={handleDeactivateAllOverrides}
+                >
+                  Deactivate All
+                </Button>
+              </div>
+              {temporaryOverrides.filter(o => o.is_active && !o.is_expired).map((override) => (
+                <Card key={override.id} className="border-amber-200 bg-amber-50">
+                  <CardContent className="pt-4">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <Badge variant="outline" className="mb-2 bg-amber-100 text-amber-800 border-amber-300">
+                          {override.override_type.replace('_', ' ').toUpperCase()}
+                        </Badge>
+                        <p className="text-amber-900">{override.original_message}</p>
+                        <p className="text-sm text-amber-700 mt-1">
+                          Created by {override.created_by_manager_name || 'System'} • 
+                          {override.expires_at ? ` Expires: ${new Date(override.expires_at).toLocaleString()}` : ' No expiry'}
+                        </p>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleDeactivateOverride(override.id)}
+                      >
+                        <XCircle className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+
+          {/* Pending Manager Queries */}
+          {managerQueries.filter(q => q.status === 'pending').length > 0 && (
+            <div className="space-y-3">
+              <h3 className="text-lg font-semibold flex items-center gap-2">
+                <AlertCircle className="h-5 w-5 text-amber-500" />
+                Pending Manager Queries
+              </h3>
+              {managerQueries.filter(q => q.status === 'pending').map((query) => (
+                <Card key={query.id} className="border-amber-200">
+                  <CardContent className="pt-4">
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Badge variant="secondary" className="bg-amber-100 text-amber-800">
+                          Waiting for {query.manager_name}
+                        </Badge>
+                        <span className="text-sm text-muted-foreground">
+                          {new Date(query.created_at).toLocaleString()}
+                        </span>
+                      </div>
+                      <p className="font-medium">Customer Question:</p>
+                      <p className="text-muted-foreground bg-gray-50 p-2 rounded">
+                        {query.customer_query}
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        Customer: {query.customer_name}
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+
+          {/* Manager Commands Help */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Manager Commands Reference</CardTitle>
+              <CardDescription>
+                Managers can send these commands via WhatsApp to control the chatbot
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3 text-sm">
+                <div className="bg-gray-50 p-3 rounded-lg">
+                  <code className="font-mono text-purple-600">"We are closed today"</code>
+                  <p className="text-muted-foreground mt-1">Temporarily closes the business for the day</p>
+                </div>
+                <div className="bg-gray-50 p-3 rounded-lg">
+                  <code className="font-mono text-purple-600">"Closing early at 5PM today"</code>
+                  <p className="text-muted-foreground mt-1">Updates closing time temporarily</p>
+                </div>
+                <div className="bg-gray-50 p-3 rounded-lg">
+                  <code className="font-mono text-purple-600">"Fully booked for tonight"</code>
+                  <p className="text-muted-foreground mt-1">Marks the business as fully booked</p>
+                </div>
+                <div className="bg-gray-50 p-3 rounded-lg">
+                  <code className="font-mono text-purple-600">"STATUS"</code>
+                  <p className="text-muted-foreground mt-1">Get today's stats and active overrides</p>
+                </div>
+                <div className="bg-gray-50 p-3 rounded-lg">
+                  <code className="font-mono text-purple-600">"HELP"</code>
+                  <p className="text-muted-foreground mt-1">List all available commands</p>
+                </div>
+                <div className="bg-gray-50 p-3 rounded-lg border-l-4 border-blue-500">
+                  <p className="font-medium text-blue-900">Replying to Queries</p>
+                  <p className="text-muted-foreground mt-1">
+                    When the chatbot asks you a question about a customer, simply reply normally.
+                    The chatbot will format your answer professionally for the customer.
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
     </div>

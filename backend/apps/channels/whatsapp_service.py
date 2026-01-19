@@ -1,6 +1,7 @@
 """
 WhatsApp Business API Service.
 Handles incoming webhooks and outgoing messages.
+Includes manager message detection and processing.
 """
 import hashlib
 import hmac
@@ -12,7 +13,7 @@ from django.conf import settings
 from apps.messaging.models import Conversation, Message, Channel, ConversationState, MessageSender
 from apps.accounts.models import Organization
 from apps.ai_engine.services import AIService
-from .models import WhatsAppConfig, WebhookLog
+from .models import WhatsAppConfig, WebhookLog, ManagerNumber
 
 logger = logging.getLogger(__name__)
 
@@ -136,6 +137,19 @@ class WhatsAppService:
         else:
             content = f"[{message_type.upper()}] Unsupported message type"
         
+        # ==========================================
+        # CHECK IF MESSAGE IS FROM A MANAGER
+        # ==========================================
+        manager = ManagerNumber.get_by_phone(sender_phone, self.organization)
+        if manager:
+            logger.info(f"📢 Manager message detected from {manager.name} ({sender_phone})")
+            self._handle_manager_message(manager, content, wa_message_id)
+            return
+        
+        # ==========================================
+        # REGULAR CUSTOMER MESSAGE PROCESSING
+        # ==========================================
+        
         # Find or create conversation
         conversation = self._get_or_create_conversation(
             sender_phone, 
@@ -164,6 +178,31 @@ class WhatsAppService:
             self._process_with_ai(conversation, message)
         
         logger.info(f"WhatsApp message received from {sender_phone}: {content[:50]}...")
+    
+    def _handle_manager_message(self, manager: ManagerNumber, content: str, wa_message_id: str):
+        """
+        Handle a message from a registered manager.
+        Managers can send commands that update the chatbot's behavior.
+        """
+        from .manager_service import ManagerService
+        
+        try:
+            service = ManagerService(self.organization)
+            result = service.process_manager_message(manager, content)
+            
+            # Send response back to manager
+            response_text = result.get('response_text', 'Message received')
+            self.send_message(manager.phone_number, response_text)
+            
+            logger.info(f"✅ Manager command processed: {result.get('actions_taken', [])}")
+            
+        except Exception as e:
+            logger.exception(f"Error processing manager message: {e}")
+            # Notify manager of error
+            self.send_message(
+                manager.phone_number,
+                f"❌ Sorry, there was an error processing your command. Please try again.\n\nError: {str(e)[:100]}"
+            )
     
     def _get_or_create_conversation(self, phone: str, name: str) -> Conversation:
         """Get or create conversation for a WhatsApp user."""

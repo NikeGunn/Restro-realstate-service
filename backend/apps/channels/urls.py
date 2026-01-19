@@ -9,13 +9,19 @@ from .views import (
     InstagramWebhookView,
     WhatsAppConfigViewSet,
     InstagramConfigViewSet,
-    WebhookLogViewSet
+    WebhookLogViewSet,
+    ManagerNumberViewSet,
+    TemporaryOverrideViewSet,
+    ManagerQueryViewSet
 )
 
 router = DefaultRouter()
 router.register('whatsapp-config', WhatsAppConfigViewSet, basename='whatsapp-config')
 router.register('instagram-config', InstagramConfigViewSet, basename='instagram-config')
 router.register('webhook-logs', WebhookLogViewSet, basename='webhook-logs')
+router.register('manager-numbers', ManagerNumberViewSet, basename='manager-numbers')
+router.register('temporary-overrides', TemporaryOverrideViewSet, basename='temporary-overrides')
+router.register('manager-queries', ManagerQueryViewSet, basename='manager-queries')
 
 urlpatterns = [
     path('', include(router.urls)),
