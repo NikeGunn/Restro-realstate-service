@@ -137,10 +137,33 @@ class AIService:
             if parsed['confidence'] < self.CONFIDENCE_THRESHOLD:
                 parsed['needs_handoff'] = True
                 parsed['handoff_reason'] = 'low_confidence'
+                
+                # Proactively escalate to manager and inform customer
+                escalation_result = self._proactive_escalate_to_manager(
+                    user_message, 
+                    parsed, 
+                    detected_lang
+                )
+                if escalation_result:
+                    # Append escalation message to response
+                    parsed['content'] += escalation_result
+                    parsed['manager_notified'] = True
+                    logger.info(f"🆘 Proactively escalated to manager for low confidence query")
 
             if parsed.get('escalate', False):
                 parsed['needs_handoff'] = True
                 parsed['handoff_reason'] = parsed.get('escalate_reason', 'ai_requested')
+                
+                # Also proactively escalate if AI explicitly requested
+                if not parsed.get('manager_notified'):
+                    escalation_result = self._proactive_escalate_to_manager(
+                        user_message, 
+                        parsed, 
+                        detected_lang
+                    )
+                    if escalation_result:
+                        parsed['content'] += escalation_result
+                        parsed['manager_notified'] = True
 
             return parsed
 
@@ -224,24 +247,54 @@ If a customer asks about hours, availability, or related topics, USE THIS INFORM
 ==========================================
 
 """
+        else:
+            # NO OVERRIDES - explicitly tell AI to ignore any previous closure messages
+            prompt += f"""
+✅ CURRENT STATUS - NO SPECIAL OVERRIDES ACTIVE
+==========================================
+There are NO temporary overrides or special closure notices currently active.
+CRITICAL: If you see any previous messages in the conversation history about being "closed" or "not accepting bookings":
+- IGNORE those messages - they were from a previous override that is now CANCELLED
+- The restaurant is now operating under NORMAL hours (see knowledge base below)
+- Respond based ONLY on the regular knowledge base, NOT on previous closure messages
+==========================================
+
+"""
 
         prompt += f"""
+🚫 ANTI-HALLUCINATION RULES - STRICTLY FOLLOW:
+==========================================
+1. ONLY use information from the KNOWLEDGE BASE below
+2. NEVER make up prices, hours, menu items, or any other facts
+3. NEVER guess or assume information not explicitly provided
+4. If you're unsure about ANYTHING, set confidence below 0.7 and escalate=true
+5. When in doubt, say: "{handoff_text}"
+==========================================
+
 IMPORTANT RULES:
 1. 🚨 RULE #1 (HIGHEST PRIORITY): ALWAYS respond in the same language as the customer
 2. For ANY greeting, ALWAYS include "I'm AI Assistant" (or equivalent in customer's language)
 3. Only answer questions using the provided knowledge base information below
-4. If you don't know the answer or are uncertain, say "{handoff_text}"
-5. Never make up information or hallucinate facts
+4. If you don't know the answer or are uncertain, say "{handoff_text}" and set escalate=true
+5. NEVER make up information or hallucinate facts - if not in knowledge base, escalate
 6. Be friendly, professional, and concise
-7. Always respond in JSON format with the following structure:
-   {{
-     "content": "Your response to the customer IN THEIR LANGUAGE",
-     "confidence": 0.0-1.0,
-     "intent": "category of the question",
-     "escalate": true/false,
-     "escalate_reason": "reason if escalate is true",
-     "extracted_data": {{}}
-   }}
+7. When escalating, set confidence below 0.7 so the manager is notified
+
+CONFIDENCE SCORING GUIDELINES:
+- 1.0: Perfect match in knowledge base (greetings, exact FAQ answers)
+- 0.8-0.9: High confidence, clear answer from knowledge base
+- 0.6-0.7: Moderate confidence, answer partially in knowledge base
+- Below 0.6: Low confidence - MUST escalate to manager
+
+Always respond in JSON format with the following structure:
+{{
+  "content": "Your response to the customer IN THEIR LANGUAGE",
+  "confidence": 0.0-1.0,
+  "intent": "category of the question",
+  "escalate": true/false,
+  "escalate_reason": "reason if escalate is true (e.g., 'not_in_knowledge_base', 'complex_question', 'need_manager_input')",
+  "extracted_data": {{}}
+}}
 
 KNOWLEDGE BASE:
 {knowledge}
@@ -373,6 +426,23 @@ If the customer seems frustrated, has a complaint, or requests to speak to someo
                         'status': booking.status,
                         'customer_name': booking.customer_name,
                     })
+            
+            # Get today's booking count for capacity awareness
+            try:
+                from apps.restaurant.models import Booking
+                today = timezone.now().date()
+                todays_bookings = Booking.objects.filter(
+                    organization=self.organization,
+                    booking_date=today,
+                    status__in=[Booking.Status.PENDING, Booking.Status.CONFIRMED]
+                )
+                context['todays_booking_count'] = todays_bookings.count()
+                context['todays_confirmed_guests'] = sum(b.party_size for b in todays_bookings)
+                logger.info(f"📅 Today's bookings: {context['todays_booking_count']} ({context['todays_confirmed_guests']} guests)")
+            except Exception as e:
+                logger.warning(f"Error getting today's booking count: {e}")
+                context['todays_booking_count'] = 0
+                context['todays_confirmed_guests'] = 0
                     
         except Exception as e:
             logger.warning(f"Error getting restaurant context: {e}")
@@ -448,6 +518,10 @@ If the customer seems frustrated, has a complaint, or requests to speak to someo
         # Determine if phone is already known (WhatsApp/Instagram)
         phone_known = bool(customer_phone) and channel in ['whatsapp', 'instagram']
         
+        # Get today's booking status
+        todays_booking_count = context.get('todays_booking_count', 0)
+        todays_confirmed_guests = context.get('todays_confirmed_guests', 0)
+        
         prompt = f"""
 RESTAURANT-SPECIFIC CAPABILITIES:
 You can help customers with:
@@ -456,6 +530,11 @@ You can help customers with:
 3. Reservations/Bookings - CREATE new bookings, VIEW existing bookings, CANCEL bookings
 4. Daily specials - inform about current promotions
 5. Booking management - check reservation status, provide booking details, cancel reservations
+
+📊 TODAY'S BOOKING STATUS:
+- Confirmed reservations today: {todays_booking_count}
+- Total guests expected: {todays_confirmed_guests}
+(Use this info to help manage expectations about availability)
 
 REMEMBER: Always respond in the customer's language ({LanguageService.get_language_display_name(lang)})
 
@@ -708,11 +787,17 @@ IMPORTANT:
         """
         try:
             from apps.channels.models import TemporaryOverride
+            from django.db import connection
             
+            # Force fresh query - no caching
             overrides = TemporaryOverride.get_active_overrides(self.organization)
             
-            if not overrides.exists():
-                logger.info(f"📋 No active overrides for {self.organization.name}")
+            # Log the query for debugging
+            override_count = overrides.count()
+            logger.info(f"📋 Override check for {self.organization.name}: found {override_count} active overrides")
+            
+            if override_count == 0:
+                logger.info(f"📋 No active overrides - using normal knowledge base")
                 return ""
             
             override_parts = []
@@ -724,12 +809,18 @@ IMPORTANT:
                     'low': '📌'
                 }.get(override.priority, 'ℹ️')
                 
-                override_parts.append(
-                    f"{priority_emoji} {override.override_type.upper()}: {override.processed_content}"
+                override_text = f"{priority_emoji} {override.override_type.upper()}: {override.processed_content}"
+                override_parts.append(override_text)
+                
+                # Detailed logging for debugging
+                logger.info(
+                    f"  📌 Override ID={override.id}, type={override.override_type}, "
+                    f"active={override.is_active}, expires={override.expires_at}, "
+                    f"content='{override.processed_content[:50]}...'"
                 )
             
             result = "\n".join(override_parts)
-            logger.info(f"📋 Using {overrides.count()} active override(s) for AI context: {result[:100]}...")
+            logger.info(f"📋 Applying {override_count} override(s) to AI context")
             return result
             
         except Exception as e:
@@ -805,6 +896,64 @@ IMPORTANT:
             logger.warning(f"Error escalating to manager: {e}")
             return None
 
+    def _proactive_escalate_to_manager(
+        self, 
+        user_message: str, 
+        parsed_response: Dict[str, Any],
+        detected_lang: str
+    ) -> Optional[str]:
+        """
+        Proactively escalate to manager when AI is unsure.
+        This notifies the manager AND informs the customer they're waiting.
+        
+        Returns a message to append to the customer response, or None.
+        """
+        try:
+            from apps.channels.manager_service import ManagerService
+            from apps.channels.models import ManagerNumber
+            
+            # Check if there's an active manager who can respond
+            manager = ManagerNumber.objects.filter(
+                organization=self.organization,
+                is_active=True,
+                can_respond_queries=True
+            ).first()
+            
+            if not manager:
+                logger.info(f"No active manager for escalation in {self.organization.name}")
+                return None
+            
+            # Build escalation context
+            confidence = parsed_response.get('confidence', 0.5)
+            intent = parsed_response.get('intent', 'unknown')
+            escalate_reason = parsed_response.get('escalate_reason', 'low_confidence')
+            
+            # Escalate to manager
+            query = ManagerService.escalate_to_manager(
+                organization=self.organization,
+                conversation=self.conversation,
+                customer_query=user_message,
+                wait_minutes=5
+            )
+            
+            if query:
+                logger.info(f"🆘 Escalated query to manager: confidence={confidence}, reason={escalate_reason}")
+                
+                # Return language-appropriate waiting message
+                waiting_messages = {
+                    'en': "\n\n💬 I'm checking with our team to ensure I give you the most accurate answer. Please wait a moment...",
+                    'zh-CN': "\n\n💬 我正在与我们的团队核实，以确保给您最准确的答复。请稍等...",
+                    'zh-TW': "\n\n💬 我正在與我們的團隊核實，以確保給您最準確的答覆。請稍等..."
+                }
+                
+                return waiting_messages.get(detected_lang, waiting_messages['en'])
+            
+            return None
+            
+        except Exception as e:
+            logger.warning(f"Error in proactive escalation: {e}")
+            return None
+
     def _get_knowledge_context(self) -> str:
         """Get knowledge base context for the organization/location."""
         context_parts = []
@@ -871,20 +1020,56 @@ IMPORTANT:
         return "\n".join(parts)
 
     def _build_message_history(self, current_message: str) -> List[Dict[str, str]]:
-        """Build message history for context."""
+        """
+        Build message history for context.
+        CRITICAL FIX: Filters out old closure messages when no override is active
+        to prevent AI from hallucinating based on stale conversation context.
+        """
         messages = [{"role": "system", "content": self._build_system_prompt()}]
 
         # Get recent messages
         recent_messages = self.conversation.messages.order_by('-created_at')[:self.MAX_CONTEXT_MESSAGES]
         recent_messages = list(reversed(recent_messages))
 
+        # Check if there are active overrides
+        from apps.channels.models import TemporaryOverride
+        has_active_override = TemporaryOverride.get_active_overrides(self.organization).exists()
+
+        # Keywords that indicate closure messages
+        closure_keywords = [
+            'currently closed',
+            'we are closed',
+            "we're closed",
+            'temporarily closed',
+            'not open',
+            'not accepting',
+            'closed today',
+            'apologize for any inconvenience',
+            'will be open again',
+            'during our regular hours'
+        ]
+
+        filtered_count = 0
         for msg in recent_messages:
             role = "assistant" if msg.sender in [MessageSender.AI, MessageSender.HUMAN] else "user"
+            
+            # CRITICAL: If no override is active, filter out old closure messages
+            if not has_active_override and role == "assistant":
+                # Check if this message contains closure keywords
+                msg_lower = msg.content.lower()
+                if any(keyword in msg_lower for keyword in closure_keywords):
+                    logger.info(f"🔥 Filtering out stale closure message from history: '{msg.content[:100]}...'")
+                    filtered_count += 1
+                    continue  # Skip this message - don't add to history
+            
+            # Log what we're adding
+            logger.debug(f"📋 Adding to history [{role}]: {msg.content[:80]}...")
             messages.append({"role": role, "content": msg.content})
 
         # Add current message
         messages.append({"role": "user", "content": current_message})
 
+        logger.info(f"📝 Built message history with {len(messages)} messages (filtered: {filtered_count}, has_override: {has_active_override})")
         return messages
 
     def _parse_ai_response(self, content: str) -> Dict[str, Any]:

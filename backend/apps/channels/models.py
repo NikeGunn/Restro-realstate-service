@@ -420,3 +420,74 @@ class ManagerQuery(models.Model):
         """Mark query as expired (no response received)."""
         self.status = self.Status.EXPIRED
         self.save()
+
+
+class PendingManagerAction(models.Model):
+    """
+    Tracks pending manager actions that require confirmation.
+    For example: closing when there are confirmed reservations.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.CASCADE,
+        related_name='pending_manager_actions'
+    )
+    manager = models.ForeignKey(
+        ManagerNumber,
+        on_delete=models.CASCADE,
+        related_name='pending_actions'
+    )
+    
+    class ActionType(models.TextChoices):
+        CLOSE_WITH_BOOKINGS = 'close_with_bookings', 'Close with active bookings'
+        CANCEL_ALL_BOOKINGS = 'cancel_all_bookings', 'Cancel all bookings'
+    
+    class Status(models.TextChoices):
+        PENDING = 'pending', 'Waiting for Confirmation'
+        CONFIRMED = 'confirmed', 'Confirmed'
+        CANCELLED = 'cancelled', 'Cancelled'
+        EXPIRED = 'expired', 'Expired'
+    
+    action_type = models.CharField(max_length=30, choices=ActionType.choices)
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
+    
+    # Original message and context
+    original_message = models.TextField()
+    context_data = models.JSONField(default=dict, help_text="Booking details, counts, etc.")
+    
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    confirmed_at = models.DateTimeField(null=True, blank=True)
+    
+    class Meta:
+        db_table = 'channel_pending_manager_actions'
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"{self.action_type} by {self.manager.name} ({self.status})"
+    
+    @property
+    def is_expired(self) -> bool:
+        return self.status == self.Status.PENDING and timezone.now() > self.expires_at
+    
+    def confirm(self):
+        """Confirm the pending action."""
+        self.status = self.Status.CONFIRMED
+        self.confirmed_at = timezone.now()
+        self.save()
+    
+    def cancel(self):
+        """Cancel the pending action."""
+        self.status = self.Status.CANCELLED
+        self.save()
+    
+    @classmethod
+    def get_pending_for_manager(cls, manager):
+        """Get pending action for a manager."""
+        return cls.objects.filter(
+            manager=manager,
+            status=cls.Status.PENDING,
+            expires_at__gt=timezone.now()
+        ).first()
