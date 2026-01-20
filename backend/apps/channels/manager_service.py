@@ -2635,6 +2635,104 @@ Respond in JSON format:
             }
     
     @classmethod
+    def get_nearest_manager(
+        cls,
+        organization: Organization,
+        location = None
+    ) -> Optional[ManagerNumber]:
+        """
+        Get the nearest/most appropriate manager based on location.
+        Prioritizes:
+        1. Managers linked to the specific location
+        2. Active managers who can respond
+        3. Managers with recent activity
+        """
+        # Try location-specific manager first if location is provided
+        if location:
+            # Check if there's a manager associated with this location via user
+            from apps.accounts.models import OrganizationMembership
+            location_managers = ManagerNumber.objects.filter(
+                organization=organization,
+                is_active=True,
+                can_respond_queries=True,
+                user__memberships__organization=organization,
+                user__memberships__locations=location
+            ).order_by('-last_message_at')
+            
+            if location_managers.exists():
+                logger.info(f"📍 Found location-specific manager for {location.name}")
+                return location_managers.first()
+        
+        # Fallback to any active manager, prioritize by recent activity
+        managers = ManagerNumber.objects.filter(
+            organization=organization,
+            is_active=True,
+            can_respond_queries=True
+        ).order_by('-last_message_at', '-created_at')
+        
+        if managers.exists():
+            manager = managers.first()
+            logger.info(f"👤 Selected manager: {manager.name}")
+            return manager
+        
+        logger.warning(f"⚠️ No active manager found for {organization.name}")
+        return None
+    
+    @classmethod
+    def get_enhanced_handoff_message(
+        cls,
+        organization: Organization,
+        manager: Optional[ManagerNumber],
+        detected_lang: str = 'en'
+    ) -> str:
+        """
+        Generate an enhanced, professional handoff message.
+        If manager doesn't respond, provides manager's contact info as fallback.
+        
+        ENHANCED: More respectful, less frustrating for customers.
+        """
+        business_name = organization.name
+        
+        if not manager:
+            # No manager available - provide general message
+            messages = {
+                'en': f"I appreciate your patience. To better assist you with this specific inquiry, I recommend reaching out to our team directly. You can find our contact information in your conversation history. How else may I help you today?",
+                'zh-CN': f"感谢您的耐心。为了更好地帮助您解决这个具体问题，我建议您直接联系我们的团队。您可以在对话历史记录中找到我们的联系信息。我今天还能为您做些什么？",
+                'zh-TW': f"感謝您的耐心。為了更好地幫助您解決這個具體問題，我建議您直接聯繫我們的團隊。您可以在對話歷史記錄中找到我們的聯繫信息。我今天還能為您做些什麼？"
+            }
+            return messages.get(detected_lang, messages['en'])
+        
+        # Manager available - provide professional handoff with contact info
+        manager_name = manager.name
+        manager_phone = manager.phone_number
+        
+        # Format phone number nicely (add + if not present)
+        if manager_phone and not manager_phone.startswith('+'):
+            manager_phone = f"+{manager_phone}"
+        
+        messages = {
+            'en': {
+                'connecting': f"Thank you for your question! I'm connecting you with {manager_name}, one of our team members who can provide you with detailed assistance.",
+                'fallback': f"If you don't receive a response shortly, please feel free to contact {manager_name} directly at {manager_phone}. We're here to help and appreciate your patience!"
+            },
+            'zh-CN': {
+                'connecting': f"感谢您的提问！我正在为您联系我们的团队成员{manager_name}，他/她可以为您提供详细的帮助。",
+                'fallback': f"如果您很快没有收到回复，请随时直接联系{manager_name}，电话：{manager_phone}。我们随时为您服务，感谢您的耐心！"
+            },
+            'zh-TW': {
+                'connecting': f"感謝您的提問！我正在為您聯繫我們的團隊成員{manager_name}，他/她可以為您提供詳細的幫助。",
+                'fallback': f"如果您很快沒有收到回覆，請隨時直接聯繫{manager_name}，電話：{manager_phone}。我們隨時為您服務，感謝您的耐心！"
+            }
+        }
+        
+        lang_messages = messages.get(detected_lang, messages['en'])
+        
+        # Combine connecting and fallback messages
+        full_message = f"{lang_messages['connecting']}\n\n{lang_messages['fallback']}"
+        
+        return full_message
+    
+    @classmethod
     def escalate_to_manager(
         cls,
         organization: Organization,
@@ -2644,14 +2742,17 @@ Respond in JSON format:
     ) -> Optional[ManagerQuery]:
         """
         Escalate a customer query to the manager via WhatsApp.
+        
+        ENHANCED:
+        - Uses location-based manager selection
+        - Provides professional handoff messages with manager contact
+        - Auto-fallback if manager doesn't respond
+        
         Returns the ManagerQuery object if successful.
         """
-        # Get an active manager
-        manager = ManagerNumber.objects.filter(
-            organization=organization,
-            is_active=True,
-            can_respond_queries=True
-        ).first()
+        # Get nearest/best manager using location-aware selection
+        location = getattr(conversation, 'location', None)
+        manager = cls.get_nearest_manager(organization, location)
         
         if not manager:
             logger.warning(f"No active manager found for escalation in {organization.name}")
@@ -2705,6 +2806,8 @@ Respond in JSON format:
         """
         Check if there's a pending manager query for this conversation
         and return appropriate response for customer.
+        
+        ENHANCED: Uses professional messages with manager contact info.
         """
         pending = ManagerQuery.objects.filter(
             conversation=conversation,
@@ -2714,10 +2817,12 @@ Respond in JSON format:
         if pending:
             if pending.is_expired:
                 pending.mark_expired()
-                return (
-                    "I apologize, but I wasn't able to get a quick answer from my team. "
-                    f"You can reach our manager directly at {pending.manager.phone_number} "
-                    "or I can help you with something else."
+                # Return enhanced fallback message with manager contact
+                detected_lang = getattr(conversation, 'detected_language', 'en')
+                return cls.get_enhanced_handoff_message(
+                    pending.organization,
+                    pending.manager,
+                    detected_lang
                 )
             else:
                 # Still waiting

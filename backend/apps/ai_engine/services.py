@@ -77,6 +77,11 @@ class AIService:
         detected_lang = self._detect_and_set_language(user_message)
         logger.info(f"Processing message in language: {detected_lang}")
         
+        # PRIORITY 1: Check for manager contact request (e.g., "Can you provide me manager number?")
+        manager_contact_response = self._handle_manager_contact_request(user_message, detected_lang)
+        if manager_contact_response:
+            return manager_contact_response
+        
         # Check if there's a pending manager query for this conversation
         pending_response = self._check_pending_manager_query()
         if pending_response:
@@ -896,6 +901,359 @@ IMPORTANT:
             logger.warning(f"Error escalating to manager: {e}")
             return None
 
+    def _handle_manager_contact_request(self, user_message: str, detected_lang: str) -> Optional[Dict[str, Any]]:
+        """
+        Detect and handle requests for manager contact information.
+        Examples: "Can you give me manager number?", "I want to speak to manager", "Manager contact?"
+        
+        Also handles location responses when awaiting location for manager contact.
+        
+        Returns response dict if this is a manager contact request, None otherwise.
+        """
+        # Check if we're awaiting location for a previous manager contact request
+        is_awaiting_location = (
+            hasattr(self.conversation, 'customer_metadata') and 
+            self.conversation.customer_metadata and
+            self.conversation.customer_metadata.get('awaiting_location_for_manager', False)
+        )
+        
+        if is_awaiting_location:
+            # User is responding with location - try to match it and provide manager contact
+            return self._handle_location_response(user_message, detected_lang)
+        
+        user_message_lower = user_message.lower()
+        
+        # Keywords indicating manager contact request
+        contact_keywords = [
+            'manager number', 'manager phone', 'manager contact',
+            'contact manager', 'manager\'s number', 'manager\'s phone',
+            'give me manager', 'provide manager', 'manager details',
+            'speak to manager', 'talk to manager', 'reach manager',
+            '经理电话', '经理号码', '联系经理',  # Simplified Chinese
+            '經理電話', '經理號碼', '聯繫經理',  # Traditional Chinese
+        ]
+        
+        is_manager_request = any(keyword in user_message_lower for keyword in contact_keywords)
+        
+        if not is_manager_request:
+            return None
+        
+        logger.info(f"📞 Manager contact request detected: {user_message[:100]}")
+        
+        # Check if we have location info for this conversation
+        if not self.conversation.location:
+            # Ask for location first
+            response = self._ask_for_location(detected_lang)
+            
+            # Store state in conversation metadata to handle next message
+            if not hasattr(self.conversation, 'customer_metadata'):
+                self.conversation.customer_metadata = {}
+            self.conversation.customer_metadata['awaiting_location_for_manager'] = True
+            self.conversation.save(update_fields=['customer_metadata'])
+            
+            return {
+                'content': response,
+                'confidence': 0.95,
+                'intent': 'manager_contact_request_awaiting_location',
+                'metadata': {'awaiting': 'location'},
+                'needs_handoff': False,
+                'handoff_reason': '',
+                'language': detected_lang,
+            }
+        
+        # We have location - provide manager contact
+        return self._provide_manager_contact(detected_lang)
+    
+    def _handle_location_response(self, user_message: str, detected_lang: str) -> Dict[str, Any]:
+        """
+        Handle user's location response when they're asked for location to provide manager contact.
+        Try to match the location name with available organization locations.
+        """
+        from apps.accounts.models import Location
+        
+        try:
+            # Try to find matching location
+            locations = Location.objects.filter(organization=self.organization, is_active=True)
+            
+            matched_location = None
+            user_message_lower = user_message.lower()
+            
+            # Try to find location by name match
+            for location in locations:
+                if location.name.lower() in user_message_lower or user_message_lower in location.name.lower():
+                    matched_location = location
+                    logger.info(f"📍 Matched location: {location.name}")
+                    break
+            
+            if matched_location:
+                # Update conversation location
+                self.conversation.location = matched_location
+                self.conversation.save(update_fields=['location'])
+                
+                # Provide manager contact for this location
+                return self._provide_manager_contact(detected_lang)
+            else:
+                # Couldn't match location - provide list of available locations or general manager
+                return self._provide_general_manager_or_locations(locations, detected_lang)
+                
+        except Exception as e:
+            logger.error(f"Error handling location response: {e}")
+            # Fall back to providing any available manager
+            return self._provide_manager_contact(detected_lang)
+    
+    def _provide_general_manager_or_locations(self, locations: list, detected_lang: str) -> Dict[str, Any]:
+        """
+        When location can't be matched, either list available locations or provide a general manager.
+        """
+        from apps.channels.manager_service import ManagerService
+        
+        # If there's only one location, use it
+        if locations.count() == 1:
+            self.conversation.location = locations.first()
+            self.conversation.save(update_fields=['location'])
+            return self._provide_manager_contact(detected_lang)
+        
+        # Try to get any available manager (without specific location)
+        manager = ManagerService.get_nearest_manager(self.organization, None)
+        
+        if manager:
+            response = self._format_manager_contact_response(
+                manager.name,
+                manager.phone_number,
+                detected_lang
+            )
+            logger.info(f"📞 Provided general manager contact: {manager.name}")
+            
+            # Clear awaiting state
+            if hasattr(self.conversation, 'customer_metadata') and self.conversation.customer_metadata:
+                self.conversation.customer_metadata.pop('awaiting_location_for_manager', None)
+                self.conversation.save(update_fields=['customer_metadata'])
+            
+            return {
+                'content': response,
+                'confidence': 0.9,
+                'intent': 'manager_contact_provided',
+                'metadata': {'manager': manager.name},
+                'needs_handoff': False,
+                'handoff_reason': '',
+                'language': detected_lang,
+            }
+        
+        # No manager available - list locations
+        location_names = [loc.name for loc in locations[:5]]  # Max 5 locations
+        location_list = ", ".join(location_names)
+        
+        responses = {
+            'en': f"I couldn't identify your specific location. We have branches at: {location_list}. Could you please specify which location you're interested in, or I can provide our general contact information?",
+            'zh-CN': f'我无法确定您的具体位置。我们在以下地点设有分店：{location_list}。能否请您明确您感兴趣的位置，或者我可以提供我们的一般联系信息？',
+            'zh-TW': f'我無法確定您的具體位置。我們在以下地點設有分店：{location_list}。能否請您明確您感興趣的位置，或者我可以提供我們的一般聯絡資訊？',
+        }
+        
+        return {
+            'content': responses.get(detected_lang, responses['en']),
+            'confidence': 0.85,
+            'intent': 'location_clarification_needed',
+            'metadata': {'locations': location_names},
+            'needs_handoff': False,
+            'handoff_reason': '',
+            'language': detected_lang,
+        }
+    
+    def _ask_for_location(self, detected_lang: str) -> str:
+        """
+        Ask customer for their location to provide nearest manager contact.
+        """
+        responses = {
+            'en': "I'd be happy to provide you with our manager's contact information. To connect you with the nearest manager, could you please share your location or which of our branches you're interested in?",
+            'zh-CN': '我很乐意为您提供我们经理的联系方式。为了为您联系最近的经理,能否请您分享您的位置或您感兴趣的分店？',
+            'zh-TW': '我很樂意為您提供我們經理的聯絡方式。為了為您聯繫最近的經理,能否請您分享您的位置或您感興趣的分店？',
+        }
+        return responses.get(detected_lang, responses['en'])
+    
+    def _provide_manager_contact(self, detected_lang: str) -> Dict[str, Any]:
+        """
+        Provide manager contact information based on conversation location.
+        """
+        try:
+            from apps.channels.manager_service import ManagerService
+            
+            # Use classmethod to get nearest manager
+            manager = ManagerService.get_nearest_manager(
+                self.organization, 
+                self.conversation.location
+            )
+            
+            if manager:
+                response = self._format_manager_contact_response(
+                    manager.name, 
+                    manager.phone_number, 
+                    detected_lang
+                )
+                logger.info(f"📞 Provided manager contact: {manager.name} - {manager.phone_number}")
+            else:
+                response = self._no_manager_available_response(detected_lang)
+                logger.warning("📞 No manager available for contact request")
+            
+            # Clear awaiting state
+            if hasattr(self.conversation, 'customer_metadata') and self.conversation.customer_metadata:
+                self.conversation.customer_metadata.pop('awaiting_location_for_manager', None)
+                self.conversation.save(update_fields=['customer_metadata'])
+            
+            return {
+                'content': response,
+                'confidence': 0.95,
+                'intent': 'manager_contact_provided',
+                'metadata': {'manager': manager.name if manager else None},
+                'needs_handoff': False,
+                'handoff_reason': '',
+                'language': detected_lang,
+            }
+            
+        except Exception as e:
+            logger.error(f"Error providing manager contact: {e}")
+            return {
+                'content': self._no_manager_available_response(detected_lang),
+                'confidence': 0.8,
+                'intent': 'manager_contact_error',
+                'metadata': {'error': str(e)},
+                'needs_handoff': False,
+                'handoff_reason': '',
+                'language': detected_lang,
+            }
+    
+    def _format_manager_contact_response(self, manager_name: str, phone: str, detected_lang: str) -> str:
+        """
+        Format the response with manager contact information.
+        """
+        responses = {
+            'en': f"Certainly! You can contact {manager_name}, our manager, at {phone}. They will be happy to assist you with any questions or concerns. Feel free to call or message them directly.",
+            'zh-CN': f'当然！您可以联系我们的经理{manager_name},电话：{phone}。他们很乐意为您解答任何问题或疑虑。请随时致电或直接发送消息。',
+            'zh-TW': f'當然！您可以聯繫我們的經理{manager_name},電話：{phone}。他們很樂意為您解答任何問題或疑慮。請隨時致電或直接發送訊息。',
+        }
+        return responses.get(detected_lang, responses['en'])
+    
+    def _no_manager_available_response(self, detected_lang: str) -> str:
+        """
+        Response when no manager is available.
+        """
+        responses = {
+            'en': "I apologize, but I'm currently unable to provide a specific manager contact. Please check our website or contact us through our general support channels, and we'll connect you with the right person.",
+            'zh-CN': '抱歉,我目前无法提供特定经理的联系方式。请查看我们的网站或通过我们的一般支持渠道联系我们,我们会为您联系合适的人员。',
+            'zh-TW': '抱歉,我目前無法提供特定經理的聯絡方式。請查看我們的網站或通過我們的一般支援渠道聯繫我們,我們會為您聯繫合適的人員。',
+        }
+        return responses.get(detected_lang, responses['en'])
+    
+    def _is_query_relevant_to_business(self, user_message: str, parsed_response: Dict[str, Any]) -> bool:
+        """
+        Check if the query is relevant to the business type (restaurant or real estate).
+        This prevents escalating off-topic queries like "how to order nuclear bomb" or "buy electronics".
+        
+        Returns True if relevant to business, False if off-topic.
+        """
+        try:
+            if not self.client:
+                # If no AI client, default to considering it relevant (safe default)
+                return True
+            
+            business_type = self.organization.business_type
+            user_message_lower = user_message.lower()
+            
+            # Quick keyword check for obvious off-topic queries
+            off_topic_keywords = [
+                'nuclear', 'bomb', 'weapon', 'gun', 'explosive',
+                'electronics store', 'buy phone', 'laptop', 'computer store',
+                'car dealership', 'buy car', 'automobile',
+                'clothing store', 'fashion', 'buy clothes',
+                'pharmacy', 'medicine', 'drug store',
+                'hardware store', 'tools',
+                'toy store', 'game store',
+                'illegal', 'drugs', 'narcotics'
+            ]
+            
+            if any(keyword in user_message_lower for keyword in off_topic_keywords):
+                logger.info(f"🚫 Detected off-topic query with keywords: {user_message[:100]}")
+                return False
+            
+            # Use AI to check relevance for ambiguous cases
+            business_context = {
+                'restaurant': 'restaurant, food, dining, menu, booking, reservation, table, dish, cuisine, meal, drink, beverage',
+                'real_estate': 'property, house, apartment, real estate, rent, buy, sell, home, listing, viewing, lease, mortgage'
+            }
+            
+            context = business_context.get(business_type, '')
+            
+            prompt = f"""You are a query relevance checker for a {business_type} business.
+
+Business context: {context}
+
+Customer query: "{user_message}"
+
+Is this query relevant to a {business_type} business?
+
+Respond with JSON:
+{{
+    "is_relevant": true/false,
+    "confidence": 0.0-1.0,
+    "reason": "brief explanation"
+}}
+
+Consider relevant if:
+- Directly about {business_type} services
+- General customer service questions
+- Location/hours/contact queries
+- Greetings and small talk
+
+Consider irrelevant if:
+- About completely different industries
+- Requesting illegal/inappropriate items
+- Shopping for unrelated products/services"""
+            
+            response = self.client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=150,
+                temperature=0.2,
+                response_format={"type": "json_object"}
+            )
+            
+            import json
+            result = json.loads(response.choices[0].message.content)
+            is_relevant = result.get('is_relevant', True)  # Default to True if unclear
+            reason = result.get('reason', '')
+            
+            logger.info(f"📊 Relevance check: relevant={is_relevant}, reason={reason}")
+            return is_relevant
+            
+        except Exception as e:
+            logger.warning(f"Error checking query relevance: {e}")
+            # Default to True (relevant) on error - safe default
+            return True
+    
+    def _get_professional_off_topic_response(self, detected_lang: str) -> str:
+        """
+        Generate a professional response for off-topic queries.
+        Similar to how big companies handle unrelated questions.
+        """
+        business_type = self.organization.business_type
+        business_name = self.organization.name
+        
+        responses = {
+            'en': {
+                'restaurant': f"Thank you for reaching out to {business_name}. We specialize in dining experiences and restaurant services. For inquiries unrelated to our restaurant, we recommend contacting the appropriate service provider. How else may I assist you with your dining needs today?",
+                'real_estate': f"Thank you for contacting {business_name}. We specialize in real estate services including property sales, rentals, and viewings. For inquiries outside our area of expertise, we recommend reaching out to the relevant service provider. How may I help you with your property needs?"
+            },
+            'zh-CN': {
+                'restaurant': f"感谢您联系{business_name}。我们专注于餐饮体验和餐厅服务。对于与我们餐厅无关的咨询，我们建议您联系相应的服务提供商。我今天还能为您的用餐需求提供什么帮助吗？",
+                'real_estate': f"感谢您联系{business_name}。我们专注于房地产服务，包括房产销售、租赁和看房。对于我们专业领域之外的咨询，我们建议您联系相关服务提供商。我可以如何帮助您满足房产需求？"
+            },
+            'zh-TW': {
+                'restaurant': f"感謝您聯絡{business_name}。我們專注於餐飲體驗和餐廳服務。對於與我們餐廳無關的諮詢，我們建議您聯繫相應的服務提供商。我今天還能為您的用餐需求提供什麼幫助嗎？",
+                'real_estate': f"感謝您聯絡{business_name}。我們專注於房地產服務，包括房產銷售、租賃和看房。對於我們專業領域之外的諮詢，我們建議您聯繫相關服務提供商。我可以如何幫助您滿足房產需求？"
+            }
+        }
+        
+        return responses.get(detected_lang, responses['en']).get(business_type, responses['en']['restaurant'])
+    
     def _proactive_escalate_to_manager(
         self, 
         user_message: str, 
@@ -906,12 +1264,32 @@ IMPORTANT:
         Proactively escalate to manager when AI is unsure.
         This notifies the manager AND informs the customer they're waiting.
         
+        ENHANCED: Now checks query relevance before escalating.
+        Off-topic queries get professional responses instead of manager escalation.
+        
         Returns a message to append to the customer response, or None.
         """
         try:
             from apps.channels.manager_service import ManagerService
             from apps.channels.models import ManagerNumber
             
+            # STEP 1: Check if query is relevant to our business
+            is_relevant = self._is_query_relevant_to_business(user_message, parsed_response)
+            
+            if not is_relevant:
+                # Off-topic query - respond professionally without manager escalation
+                logger.info(f"🚫 Off-topic query detected, responding without escalation: {user_message[:100]}")
+                off_topic_response = self._get_professional_off_topic_response(detected_lang)
+                
+                # Override the parsed response content
+                parsed_response['content'] = off_topic_response
+                parsed_response['confidence'] = 0.95  # High confidence for off-topic response
+                parsed_response['needs_handoff'] = False  # Don't escalate
+                parsed_response['intent'] = 'off_topic'
+                
+                return None  # Don't add waiting message
+            
+            # STEP 2: Query is relevant - proceed with escalation
             # Check if there's an active manager who can respond
             manager = ManagerNumber.objects.filter(
                 organization=self.organization,
@@ -937,7 +1315,7 @@ IMPORTANT:
             )
             
             if query:
-                logger.info(f"🆘 Escalated query to manager: confidence={confidence}, reason={escalate_reason}")
+                logger.info(f"🆘 Escalated relevant query to manager: confidence={confidence}, reason={escalate_reason}")
                 
                 # Return language-appropriate waiting message
                 waiting_messages = {
@@ -1107,7 +1485,32 @@ IMPORTANT:
         reason: str,
         confidence: float
     ) -> Dict[str, Any]:
-        """Create a handoff response in the detected language."""
+        """
+        Create a handoff response in the detected language.
+        
+        ENHANCED: Uses location-aware manager selection and professional messaging.
+        """
+        # Try to get enhanced handoff message with manager info
+        try:
+            from apps.channels.manager_service import ManagerService
+            
+            location = self.location
+            manager = ManagerService.get_nearest_manager(self.organization, location)
+            
+            if manager:
+                # Use enhanced handoff message with manager contact
+                enhanced_message = ManagerService.get_enhanced_handoff_message(
+                    self.organization,
+                    manager,
+                    self.detected_language
+                )
+                message = enhanced_message
+                logger.info(f"✨ Using enhanced handoff message with manager {manager.name}")
+            
+        except Exception as e:
+            logger.warning(f"Could not get enhanced handoff message: {e}")
+            # Fall back to original message
+        
         return {
             'content': message,
             'confidence': confidence,
