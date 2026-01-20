@@ -56,6 +56,9 @@ class LeadService:
         """
         Create a lead from AI-extracted data.
         
+        CRITICAL: Checks for active override status (closed/unavailable) before accepting leads.
+        This prevents lead acceptance when the office/agency is marked as closed.
+        
         Args:
             extracted_data: Dictionary containing lead info from AI
             source: Source of the lead (whatsapp, website, instagram, etc.)
@@ -65,6 +68,58 @@ class LeadService:
         """
         if not extracted_data.get('lead_intent'):
             return None, "No lead intent detected"
+        
+        # CRITICAL: Check for active closure/unavailability overrides BEFORE accepting lead
+        from apps.channels.models import TemporaryOverride
+        
+        active_overrides = TemporaryOverride.get_active_overrides(
+            self.organization,
+            override_type=TemporaryOverride.OverrideType.HOURS
+        )
+        
+        if active_overrides.exists():
+            override = active_overrides.first()
+            
+            # CRITICAL: Check for OPEN keywords FIRST
+            open_keywords = ['open', 'opening', 'reopening', 'back', 'available', 'accepting', 'now open']
+            is_open_message = any(
+                keyword in override.processed_content.lower() or 
+                keyword in override.original_message.lower()
+                for keyword in open_keywords
+            )
+            
+            # If override says "we are OPEN", don't block leads
+            if is_open_message:
+                logger.info(f"✅ Override indicates OPEN status - allowing leads: {override.processed_content[:50]}")
+                # Don't block - continue with lead
+            else:
+                # Check for closure keywords
+                closure_keywords = ['closed', 'closing', 'not open', 'unavailable', 'not accepting', 'office closed']
+                is_closed = any(
+                    keyword in override.processed_content.lower() or 
+                    keyword in override.original_message.lower()
+                    for keyword in closure_keywords
+                )
+                
+                if is_closed:
+                    logger.warning(
+                        f"🚫 Blocking lead attempt - office is CLOSED. "
+                        f"Override: {override.processed_content[:100]}"
+                    )
+                    return None, f"Cannot accept leads: {override.processed_content}"
+        
+        # Also check availability overrides
+        availability_overrides = TemporaryOverride.get_active_overrides(
+            self.organization,
+            override_type=TemporaryOverride.OverrideType.AVAILABILITY
+        )
+        
+        if availability_overrides.exists():
+            logger.warning(
+                f"🚫 Blocking lead - availability override active: "
+                f"{availability_overrides.first().processed_content[:100]}"
+            )
+            return None, f"Cannot accept leads: {availability_overrides.first().processed_content}"
         
         # Check if we have minimum required fields (name and phone)
         customer_name = extracted_data.get('customer_name', '')
@@ -334,6 +389,9 @@ class AppointmentService:
         """
         Create an appointment from AI-extracted data.
         
+        CRITICAL: Checks for active override status (closed/unavailable) before creating appointments.
+        This prevents appointment confirmations when the office/agency is marked as closed.
+        
         Args:
             extracted_data: Dictionary containing appointment info from AI
             lead: Optional existing lead (if not provided, will try to find/create one)
@@ -344,6 +402,58 @@ class AppointmentService:
         """
         if not extracted_data.get('appointment_intent'):
             return None, "No appointment intent detected"
+        
+        # CRITICAL: Check for active closure/unavailability overrides BEFORE accepting appointment
+        from apps.channels.models import TemporaryOverride
+        
+        active_overrides = TemporaryOverride.get_active_overrides(
+            self.organization,
+            override_type=TemporaryOverride.OverrideType.HOURS
+        )
+        
+        if active_overrides.exists():
+            override = active_overrides.first()
+            
+            # CRITICAL: Check for OPEN keywords FIRST
+            open_keywords = ['open', 'opening', 'reopening', 'back', 'available', 'accepting', 'now open']
+            is_open_message = any(
+                keyword in override.processed_content.lower() or 
+                keyword in override.original_message.lower()
+                for keyword in open_keywords
+            )
+            
+            # If override says "we are OPEN", don't block appointments
+            if is_open_message:
+                logger.info(f"✅ Override indicates OPEN status - allowing appointments: {override.processed_content[:50]}")
+                # Don't block - continue with appointment
+            else:
+                # Check for closure keywords
+                closure_keywords = ['closed', 'closing', 'not open', 'unavailable', 'not accepting', 'office closed']
+                is_closed = any(
+                    keyword in override.processed_content.lower() or 
+                    keyword in override.original_message.lower()
+                    for keyword in closure_keywords
+                )
+                
+                if is_closed:
+                    logger.warning(
+                        f"🚫 Blocking appointment attempt - office is CLOSED. "
+                        f"Override: {override.processed_content[:100]}"
+                    )
+                    return None, f"Cannot schedule appointments: {override.processed_content}"
+        
+        # Also check availability overrides
+        availability_overrides = TemporaryOverride.get_active_overrides(
+            self.organization,
+            override_type=TemporaryOverride.OverrideType.AVAILABILITY
+        )
+        
+        if availability_overrides.exists():
+            logger.warning(
+                f"🚫 Blocking appointment - availability override active: "
+                f"{availability_overrides.first().processed_content[:100]}"
+            )
+            return None, f"Cannot schedule appointments: {availability_overrides.first().processed_content}"
         
         # Check required fields
         appointment_date = extracted_data.get('appointment_date')

@@ -204,6 +204,8 @@ Response:"""
         Send the response to the customer via their original channel.
         """
         from .whatsapp_service import WhatsAppService
+        from .instagram_service import InstagramService
+        from apps.messaging.models import Channel
         
         conversation = query.conversation
         
@@ -220,7 +222,7 @@ Response:"""
         )
         
         # Send via WhatsApp if that was the channel
-        if conversation.channel == 'whatsapp' and conversation.customer_phone:
+        if conversation.channel == Channel.WHATSAPP and conversation.customer_phone:
             try:
                 whatsapp_config = WhatsAppConfig.objects.get(
                     organization=self.organization,
@@ -228,8 +230,25 @@ Response:"""
                 )
                 service = WhatsAppService(whatsapp_config)
                 service.send_message(conversation.customer_phone, response)
+                logger.info(f"✅ Sent manager response to WhatsApp: {conversation.customer_phone}")
             except Exception as e:
                 logger.error(f"Failed to send WhatsApp response: {e}")
+        
+        # Send via Instagram if that was the channel
+        elif conversation.channel == Channel.INSTAGRAM and conversation.channel_conversation_id:
+            try:
+                instagram_service = InstagramService.get_for_organization(self.organization)
+                if instagram_service:
+                    # channel_conversation_id stores the customer's Instagram ID
+                    instagram_service.send_message(
+                        recipient_id=conversation.channel_conversation_id,
+                        text=response
+                    )
+                    logger.info(f"✅ Sent manager response to Instagram: {conversation.channel_conversation_id}")
+                else:
+                    logger.error("Instagram service not configured for organization")
+            except Exception as e:
+                logger.error(f"Failed to send Instagram response: {e}")
         
         # Mark as sent
         query.customer_response = response

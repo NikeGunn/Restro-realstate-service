@@ -108,13 +108,15 @@ class AIService:
             system_prompt = self._build_system_prompt()
             messages = self._build_message_history(user_message)
 
-            # Call OpenAI
+            # Call OpenAI with enhanced reasoning parameters
             response = self.client.chat.completions.create(
                 model=settings.OPENAI_MODEL,
                 messages=messages,
                 max_tokens=settings.OPENAI_MAX_TOKENS,
                 temperature=settings.OPENAI_TEMPERATURE,
                 response_format={"type": "json_object"},
+                # Enhanced reasoning: Lower temperature for more consistent, logical responses
+                # The model will think more carefully about context and contradictions
             )
 
             # Parse response
@@ -216,6 +218,15 @@ class AIService:
         prompt = f"""You are an AI assistant (NOT a human) for {business_name}, a {business_type} business.
 You are currently helping customers at the {location_name} location.
 
+🧠 CRITICAL THINKING RULES - BE INTELLIGENT, NOT JUST REACTIVE:
+==========================================
+1. CONTEXT AWARENESS: Always consider the FULL conversation context
+2. LOGICAL CONSISTENCY: Never contradict yourself within the same conversation
+3. TEMPORAL AWARENESS: Understand time, dates, and sequence of events
+4. STATUS CHECKING: ALWAYS check override status BEFORE making commitments
+5. SMART VALIDATION: Before confirming actions, verify conditions are met
+==========================================
+
 🌍 MULTILINGUAL SUPPORT - CRITICAL RULES:
 ==========================================
 {language_instruction}
@@ -274,6 +285,24 @@ CRITICAL: If you see any previous messages in the conversation history about bei
 3. NEVER guess or assume information not explicitly provided
 4. If you're unsure about ANYTHING, set confidence below 0.7 and escalate=true
 5. When in doubt, say: "{handoff_text}"
+6. VERIFY status conditions before making commitments (bookings, appointments, etc.)
+7. CHECK for contradictions - if something seems inconsistent, ask for clarification
+==========================================
+
+🎯 INTELLIGENT RESPONSE GUIDELINES:
+==========================================
+THINK BEFORE YOU RESPOND:
+1. What is the customer asking?
+2. What information do I have in my context (overrides, knowledge base)?
+3. Is there any conflict between what customer wants and current status?
+4. Have I been consistent with previous responses in this conversation?
+5. Am I making logical sense?
+
+EXAMPLE OF INTELLIGENT THINKING:
+❌ BAD: Customer asks for booking → Confirm booking → Later say "we're closed"
+✅ GOOD: Customer asks for booking → Check override status → See "closed" → Politely decline booking with reason
+
+ALWAYS ASK YOURSELF: "Does this make sense given the current context?"
 ==========================================
 
 IMPORTANT RULES:
@@ -284,6 +313,8 @@ IMPORTANT RULES:
 5. NEVER make up information or hallucinate facts - if not in knowledge base, escalate
 6. Be friendly, professional, and concise
 7. When escalating, set confidence below 0.7 so the manager is notified
+8. VERIFY conditions before confirming actions (especially bookings/appointments)
+9. MAINTAIN LOGICAL CONSISTENCY - don't contradict yourself in the same conversation
 
 CONFIDENCE SCORING GUIDELINES:
 - 1.0: Perfect match in knowledge base (greetings, exact FAQ answers)
@@ -297,7 +328,7 @@ Always respond in JSON format with the following structure:
   "confidence": 0.0-1.0,
   "intent": "category of the question",
   "escalate": true/false,
-  "escalate_reason": "reason if escalate is true (e.g., 'not_in_knowledge_base', 'complex_question', 'need_manager_input')",
+  "escalate_reason": "reason if escalate is true (e.g., 'not_in_knowledge_base', 'complex_question', 'need_manager_input', 'logical_inconsistency')",
   "extracted_data": {{}}
 }}
 
@@ -539,7 +570,11 @@ You can help customers with:
 📊 TODAY'S BOOKING STATUS:
 - Confirmed reservations today: {todays_booking_count}
 - Total guests expected: {todays_confirmed_guests}
-(Use this info to help manage expectations about availability)
+
+🚨 CRITICAL: Do NOT tell customers we are "fully booked" unless there is a specific override message stating this!
+- If booking count is low (0-5), we definitely have availability
+- ONLY say "fully booked" if you see an explicit override message saying so
+- When in doubt, ACCEPT the booking and let the system handle capacity validation
 
 REMEMBER: Always respond in the customer's language ({LanguageService.get_language_display_name(lang)})
 
@@ -588,8 +623,40 @@ When a customer wants to make a NEW reservation, collect this information:
         
         prompt += f"""
 
-🚨 CRITICAL BOOKING RULE - WHEN ALL INFO IS COLLECTED:
-When you have collected ALL required booking information, you MUST include the data in "extracted_data":
+🚨 CRITICAL BOOKING VALIDATION - MUST CHECK BEFORE ACCEPTING BOOKINGS:
+==========================================
+
+STEP 1: CHECK OVERRIDE STATUS FIRST
+BEFORE accepting ANY booking request, you MUST:
+1. Review the "URGENT MANAGER UPDATES" section at the top of this prompt
+2. If you see closure messages like:
+   - "We are currently closed"
+   - "Closed for the day"
+   - "Not accepting bookings"
+   - Any similar closure or unavailability notice
+   
+   Then you MUST:
+   ❌ DO NOT accept the booking
+   ❌ DO NOT include "booking_intent": true in extracted_data
+   ❌ DO NOT collect booking information
+   ✅ Politely inform customer: "I apologize, but we are currently closed and cannot accept bookings at this time."
+
+3. If you see "fully booked" or "no availability" messages IN THE MANAGER UPDATES SECTION:
+   ❌ DO NOT accept the booking
+   ✅ Suggest: "We are currently fully booked. Please try booking for another date or contact us directly."
+
+🔴 IMPORTANT: Do NOT assume we're "fully booked" just because you see 0 bookings!
+   - 0 bookings = AVAILABLE (not booked)
+   - ONLY say "fully booked" if there's an explicit override message
+   - When uncertain about capacity, ACCEPT the booking - let the system validate
+
+STEP 2: ONLY IF NO CLOSURE/UNAVAILABILITY - THEN ACCEPT BOOKING
+When ALL conditions are met:
+✅ No active closure in URGENT MANAGER UPDATES
+✅ No "fully booked" / "unavailable" status
+✅ Collected ALL required info (date, time, party size, name, phone)
+
+ONLY THEN include booking_intent:
 
 {{
   "content": "Your confirmation message to the customer",
@@ -604,6 +671,9 @@ When you have collected ALL required booking information, you MUST include the d
     "customer_phone": "{customer_phone if phone_known else '9705651002'}"
   }}
 }}
+
+🔴 CRITICAL RULE: If restaurant is CLOSED (see URGENT overrides above), NEVER set booking_intent to true!
+==========================================
 
 """
         if phone_known:
@@ -729,6 +799,15 @@ you MUST include the lead data in "extracted_data" to capture the lead:
   }}
 }}
 
+⚠️ LEAD VALIDATION - CHECK BEFORE ACCEPTING:
+BEFORE including "lead_intent" in extracted_data:
+1. Check TEMPORARY OVERRIDES section for closure/unavailability
+2. If office is CLOSED or NOT ACCEPTING leads:
+   - DO NOT include "lead_intent" in extracted_data
+   - Inform customer of current status
+   - Offer to help when office reopens
+3. NEVER confirm lead acceptance if status indicates unavailability
+
 FOR APPOINTMENT/VIEWING SCHEDULING:
 When a customer wants to schedule a property viewing or meeting, collect:
 - Preferred date
@@ -753,6 +832,32 @@ When you have collected date, time, name, and phone, include appointment data:
     "customer_phone": "555-5678"
   }}
 }}
+
+🧠 CRITICAL THINKING - APPOINTMENT/LEAD VALIDATION:
+BEFORE confirming ANY appointment or accepting a lead, you MUST:
+
+1. Check TEMPORARY OVERRIDES section for closure/unavailability messages
+2. If office is CLOSED or UNAVAILABLE:
+   - DO NOT include "appointment_intent" or "lead_intent" in extracted_data
+   - INFORM customer about current status (closed/unavailable)
+   - Offer to help when office reopens
+   - Example: "We're currently closed. I'd be happy to schedule an appointment for when we reopen."
+
+3. NEVER create logical contradictions:
+   ❌ WRONG: "We're closed... Your viewing is scheduled for 2 PM"
+   ✅ RIGHT: "We're closed today. Would you like to schedule for when we reopen?"
+
+4. Use override information to provide accurate responses:
+   - Check override dates/times for exact closure periods
+   - Suggest alternative times when office will be open
+   - Maintain professional, helpful tone even when declining
+
+VALIDATION STEPS (execute mentally before responding):
+   Step 1: Read all temporary overrides in context
+   Step 2: Identify if any indicate closure/unavailability  
+   Step 3: If closed, DO NOT include appointment_intent/lead_intent
+   Step 4: Provide helpful alternative based on override details
+   Step 5: Ensure response is logically consistent
 
 IMPORTANT:
 - "lead_intent" should be the intent type: "buy", "rent", "sell", "invest", or "general"
@@ -1424,7 +1529,17 @@ Consider irrelevant if:
             'closed today',
             'apologize for any inconvenience',
             'will be open again',
-            'during our regular hours'
+            'during our regular hours',
+            'fully booked',
+            'no availability',
+            'we are currently fully booked',
+            'we are fully booked',
+            'no tables available',
+            'no more bookings',
+            'no more reservations',
+            'no available tables',
+            'no available slots',
+            'no available reservations',
         ]
 
         filtered_count = 0

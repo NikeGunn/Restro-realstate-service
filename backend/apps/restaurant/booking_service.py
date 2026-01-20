@@ -58,6 +58,9 @@ class BookingService:
         """
         Create a booking from AI-extracted data.
         
+        CRITICAL: Checks for active override status (closed/unavailable) before creating bookings.
+        This prevents booking confirmations when the restaurant is marked as closed.
+        
         Args:
             extracted_data: Dictionary containing booking info from AI
             source: Source of the booking (whatsapp, website, etc.)
@@ -67,6 +70,58 @@ class BookingService:
         """
         if not extracted_data.get('booking_intent'):
             return None, "No booking intent detected"
+        
+        # CRITICAL: Check for active closure/unavailability overrides BEFORE accepting booking
+        from apps.channels.models import TemporaryOverride
+        
+        active_overrides = TemporaryOverride.get_active_overrides(
+            self.organization,
+            override_type=TemporaryOverride.OverrideType.HOURS
+        )
+        
+        if active_overrides.exists():
+            override = active_overrides.first()
+            
+            # CRITICAL: Check for OPEN keywords FIRST to distinguish from CLOSED
+            open_keywords = ['open', 'opening', 'reopening', 'back', 'available', 'accepting bookings', 'now open']
+            is_open_message = any(
+                keyword in override.processed_content.lower() or 
+                keyword in override.original_message.lower()
+                for keyword in open_keywords
+            )
+            
+            # If override says "we are OPEN", don't block bookings
+            if is_open_message:
+                logger.info(f"✅ Override indicates OPEN status - allowing bookings: {override.processed_content[:50]}")
+                # Don't block - continue with booking
+            else:
+                # Check for closure keywords
+                closure_keywords = ['closed', 'closing', 'not open', 'unavailable', 'not accepting', 'fully booked', 'no tables', 'no bookings', 'shut']
+                is_closed = any(
+                    keyword in override.processed_content.lower() or 
+                    keyword in override.original_message.lower()
+                    for keyword in closure_keywords
+                )
+                
+                if is_closed:
+                    logger.warning(
+                        f"🚫 Blocking booking attempt - restaurant is CLOSED. "
+                        f"Override: {override.processed_content[:100]}"
+                    )
+                    return None, f"Cannot accept bookings: {override.processed_content}"
+        
+        # Also check availability overrides
+        availability_overrides = TemporaryOverride.get_active_overrides(
+            self.organization,
+            override_type=TemporaryOverride.OverrideType.AVAILABILITY
+        )
+        
+        if availability_overrides.exists():
+            logger.warning(
+                f"🚫 Blocking booking - availability override active: "
+                f"{availability_overrides.first().processed_content[:100]}"
+            )
+            return None, f"Cannot accept bookings: {availability_overrides.first().processed_content}"
         
         # For WhatsApp/Instagram, use conversation phone if not provided in extracted_data
         if not extracted_data.get('customer_phone') and self.conversation:
