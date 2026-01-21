@@ -395,6 +395,177 @@
       "convert": "轉化"
     }
   },
+  "landing": {
+    "nav": {
+      "features": "功能特點",
+      "solutions": "解決方案",
+      "pricing": "價格",
+      "testimonials": "客戶評價",
+      "signIn": "登入",
+      "getStarted": "免費開始"
+    },
+    "hero": {
+      "badge": "AI智能通訊",
+      "title": "革新您的客戶",
+      "titleHighlight": "溝通方式",
+      "subtitle": "透過智能AI聊天機器人自動化客戶服務。從統一收件匣管理WhatsApp、Instagram和網站聊天的所有對話。",
+      "cta": "開始免費試用",
+      "watchDemo": "觀看演示",
+      "trustBadge1": "無需信用卡",
+      "trustBadge2": "14天免費試用",
+      "trustBadge3": "隨時取消",
+      "chatOnline": "在線",
+      "chatMsg1": "您好！我想預訂今晚7點4人位的餐桌。",
+      "chatMsg2": "好的！我可以幫您處理。讓我查看一下今晚7點4位客人的空位情況。",
+      "chatMsg3": "好消息！我們有空位。您希望坐室內還是室外？",
+      "aiTyping": "Kribaat AI 正在輸入...",
+      "statAutomated": "問詢自動處理",
+      "statSupport": "全天候服務"
+    },
+    "logos": {
+      "title": "全球企業的信賴之選"
+    },
+    "features": {
+      "badge": "強大功能",
+      "title": "自動化客戶溝通所需的一切",
+      "subtitle": "我們的AI平台全天候處理客戶諮詢，讓您的團隊專注於最重要的事務。",
+      "ai": {
+        "title": "AI智能回覆",
+        "description": "GPT驅動的AI理解上下文，即時提供準確、類人的客戶諮詢回覆。"
+      },
+      "omnichannel": {
+        "title": "全渠道收件匣",
+        "description": "從單一統一收件匣管理WhatsApp、Instagram和網站聊天。不再錯過任何訊息。"
+      },
+      "handoff": {
+        "title": "智能人工轉接",
+        "description": "AI檢測何時需要人工協助，無縫將對話轉給您的團隊。"
+      },
+      "analytics": {
+        "title": "即時數據分析",
+        "description": "透過詳細洞察追蹤對話指標、回應時間和客戶滿意度。"
+      },
+      "multilingual": {
+        "title": "多語言支援",
+        "description": "透過自動翻譯支援，用客戶偏好的語言與他們溝通。"
+      },
+      "security": {
+        "title": "企業級安全",
+        "description": "您的數據透過端到端加密保護，符合行業標準。"
+      }
+    },
+    "solutions": {
+      "badge": "行業解決方案",
+      "title": "為您的行業量身打造",
+      "subtitle": "專為餐飲和房地產企業設計的專業解決方案。",
+      "learnMore": "了解更多",
+      "restaurant": {
+        "title": "餐飲解決方案",
+        "subtitle": "自動處理預訂、菜單諮詢和客戶服務。",
+        "feature1": "自動化餐桌預訂和預訂管理",
+        "feature2": "菜單資訊和飲食需求處理",
+        "feature3": "訂單狀態更新和配送追蹤",
+        "feature4": "客戶反饋收集和評價管理"
+      },
+      "realEstate": {
+        "title": "房地產解決方案",
+        "subtitle": "全天候篩選潛在客戶、安排看房和回答房產諮詢。",
+        "feature1": "房源諮詢和空房查詢",
+        "feature2": "自動化潛在客戶資質審核和評分",
+        "feature3": "看房預約安排和提醒",
+        "feature4": "周邊配套和設施資訊一鍵獲取"
+      }
+    },
+    "stats": {
+      "automation": "問詢自動處理",
+      "availability": "全天候服務",
+      "efficiency": "回應更快",
+      "savings": "成本降低"
+    },
+    "pricing": {
+      "badge": "簡單定價",
+      "title": "選擇適合您業務的完美方案",
+      "subtitle": "從基礎版開始，隨業務增長升級。無隱藏費用，無意外。",
+      "perMonth": "/月",
+      "popular": "最受歡迎",
+      "custom": "定制",
+      "getStarted": "開始使用",
+      "contactSales": "聯繫銷售",
+      "starter": {
+        "name": "基礎版",
+        "description": "適合單一門店的初創企業",
+        "feature1": "網站聊天小部件",
+        "feature2": "WhatsApp商務整合",
+        "feature3": "AI智能回覆與知識庫",
+        "feature4": "人工轉接系統",
+        "feature5": "1個門店位置",
+        "feature6": "郵件支援"
+      },
+      "pro": {
+        "name": "進階版",
+        "description": "適合多門店的成長型企業",
+        "feature1": "包含基礎版所有功能",
+        "feature2": "Instagram訊息整合",
+        "feature3": "無限門店位置",
+        "feature4": "進階升級規則",
+        "feature5": "優先支援",
+        "feature6": "數據分析與報告"
+      },
+      "enterprise": {
+        "name": "企業版",
+        "description": "適合有定制需求的大型組織",
+        "feature1": "包含進階版所有功能",
+        "feature2": "定制AI訓練",
+        "feature3": "專屬客戶經理",
+        "feature4": "SLA和合規支援",
+        "feature5": "API存取",
+        "feature6": "定制整合"
+      }
+    },
+    "testimonials": {
+      "badge": "客戶故事",
+      "title": "深受全球企業喜愛",
+      "subtitle": "看看企業如何透過Kribaat改變客戶溝通方式。",
+      "review1": {
+        "text": "Kribaat將我們的客戶回應時間從數小時縮短到幾秒。客人喜歡即時回覆，我們的員工可以專注於提供優質服務。",
+        "name": "陳建明",
+        "role": "金龍餐廳 老闆"
+      },
+      "review2": {
+        "text": "AI自動處理90%的房產諮詢。自從使用Kribaat以來，我們的潛在客戶轉化率翻了一番。",
+        "name": "劉曉華",
+        "role": "卓越房產 總監"
+      },
+      "review3": {
+        "text": "設定非常簡單。一天之內，我們就有AI處理預訂和菜單問題了。對我們小團隊來說是顛覆性的改變！",
+        "name": "王明偉",
+        "role": "夕陽小館 經理"
+      }
+    },
+    "cta": {
+      "title": "準備好革新您的客戶溝通了嗎？",
+      "subtitle": "加入數千家使用Kribaat自動化客戶支援和提升滿意度的企業。",
+      "button": "開始免費試用",
+      "loginButton": "登入控制台",
+      "noCreditCard": "無需信用卡 • 14天免費試用 • 隨時取消"
+    },
+    "footer": {
+      "description": "面向餐飲和房地產企業的AI智能客戶溝通平台。",
+      "product": "產品",
+      "features": "功能特點",
+      "pricing": "價格",
+      "solutions": "解決方案",
+      "company": "公司",
+      "about": "關於我們",
+      "contact": "聯繫我們",
+      "careers": "加入我們",
+      "legal": "法律條款",
+      "privacy": "隱私政策",
+      "terms": "服務條款",
+      "rights": "保留所有權利。",
+      "support": "全天候支援"
+    }
+  },
   "errors": {
     "generic": "發生錯誤，請重試。",
     "networkError": "網路錯誤，請檢查您的連線。",

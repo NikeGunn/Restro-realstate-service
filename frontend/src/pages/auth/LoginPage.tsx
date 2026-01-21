@@ -9,7 +9,6 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { useToast } from '@/hooks/use-toast'
 import { MessageSquare } from 'lucide-react'
-import { LanguageSwitcher } from '@/components/LanguageSwitcher'
 
 export function LoginPage() {
   const { t } = useTranslation()
@@ -69,18 +68,19 @@ export function LoginPage() {
   }
 
   return (
-    <Card className="shadow-lg">
-      <CardHeader className="text-center">
-        <div className="flex justify-end mb-2">
-          <LanguageSwitcher variant="compact" />
-        </div>
-        <div className="flex justify-center mb-4">
-          <div className="p-3 bg-primary/10 rounded-full">
-            <MessageSquare className="h-8 w-8 text-primary" />
+    <Card className="shadow-xl border-0 bg-white/95 backdrop-blur-sm">
+      <CardHeader className="text-center space-y-4 pb-6">
+        <div className="flex justify-center">
+          <div className="p-4 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl shadow-lg shadow-blue-500/30">
+            <MessageSquare className="h-10 w-10 text-white" />
           </div>
         </div>
-        <CardTitle className="text-2xl">{t('auth.welcomeBack')}</CardTitle>
-        <CardDescription>{t('auth.signInDescription')}</CardDescription>
+        <div className="space-y-2">
+          <CardTitle className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+            {t('auth.welcomeBack')}
+          </CardTitle>
+          <CardDescription className="text-base">{t('auth.signInDescription')}</CardDescription>
+        </div>
       </CardHeader>
       <form onSubmit={handleSubmit}>
         <CardContent className="space-y-4">

@@ -462,6 +462,177 @@
       "convert": "转化"
     }
   },
+  "landing": {
+    "nav": {
+      "features": "功能特点",
+      "solutions": "解决方案",
+      "pricing": "价格",
+      "testimonials": "客户评价",
+      "signIn": "登录",
+      "getStarted": "免费开始"
+    },
+    "hero": {
+      "badge": "AI智能通信",
+      "title": "革新您的客户",
+      "titleHighlight": "沟通方式",
+      "subtitle": "通过智能AI聊天机器人自动化客户服务。从统一收件箱管理WhatsApp、Instagram和网站聊天的所有对话。",
+      "cta": "开始免费试用",
+      "watchDemo": "观看演示",
+      "trustBadge1": "无需信用卡",
+      "trustBadge2": "14天免费试用",
+      "trustBadge3": "随时取消",
+      "chatOnline": "在线",
+      "chatMsg1": "您好！我想预订今晚7点4人位的餐桌。",
+      "chatMsg2": "好的！我可以帮您处理。让我查看一下今晚7点4位客人的空位情况。",
+      "chatMsg3": "好消息！我们有空位。您希望坐室内还是室外？",
+      "aiTyping": "Kribaat AI 正在输入...",
+      "statAutomated": "问询自动处理",
+      "statSupport": "全天候服务"
+    },
+    "logos": {
+      "title": "全球企业的信赖之选"
+    },
+    "features": {
+      "badge": "强大功能",
+      "title": "自动化客户沟通所需的一切",
+      "subtitle": "我们的AI平台全天候处理客户咨询，让您的团队专注于最重要的事务。",
+      "ai": {
+        "title": "AI智能回复",
+        "description": "GPT驱动的AI理解上下文，即时提供准确、类人的客户咨询回复。"
+      },
+      "omnichannel": {
+        "title": "全渠道收件箱",
+        "description": "从单一统一收件箱管理WhatsApp、Instagram和网站聊天。不再错过任何消息。"
+      },
+      "handoff": {
+        "title": "智能人工转接",
+        "description": "AI检测何时需要人工协助，无缝将对话转给您的团队。"
+      },
+      "analytics": {
+        "title": "实时数据分析",
+        "description": "通过详细洞察追踪对话指标、响应时间和客户满意度。"
+      },
+      "multilingual": {
+        "title": "多语言支持",
+        "description": "通过自动翻译支持，用客户偏好的语言与他们沟通。"
+      },
+      "security": {
+        "title": "企业级安全",
+        "description": "您的数据通过端到端加密保护，符合行业标准。"
+      }
+    },
+    "solutions": {
+      "badge": "行业解决方案",
+      "title": "为您的行业量身打造",
+      "subtitle": "专为餐饮和房地产企业设计的专业解决方案。",
+      "learnMore": "了解更多",
+      "restaurant": {
+        "title": "餐饮解决方案",
+        "subtitle": "自动处理预订、菜单咨询和客户服务。",
+        "feature1": "自动化餐桌预订和预订管理",
+        "feature2": "菜单信息和饮食需求处理",
+        "feature3": "订单状态更新和配送追踪",
+        "feature4": "客户反馈收集和评价管理"
+      },
+      "realEstate": {
+        "title": "房地产解决方案",
+        "subtitle": "全天候筛选潜在客户、安排看房和回答房产咨询。",
+        "feature1": "房源咨询和空房查询",
+        "feature2": "自动化潜在客户资质审核和评分",
+        "feature3": "看房预约安排和提醒",
+        "feature4": "周边配套和设施信息一键获取"
+      }
+    },
+    "stats": {
+      "automation": "问询自动处理",
+      "availability": "全天候服务",
+      "efficiency": "响应更快",
+      "savings": "成本降低"
+    },
+    "pricing": {
+      "badge": "简单定价",
+      "title": "选择适合您业务的完美方案",
+      "subtitle": "从基础版开始，随业务增长升级。无隐藏费用，无意外。",
+      "perMonth": "/月",
+      "popular": "最受欢迎",
+      "custom": "定制",
+      "getStarted": "开始使用",
+      "contactSales": "联系销售",
+      "starter": {
+        "name": "基础版",
+        "description": "适合单一门店的初创企业",
+        "feature1": "网站聊天小部件",
+        "feature2": "WhatsApp商务集成",
+        "feature3": "AI智能回复与知识库",
+        "feature4": "人工转接系统",
+        "feature5": "1个门店位置",
+        "feature6": "邮件支持"
+      },
+      "pro": {
+        "name": "高级版",
+        "description": "适合多门店的成长型企业",
+        "feature1": "包含基础版所有功能",
+        "feature2": "Instagram消息集成",
+        "feature3": "无限门店位置",
+        "feature4": "高级升级规则",
+        "feature5": "优先支持",
+        "feature6": "数据分析与报告"
+      },
+      "enterprise": {
+        "name": "企业版",
+        "description": "适合有定制需求的大型组织",
+        "feature1": "包含高级版所有功能",
+        "feature2": "定制AI训练",
+        "feature3": "专属客户经理",
+        "feature4": "SLA和合规支持",
+        "feature5": "API访问",
+        "feature6": "定制集成"
+      }
+    },
+    "testimonials": {
+      "badge": "客户故事",
+      "title": "深受全球企业喜爱",
+      "subtitle": "看看企业如何通过Kribaat改变客户沟通方式。",
+      "review1": {
+        "text": "Kribaat将我们的客户响应时间从数小时缩短到几秒。客人喜欢即时回复，我们的员工可以专注于提供优质服务。",
+        "name": "陈建明",
+        "role": "金龙餐厅 老板"
+      },
+      "review2": {
+        "text": "AI自动处理90%的房产咨询。自从使用Kribaat以来，我们的潜在客户转化率翻了一番。",
+        "name": "刘晓华",
+        "role": "卓越房产 总监"
+      },
+      "review3": {
+        "text": "设置非常简单。一天之内，我们就有AI处理预订和菜单问题了。对我们小团队来说是颠覆性的改变！",
+        "name": "王明伟",
+        "role": "夕阳小馆 经理"
+      }
+    },
+    "cta": {
+      "title": "准备好革新您的客户沟通了吗？",
+      "subtitle": "加入数千家使用Kribaat自动化客户支持和提升满意度的企业。",
+      "button": "开始免费试用",
+      "loginButton": "登录控制台",
+      "noCreditCard": "无需信用卡 • 14天免费试用 • 随时取消"
+    },
+    "footer": {
+      "description": "面向餐饮和房地产企业的AI智能客户沟通平台。",
+      "product": "产品",
+      "features": "功能特点",
+      "pricing": "价格",
+      "solutions": "解决方案",
+      "company": "公司",
+      "about": "关于我们",
+      "contact": "联系我们",
+      "careers": "加入我们",
+      "legal": "法律条款",
+      "privacy": "隐私政策",
+      "terms": "服务条款",
+      "rights": "保留所有权利。",
+      "support": "全天候支持"
+    }
+  },
   "errors": {
     "generic": "出现错误，请重试。",
     "networkError": "网络错误，请检查您的连接。",

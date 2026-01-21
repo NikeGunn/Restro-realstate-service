@@ -462,6 +462,177 @@
       "convert": "Convert"
     }
   },
+  "landing": {
+    "nav": {
+      "features": "Features",
+      "solutions": "Solutions",
+      "pricing": "Pricing",
+      "testimonials": "Testimonials",
+      "signIn": "Sign In",
+      "getStarted": "Get Started Free"
+    },
+    "hero": {
+      "badge": "AI-Powered Communication",
+      "title": "Transform Your Customer",
+      "titleHighlight": "Communication",
+      "subtitle": "Automate customer support with intelligent AI chatbots. Manage conversations across WhatsApp, Instagram, and web chat from one unified inbox.",
+      "cta": "Start Free Trial",
+      "watchDemo": "Watch Demo",
+      "trustBadge1": "No credit card required",
+      "trustBadge2": "14-day free trial",
+      "trustBadge3": "Cancel anytime",
+      "chatOnline": "Online",
+      "chatMsg1": "Hi! I'd like to book a table for 4 people tonight at 7pm.",
+      "chatMsg2": "Perfect! I can help you with that. Let me check availability for tonight at 7pm for 4 guests.",
+      "chatMsg3": "Great news! We have availability. Would you prefer indoor or outdoor seating?",
+      "aiTyping": "Kribaat AI is typing...",
+      "statAutomated": "Queries automated",
+      "statSupport": "Support available"
+    },
+    "logos": {
+      "title": "TRUSTED BY BUSINESSES WORLDWIDE"
+    },
+    "features": {
+      "badge": "Powerful Features",
+      "title": "Everything you need to automate customer communication",
+      "subtitle": "Our AI-powered platform handles customer inquiries 24/7, freeing your team to focus on what matters most.",
+      "ai": {
+        "title": "AI-Powered Responses",
+        "description": "GPT-powered AI understands context and provides accurate, human-like responses to customer queries instantly."
+      },
+      "omnichannel": {
+        "title": "Omnichannel Inbox",
+        "description": "Manage WhatsApp, Instagram, and website chat from a single unified inbox. Never miss a message again."
+      },
+      "handoff": {
+        "title": "Smart Human Handoff",
+        "description": "AI detects when human assistance is needed and seamlessly transfers conversations to your team."
+      },
+      "analytics": {
+        "title": "Real-time Analytics",
+        "description": "Track conversation metrics, response times, and customer satisfaction with detailed insights."
+      },
+      "multilingual": {
+        "title": "Multilingual Support",
+        "description": "Communicate with customers in their preferred language with automatic translation support."
+      },
+      "security": {
+        "title": "Enterprise Security",
+        "description": "Your data is protected with end-to-end encryption and compliance with industry standards."
+      }
+    },
+    "solutions": {
+      "badge": "Industry Solutions",
+      "title": "Built for your industry",
+      "subtitle": "Specialized solutions designed for restaurants and real estate businesses.",
+      "learnMore": "Learn more",
+      "restaurant": {
+        "title": "For Restaurants",
+        "subtitle": "Handle reservations, menu inquiries, and customer support automatically.",
+        "feature1": "Automated table reservations and booking management",
+        "feature2": "Menu information and dietary requirement handling",
+        "feature3": "Order status updates and delivery tracking",
+        "feature4": "Customer feedback collection and review management"
+      },
+      "realEstate": {
+        "title": "For Real Estate",
+        "subtitle": "Qualify leads, schedule viewings, and answer property inquiries 24/7.",
+        "feature1": "Property listing inquiries and availability checks",
+        "feature2": "Automated lead qualification and scoring",
+        "feature3": "Viewing appointment scheduling and reminders",
+        "feature4": "Neighborhood and amenity information at fingertips"
+      }
+    },
+    "stats": {
+      "automation": "Queries Automated",
+      "availability": "Always Available",
+      "efficiency": "Faster Response",
+      "savings": "Cost Reduction"
+    },
+    "pricing": {
+      "badge": "Simple Pricing",
+      "title": "Choose the perfect plan for your business",
+      "subtitle": "Start with Basic and upgrade as you grow. No hidden fees, no surprises.",
+      "perMonth": "/month",
+      "popular": "Most Popular",
+      "custom": "Custom",
+      "getStarted": "Get Started",
+      "contactSales": "Contact Sales",
+      "starter": {
+        "name": "Basic",
+        "description": "Perfect for single-location businesses getting started",
+        "feature1": "Website chat widget",
+        "feature2": "WhatsApp Business integration",
+        "feature3": "AI-powered responses with knowledge base",
+        "feature4": "Human handoff system",
+        "feature5": "1 business location",
+        "feature6": "Email support"
+      },
+      "pro": {
+        "name": "Power",
+        "description": "For growing businesses with multiple locations",
+        "feature1": "Everything in Basic plan",
+        "feature2": "Instagram Messaging integration",
+        "feature3": "Unlimited business locations",
+        "feature4": "Advanced escalation rules",
+        "feature5": "Priority support",
+        "feature6": "Analytics & reporting"
+      },
+      "enterprise": {
+        "name": "Enterprise",
+        "description": "For large organizations with custom needs",
+        "feature1": "Everything in Power plan",
+        "feature2": "Custom AI training",
+        "feature3": "Dedicated account manager",
+        "feature4": "SLA & compliance support",
+        "feature5": "API access",
+        "feature6": "Custom integrations"
+      }
+    },
+    "testimonials": {
+      "badge": "Customer Stories",
+      "title": "Loved by businesses worldwide",
+      "subtitle": "See how businesses are transforming their customer communication with Kribaat.",
+      "review1": {
+        "text": "Kribaat has reduced our customer response time from hours to seconds. Our guests love the instant responses and our staff can focus on providing great service.",
+        "name": "James Chen",
+        "role": "Owner, Golden Dragon Restaurant"
+      },
+      "review2": {
+        "text": "The AI handles 90% of property inquiries automatically. We've doubled our lead conversion rate since implementing Kribaat.",
+        "name": "Sarah Liu",
+        "role": "Director, Premier Real Estate"
+      },
+      "review3": {
+        "text": "Setting up was incredibly easy. Within a day, we had AI handling reservations and menu questions. Game changer for our small team!",
+        "name": "Michael Wong",
+        "role": "Manager, Sunset Bistro"
+      }
+    },
+    "cta": {
+      "title": "Ready to transform your customer communication?",
+      "subtitle": "Join thousands of businesses using Kribaat to automate customer support and boost satisfaction.",
+      "button": "Start Free Trial",
+      "loginButton": "Sign In to Dashboard",
+      "noCreditCard": "No credit card required • 14-day free trial • Cancel anytime"
+    },
+    "footer": {
+      "description": "AI-powered customer communication platform for restaurants and real estate businesses.",
+      "product": "Product",
+      "features": "Features",
+      "pricing": "Pricing",
+      "solutions": "Solutions",
+      "company": "Company",
+      "about": "About Us",
+      "contact": "Contact",
+      "careers": "Careers",
+      "legal": "Legal",
+      "privacy": "Privacy Policy",
+      "terms": "Terms of Service",
+      "rights": "All rights reserved.",
+      "support": "24/7 Support Available"
+    }
+  },
   "errors": {
     "generic": "Something went wrong. Please try again.",
     "networkError": "Network error. Please check your connection.",

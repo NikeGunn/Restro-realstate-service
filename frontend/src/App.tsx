@@ -24,6 +24,7 @@ import { PropertiesPage } from '@/pages/realestate/PropertiesPage'
 import { LeadsPage } from '@/pages/realestate/LeadsPage'
 
 // Public pages
+import { LandingPage } from '@/pages/LandingPage'
 import { PrivacyPolicy } from '@/pages/PrivacyPolicy'
 import { TermsOfService } from '@/pages/TermsOfService'
 
@@ -66,10 +67,13 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
+        {/* Landing Page - Public */}
+        <Route path="/" element={<LandingPage />} />
+
         {/* Public Pages (no auth required) */}
         <Route path="/privacy" element={<PrivacyPolicy />} />
         <Route path="/terms" element={<TermsOfService />} />
-        
+
         {/* Auth Routes */}
         <Route element={
           <PublicRoute>
@@ -98,7 +102,6 @@ function App() {
             </OrganizationRequiredRoute>
           }
         >
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/inbox" element={<InboxPage />} />
           <Route path="/inbox/:conversationId" element={<ConversationPage />} />
@@ -107,11 +110,11 @@ function App() {
           <Route path="/analytics" element={<AnalyticsPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/settings/channels" element={<ChannelsPage />} />
-          
+
           {/* Restaurant Routes */}
           <Route path="/restaurant/menu" element={<MenuPage />} />
           <Route path="/restaurant/bookings" element={<BookingsPage />} />
-          
+
           {/* Real Estate Routes */}
           <Route path="/realestate/properties" element={<PropertiesPage />} />
           <Route path="/realestate/leads" element={<LeadsPage />} />
