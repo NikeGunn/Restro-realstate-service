@@ -15,7 +15,14 @@ from apps.channels.urls import webhook_urlpatterns
 
 def health_check(request):
     """Health check endpoint for container orchestration."""
-    return JsonResponse({'status': 'healthy', 'service': 'chatplatform-backend'})
+    import os
+    return JsonResponse({
+        'status': 'healthy',
+        'service': 'chatplatform-backend',
+        'version': os.getenv('GIT_COMMIT', 'dev')[:7],
+        'gitops': 'argocd',
+        'deployment': 'kubernetes'
+    })
 
 
 urlpatterns = [
