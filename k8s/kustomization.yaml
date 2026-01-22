@@ -44,7 +44,7 @@ commonLabels:
 
 # Images (can be overridden per environment)
 images:
-  - name: nikegunn/chatplatform-backend
+  - name: nemo2092/chatplatform-backend
     newTag: latest
-  - name: nikegunn/chatplatform-frontend
+  - name: nemo2092/chatplatform-frontend
     newTag: latest

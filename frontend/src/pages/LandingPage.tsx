@@ -878,9 +878,12 @@ export function LandingPage() {
             <p className="text-gray-400 text-sm">
               © {new Date().getFullYear()} Kribaat. {t('landing.footer.rights')}
             </p>
-            <div className="flex items-center gap-4">
-              <HeadphonesIcon className="h-5 w-5 text-gray-400" />
-              <span className="text-gray-400 text-sm">{t('landing.footer.support')}</span>
+            <div className="flex items-center gap-6">
+              <span className="text-gray-500 text-xs">v2.0.0 • Powered by Kubernetes</span>
+              <div className="flex items-center gap-2">
+                <HeadphonesIcon className="h-5 w-5 text-gray-400" />
+                <span className="text-gray-400 text-sm">{t('landing.footer.support')}</span>
+              </div>
             </div>
           </div>
         </div>
