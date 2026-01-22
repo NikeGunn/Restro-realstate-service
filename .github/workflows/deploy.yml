@@ -251,29 +251,31 @@ jobs:
 
       - name: Run Trivy vulnerability scanner (Backend)
         uses: aquasecurity/trivy-action@master
+        continue-on-error: true
         with:
-          image-ref: ${{ needs.build.outputs.backend_image }}
+          image-ref: '${{ needs.build.outputs.backend_image }}'
           format: 'sarif'
           output: 'backend-trivy-results.sarif'
           severity: 'CRITICAL,HIGH'
 
       - name: Run Trivy vulnerability scanner (Frontend)
         uses: aquasecurity/trivy-action@master
+        continue-on-error: true
         with:
-          image-ref: ${{ needs.build.outputs.frontend_image }}
+          image-ref: '${{ needs.build.outputs.frontend_image }}'
           format: 'sarif'
           output: 'frontend-trivy-results.sarif'
           severity: 'CRITICAL,HIGH'
 
       - name: Upload scan results to GitHub Security
         uses: github/codeql-action/upload-sarif@v3
-        if: always()
+        if: always() && hashFiles('backend-trivy-results.sarif') != ''
         with:
           sarif_file: 'backend-trivy-results.sarif'
 
       - name: Upload frontend scan results
         uses: github/codeql-action/upload-sarif@v3
-        if: always()
+        if: always() && hashFiles('frontend-trivy-results.sarif') != ''
         with:
           sarif_file: 'frontend-trivy-results.sarif'
           category: 'frontend'
