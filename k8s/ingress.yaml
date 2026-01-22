@@ -123,59 +123,6 @@ spec:
                 name: frontend
                 port:
                   number: 80
----
-# HTTP to HTTPS redirect
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: chatplatform-redirect
-  namespace: chatplatform
-  annotations:
-    traefik.ingress.kubernetes.io/router.entrypoints: web
-    traefik.ingress.kubernetes.io/router.middlewares: chatplatform-redirect-https@kubernetescrd
-spec:
-  ingressClassName: traefik
-  rules:
-    - host: kribaat.com
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: frontend
-                port:
-                  number: 80
-    - host: www.kribaat.com
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: frontend
-                port:
-                  number: 80
----
-# Traefik Middleware for HTTPS redirect
-apiVersion: traefik.containo.us/v1alpha1
-kind: Middleware
-metadata:
-  name: redirect-https
-  namespace: chatplatform
-spec:
-  redirectScheme:
-    scheme: https
-    permanent: true
----
-# Traefik Middleware for rate limiting
-apiVersion: traefik.containo.us/v1alpha1
-kind: Middleware
-metadata:
-  name: ratelimit
-  namespace: chatplatform
-spec:
-  rateLimit:
-    average: 100
-    burst: 200
-    period: 1m
+
+# Note: HTTP to HTTPS redirect and middlewares removed
+# Nginx handles SSL termination and redirects at the edge

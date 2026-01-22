@@ -201,23 +201,24 @@ jobs:
       - name: Update image tags in K8s manifests
         run: |
           IMAGE_TAG=${{ needs.build.outputs.image_tag }}
+          DOCKER_USER=${{ secrets.DOCKER_USERNAME }}
 
-          echo "Updating image tags to: ${IMAGE_TAG}"
+          echo "Updating image tags to: ${DOCKER_USER}/chatplatform-*:${IMAGE_TAG}"
 
           # Update backend deployment
-          sed -i "s|image: nikegunn/chatplatform-backend:.*|image: nikegunn/chatplatform-backend:${IMAGE_TAG}|g" k8s/backend/deployment.yaml
+          sed -i "s|image: ${DOCKER_USER}/chatplatform-backend:.*|image: ${DOCKER_USER}/chatplatform-backend:${IMAGE_TAG}|g" k8s/backend/deployment.yaml
 
           # Update frontend deployment
-          sed -i "s|image: nikegunn/chatplatform-frontend:.*|image: nikegunn/chatplatform-frontend:${IMAGE_TAG}|g" k8s/frontend/deployment.yaml
+          sed -i "s|image: ${DOCKER_USER}/chatplatform-frontend:.*|image: ${DOCKER_USER}/chatplatform-frontend:${IMAGE_TAG}|g" k8s/frontend/deployment.yaml
 
           # Update celery-worker deployment
-          sed -i "s|image: nikegunn/chatplatform-backend:.*|image: nikegunn/chatplatform-backend:${IMAGE_TAG}|g" k8s/celery-worker/deployment.yaml
+          sed -i "s|image: ${DOCKER_USER}/chatplatform-backend:.*|image: ${DOCKER_USER}/chatplatform-backend:${IMAGE_TAG}|g" k8s/celery-worker/deployment.yaml
 
           # Update celery-beat deployment
-          sed -i "s|image: nikegunn/chatplatform-backend:.*|image: nikegunn/chatplatform-backend:${IMAGE_TAG}|g" k8s/celery-beat/deployment.yaml
+          sed -i "s|image: ${DOCKER_USER}/chatplatform-backend:.*|image: ${DOCKER_USER}/chatplatform-backend:${IMAGE_TAG}|g" k8s/celery-beat/deployment.yaml
 
           echo "Updated manifests:"
-          grep -r "image: nikegunn" k8s/ || true
+          grep -r "image: ${DOCKER_USER}" k8s/ || true
 
       - name: Commit and push changes
         run: |
