@@ -1,15 +1,38 @@
 # ============================================
 # Production Dockerfile for Frontend
-# Single-stage nginx - Build happens locally
+# Multi-stage build: Build React app, then serve with nginx
 # ============================================
 
+# Stage 1: Build the React application
+FROM node:20-alpine AS builder
+
+# Set working directory
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+
+# Install dependencies
+RUN npm ci --only=production --ignore-scripts
+
+# Copy source code
+COPY . .
+
+# Build argument for API URL
+ARG VITE_API_URL=https://kribaat.com/api
+ENV VITE_API_URL=$VITE_API_URL
+
+# Build the application
+RUN npm run build
+
+# Stage 2: Serve with nginx
 FROM nginx:alpine
 
 # Copy custom nginx config
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-# Copy pre-built static assets from local dist folder
-COPY dist /usr/share/nginx/html
+# Copy built assets from builder stage
+COPY --from=builder /app/dist /usr/share/nginx/html
 
 # Create non-root user
 RUN adduser -D -g '' appuser && \
