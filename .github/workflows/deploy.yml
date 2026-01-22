@@ -17,6 +17,11 @@ on:
       - main
   workflow_dispatch:  # Manual trigger
 
+# Grant write permissions to push manifest updates
+permissions:
+  contents: write
+  packages: write
+
 env:
   # Docker Hub configuration
   DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
