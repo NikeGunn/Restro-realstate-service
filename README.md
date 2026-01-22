@@ -1,13 +1,13 @@
 # AI Business Chat Platform MVP
 
 ## Overview
-Multi-tenant AI business chatbot platform supporting Restaurants and Real Estate agencies.
+Multi-tenant AI business chatbot platform supporting Restaurants and Real Estate agencies with zero-downtime GitOps deployment.
 
 ## Tech Stack
 - **Backend**: Python 3.11, Django, Django REST Framework, PostgreSQL, Redis, Celery
 - **Frontend**: React, Vite, TypeScript, Tailwind CSS, Shadcn UI
 - **Widget**: Vanilla JavaScript (embeddable)
-- **Infrastructure**: Docker, docker-compose
+- **Infrastructure**: Kubernetes (K3s), ArgoCD, Docker, GitHub Actions
 
 ## Quick Start
 
