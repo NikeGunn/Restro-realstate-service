@@ -12,8 +12,9 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies
-RUN npm ci --only=production --ignore-scripts
+# Install ALL dependencies (including dev deps like vite, typescript)
+# Dev dependencies are needed to build the frontend
+RUN npm ci --ignore-scripts
 
 # Copy source code
 COPY . .
