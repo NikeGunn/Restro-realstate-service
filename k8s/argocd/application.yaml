@@ -1,0 +1,114 @@
+# ArgoCD Application for ChatPlatform
+# This tells ArgoCD to watch and sync the k8s/ folder from GitHub
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: chatplatform
+  namespace: argocd
+  # Finalizer ensures proper cleanup when app is deleted
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  # The project this application belongs to
+  project: default
+
+  # Source repository configuration
+  source:
+    # Your GitHub repository URL
+    repoURL: https://github.com/NikeGunn/Restro-realstate-service.git
+    # Branch to track
+    targetRevision: main
+    # Path to Kubernetes manifests
+    path: k8s
+    # Directory configuration
+    directory:
+      recurse: true
+      exclude: '{argocd/*,README.md}'
+
+  # Destination cluster and namespace
+  destination:
+    # Deploy to the local cluster (where ArgoCD is running)
+    server: https://kubernetes.default.svc
+    # Target namespace
+    namespace: chatplatform
+
+  # Sync policy - enables GitOps automation
+  syncPolicy:
+    # Automated sync - ArgoCD will automatically apply changes
+    automated:
+      # Automatically prune resources that are no longer in Git
+      prune: true
+      # Automatically heal resources that drift from Git state
+      selfHeal: true
+      # Allow sync when there are no diffs (for initial sync)
+      allowEmpty: false
+
+    # Sync options
+    syncOptions:
+      # Create namespace if it doesn't exist
+      - CreateNamespace=true
+      # Apply out of sync only (faster syncs)
+      - ApplyOutOfSyncOnly=true
+      # Use server-side apply
+      - ServerSideApply=true
+      # Respect ignore differences
+      - RespectIgnoreDifferences=true
+
+    # Retry configuration for failed syncs
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+
+  # Ignore differences for certain fields (avoid unnecessary syncs)
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas  # HPA manages replicas
+    - group: ""
+      kind: Secret
+      jsonPointers:
+        - /data  # Don't track secret values
+
+  # Health check configuration
+  # Defines how ArgoCD determines if resources are healthy
+  revisionHistoryLimit: 10
+---
+# ArgoCD Project for ChatPlatform (optional, for RBAC)
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: chatplatform-project
+  namespace: argocd
+spec:
+  description: ChatPlatform production project
+
+  # Source repositories allowed
+  sourceRepos:
+    - https://github.com/NikeGunn/Restro-realstate-service.git
+
+  # Destination clusters and namespaces allowed
+  destinations:
+    - namespace: chatplatform
+      server: https://kubernetes.default.svc
+    - namespace: argocd
+      server: https://kubernetes.default.svc
+
+  # Cluster resource whitelist
+  clusterResourceWhitelist:
+    - group: ''
+      kind: Namespace
+    - group: cert-manager.io
+      kind: ClusterIssuer
+
+  # Namespace resource whitelist (all resources allowed)
+  namespaceResourceWhitelist:
+    - group: '*'
+      kind: '*'
+
+  # Orphaned resources monitoring
+  orphanedResources:
+    warn: true

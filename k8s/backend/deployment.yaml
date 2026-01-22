@@ -1,0 +1,171 @@
+# Backend (Django/Gunicorn) Deployment
+# Uses rolling update strategy for zero-downtime deployments
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: chatplatform
+  labels:
+    app.kubernetes.io/name: chatplatform
+    app.kubernetes.io/component: backend
+spec:
+  replicas: 2  # Minimum 2 replicas for zero-downtime
+  selector:
+    matchLabels:
+      app: backend
+  # Rolling update strategy - zero downtime
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1        # Allow 1 extra pod during update
+      maxUnavailable: 0  # Never have fewer than desired replicas
+  template:
+    metadata:
+      labels:
+        app: backend
+        app.kubernetes.io/name: chatplatform
+        app.kubernetes.io/component: backend
+    spec:
+      # Image pull secret for private Docker Hub
+      imagePullSecrets:
+        - name: dockerhub-secret
+
+      # Init container to run migrations before main container starts
+      initContainers:
+        - name: run-migrations
+          image: nemo2092/chatplatform-backend:latest  # Will be updated by CI/CD
+          imagePullPolicy: IfNotPresent
+          command:
+            - python
+            - manage.py
+            - migrate
+            - --noinput
+          envFrom:
+            - configMapRef:
+                name: chatplatform-config
+            - secretRef:
+                name: chatplatform-secrets
+          env:
+            - name: DATABASE_URL
+              value: "postgres://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@postgres:5432/$(POSTGRES_DB)"
+
+        - name: collect-static
+          image: nemo2092/chatplatform-backend:latest
+          imagePullPolicy: IfNotPresent
+          command:
+            - python
+            - manage.py
+            - collectstatic
+            - --noinput
+          volumeMounts:
+            - name: static-files
+              mountPath: /app/staticfiles
+          envFrom:
+            - configMapRef:
+                name: chatplatform-config
+            - secretRef:
+                name: chatplatform-secrets
+
+      containers:
+        - name: backend
+          image: nemo2092/chatplatform-backend:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8000
+              name: http
+          command:
+            - gunicorn
+            - config.wsgi:application
+            - --bind
+            - 0.0.0.0:8000
+            - --workers
+            - "3"
+            - --threads
+            - "2"
+            - --timeout
+            - "120"
+            - --graceful-timeout
+            - "30"
+            - --keep-alive
+            - "5"
+          envFrom:
+            - configMapRef:
+                name: chatplatform-config
+            - secretRef:
+                name: chatplatform-secrets
+          env:
+            - name: DATABASE_URL
+              value: "postgres://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@postgres:5432/$(POSTGRES_DB)"
+          volumeMounts:
+            - name: static-files
+              mountPath: /app/staticfiles
+            - name: media-files
+              mountPath: /app/media
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "1Gi"
+              cpu: "500m"
+
+          # Startup probe - allows slow startup
+          startupProbe:
+            httpGet:
+              path: /api/health/
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: 30  # 30 * 5s = 150s max startup time
+
+          # Readiness probe - only receive traffic when ready
+          readinessProbe:
+            httpGet:
+              path: /api/health/
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+            successThreshold: 1
+
+          # Liveness probe - restart if unhealthy
+          livenessProbe:
+            httpGet:
+              path: /api/health/
+              port: 8000
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 3
+
+          # Graceful shutdown
+          lifecycle:
+            preStop:
+              exec:
+                command: ["/bin/sh", "-c", "sleep 10"]
+
+      # Graceful termination
+      terminationGracePeriodSeconds: 60
+
+      volumes:
+        - name: static-files
+          emptyDir: {}
+        - name: media-files
+          persistentVolumeClaim:
+            claimName: media-pvc
+
+      # Pod anti-affinity - spread replicas across nodes
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app
+                      operator: In
+                      values:
+                        - backend
+                topologyKey: kubernetes.io/hostname

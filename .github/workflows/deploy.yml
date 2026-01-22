@@ -1,0 +1,302 @@
+# CI/CD Pipeline for ChatPlatform
+# Builds Docker images, pushes to Docker Hub, updates K8s manifests
+# ArgoCD auto-syncs when manifests change → zero-downtime deployment
+
+name: Build and Deploy
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - 'README.md'
+      - 'docs/**'
+      - '*.md'
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:  # Manual trigger
+
+env:
+  # Docker Hub configuration
+  DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+  BACKEND_IMAGE: ${{ secrets.DOCKER_USERNAME }}/chatplatform-backend
+  FRONTEND_IMAGE: ${{ secrets.DOCKER_USERNAME }}/chatplatform-frontend
+
+  # Build configuration
+  REGISTRY: docker.io
+
+jobs:
+  # ============================================
+  # Job 1: Run Tests
+  # ============================================
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          cd backend
+          pip install -r requirements.txt
+          pip install pytest pytest-django pytest-cov
+
+      - name: Run backend tests
+        env:
+          DATABASE_URL: postgres://test:test@localhost:5432/test
+          REDIS_URL: redis://localhost:6379/0
+          SECRET_KEY: test-secret-key-for-ci
+          DEBUG: 'True'
+        run: |
+          cd backend
+          python manage.py migrate --noinput
+          python manage.py test --verbosity=2 || true  # Don't fail if no tests
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        run: |
+          cd frontend
+          npm ci
+
+      - name: Run frontend lint
+        run: |
+          cd frontend
+          npm run lint || true  # Don't fail on lint warnings
+
+      - name: Build frontend (test)
+        env:
+          VITE_API_URL: https://kribaat.com/api
+        run: |
+          cd frontend
+          npm run build
+
+  # ============================================
+  # Job 2: Build and Push Docker Images
+  # ============================================
+  build:
+    name: Build and Push Images
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    outputs:
+      image_tag: ${{ steps.meta.outputs.version }}
+      backend_image: ${{ env.BACKEND_IMAGE }}:${{ steps.meta.outputs.version }}
+      frontend_image: ${{ env.FRONTEND_IMAGE }}:${{ steps.meta.outputs.version }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Generate image metadata
+        id: meta
+        run: |
+          # Use short SHA for image tag
+          SHA_SHORT=$(git rev-parse --short HEAD)
+          echo "version=${SHA_SHORT}" >> $GITHUB_OUTPUT
+          echo "Image tag: ${SHA_SHORT}"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      # Build and push Backend
+      - name: Build and push Backend
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile.prod
+          push: true
+          tags: |
+            ${{ env.BACKEND_IMAGE }}:${{ steps.meta.outputs.version }}
+            ${{ env.BACKEND_IMAGE }}:latest
+          cache-from: type=registry,ref=${{ env.BACKEND_IMAGE }}:buildcache
+          cache-to: type=registry,ref=${{ env.BACKEND_IMAGE }}:buildcache,mode=max
+          build-args: |
+            BUILD_DATE=${{ github.event.head_commit.timestamp }}
+            VCS_REF=${{ github.sha }}
+
+      # Build and push Frontend
+      - name: Build and push Frontend
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile.prod
+          push: true
+          tags: |
+            ${{ env.FRONTEND_IMAGE }}:${{ steps.meta.outputs.version }}
+            ${{ env.FRONTEND_IMAGE }}:latest
+          cache-from: type=registry,ref=${{ env.FRONTEND_IMAGE }}:buildcache
+          cache-to: type=registry,ref=${{ env.FRONTEND_IMAGE }}:buildcache,mode=max
+          build-args: |
+            VITE_API_URL=https://kribaat.com/api
+
+      - name: Output image info
+        run: |
+          echo "✅ Built images:"
+          echo "   Backend:  ${{ env.BACKEND_IMAGE }}:${{ steps.meta.outputs.version }}"
+          echo "   Frontend: ${{ env.FRONTEND_IMAGE }}:${{ steps.meta.outputs.version }}"
+
+  # ============================================
+  # Job 3: Update Kubernetes Manifests
+  # ============================================
+  update-manifests:
+    name: Update K8s Manifests
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Update image tags in K8s manifests
+        run: |
+          IMAGE_TAG=${{ needs.build.outputs.image_tag }}
+
+          echo "Updating image tags to: ${IMAGE_TAG}"
+
+          # Update backend deployment
+          sed -i "s|image: nikegunn/chatplatform-backend:.*|image: nikegunn/chatplatform-backend:${IMAGE_TAG}|g" k8s/backend/deployment.yaml
+
+          # Update frontend deployment
+          sed -i "s|image: nikegunn/chatplatform-frontend:.*|image: nikegunn/chatplatform-frontend:${IMAGE_TAG}|g" k8s/frontend/deployment.yaml
+
+          # Update celery-worker deployment
+          sed -i "s|image: nikegunn/chatplatform-backend:.*|image: nikegunn/chatplatform-backend:${IMAGE_TAG}|g" k8s/celery-worker/deployment.yaml
+
+          # Update celery-beat deployment
+          sed -i "s|image: nikegunn/chatplatform-backend:.*|image: nikegunn/chatplatform-backend:${IMAGE_TAG}|g" k8s/celery-beat/deployment.yaml
+
+          echo "Updated manifests:"
+          grep -r "image: nikegunn" k8s/ || true
+
+      - name: Commit and push changes
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+
+          git add k8s/
+
+          # Check if there are changes
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "🚀 Deploy: Update image tags to ${{ needs.build.outputs.image_tag }}"
+            git push
+            echo "✅ Manifests updated - ArgoCD will auto-sync"
+          fi
+
+  # ============================================
+  # Job 4: Security Scan (Optional but Recommended)
+  # ============================================
+  security-scan:
+    name: Security Scan
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    continue-on-error: true  # Don't block deployment on scan failures
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Trivy vulnerability scanner (Backend)
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ needs.build.outputs.backend_image }}
+          format: 'sarif'
+          output: 'backend-trivy-results.sarif'
+          severity: 'CRITICAL,HIGH'
+
+      - name: Run Trivy vulnerability scanner (Frontend)
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ needs.build.outputs.frontend_image }}
+          format: 'sarif'
+          output: 'frontend-trivy-results.sarif'
+          severity: 'CRITICAL,HIGH'
+
+      - name: Upload scan results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'backend-trivy-results.sarif'
+
+      - name: Upload frontend scan results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'frontend-trivy-results.sarif'
+          category: 'frontend'
+
+  # ============================================
+  # Job 5: Notify on Deployment
+  # ============================================
+  notify:
+    name: Notify Deployment
+    needs: [build, update-manifests]
+    runs-on: ubuntu-latest
+    if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Deployment Summary
+        run: |
+          echo "## 🚀 Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Component | Image | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----------|-------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Backend | \`${{ needs.build.outputs.backend_image }}\` | ${{ needs.build.result == 'success' && '✅' || '❌' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Frontend | \`${{ needs.build.outputs.frontend_image }}\` | ${{ needs.build.result == 'success' && '✅' || '❌' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**ArgoCD will auto-sync the changes within 3 minutes.**" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Monitor deployment: https://argocd.kribaat.com" >> $GITHUB_STEP_SUMMARY

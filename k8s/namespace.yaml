@@ -1,0 +1,10 @@
+# Namespace for the ChatPlatform application
+# All resources will be deployed in this namespace for isolation
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: chatplatform
+  labels:
+    app.kubernetes.io/name: chatplatform
+    app.kubernetes.io/managed-by: argocd
+    environment: production

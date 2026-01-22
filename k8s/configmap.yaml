@@ -1,0 +1,56 @@
+# ConfigMap for non-sensitive application configuration
+# These values are used by backend, celery-worker, and celery-beat
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: chatplatform-config
+  namespace: chatplatform
+  labels:
+    app.kubernetes.io/name: chatplatform
+    app.kubernetes.io/component: config
+data:
+  # Django settings
+  DEBUG: "False"
+  DJANGO_SETTINGS_MODULE: "config.settings"
+  ALLOWED_HOSTS: "kribaat.com,www.kribaat.com,43.152.233.234,localhost,127.0.0.1,backend,backend.chatplatform.svc.cluster.local"
+  CORS_ALLOWED_ORIGINS: "https://kribaat.com,https://www.kribaat.com,http://43.152.233.234"
+  CSRF_TRUSTED_ORIGINS: "https://kribaat.com,https://www.kribaat.com"
+
+  # Database connection (password comes from secret)
+  POSTGRES_DB: "chatplatform"
+  POSTGRES_USER: "chatplatform"
+  POSTGRES_HOST: "postgres"
+  POSTGRES_PORT: "5432"
+
+  # Redis connection
+  REDIS_URL: "redis://redis:6379/0"
+  CELERY_BROKER_URL: "redis://redis:6379/0"
+  CELERY_RESULT_BACKEND: "redis://redis:6379/0"
+
+  # Meta/WhatsApp API settings
+  META_GRAPH_API_VERSION: "v18.0"
+
+  # OpenAI settings
+  OPENAI_MODEL: "gpt-4o-mini"
+  OPENAI_MAX_TOKENS: "500"
+  OPENAI_TEMPERATURE: "0.7"
+
+  # Gunicorn settings
+  GUNICORN_WORKERS: "3"
+  GUNICORN_THREADS: "2"
+  GUNICORN_TIMEOUT: "120"
+
+  # Celery settings
+  CELERY_CONCURRENCY: "2"
+---
+# ConfigMap for frontend (build-time variables)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: frontend-config
+  namespace: chatplatform
+  labels:
+    app.kubernetes.io/name: chatplatform
+    app.kubernetes.io/component: frontend-config
+data:
+  VITE_API_URL: "https://kribaat.com/api"

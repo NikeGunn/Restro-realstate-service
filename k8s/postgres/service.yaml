@@ -1,0 +1,20 @@
+# PostgreSQL Service - Headless service for StatefulSet
+# Provides stable DNS name: postgres.chatplatform.svc.cluster.local
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: chatplatform
+  labels:
+    app.kubernetes.io/name: chatplatform
+    app.kubernetes.io/component: database
+spec:
+  type: ClusterIP
+  clusterIP: None  # Headless service for StatefulSet
+  ports:
+    - port: 5432
+      targetPort: 5432
+      protocol: TCP
+      name: postgres
+  selector:
+    app: postgres

@@ -1,0 +1,85 @@
+# Celery Worker Deployment
+# Processes async tasks from Redis queue
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: celery-worker
+  namespace: chatplatform
+  labels:
+    app.kubernetes.io/name: chatplatform
+    app.kubernetes.io/component: celery-worker
+spec:
+  replicas: 2  # Scale based on queue depth
+  selector:
+    matchLabels:
+      app: celery-worker
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: celery-worker
+        app.kubernetes.io/name: chatplatform
+        app.kubernetes.io/component: celery-worker
+    spec:
+      imagePullSecrets:
+        - name: dockerhub-secret
+
+      containers:
+        - name: celery-worker
+          image: nemo2092/chatplatform-backend:latest
+          imagePullPolicy: IfNotPresent
+          command:
+            - celery
+            - -A
+            - config
+            - worker
+            - -l
+            - info
+            - --concurrency=2
+          envFrom:
+            - configMapRef:
+                name: chatplatform-config
+            - secretRef:
+                name: chatplatform-secrets
+          env:
+            - name: DATABASE_URL
+              value: "postgres://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@postgres:5432/$(POSTGRES_DB)"
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "1Gi"
+              cpu: "500m"
+
+          # Liveness probe using celery inspect
+          livenessProbe:
+            exec:
+              command:
+                - celery
+                - -A
+                - config
+                - inspect
+                - ping
+                - --timeout
+                - "10"
+            initialDelaySeconds: 60
+            periodSeconds: 60
+            timeoutSeconds: 30
+            failureThreshold: 3
+
+          # Graceful shutdown - allow tasks to complete
+          lifecycle:
+            preStop:
+              exec:
+                command:
+                  - /bin/sh
+                  - -c
+                  - "celery -A config control shutdown"
+
+      # Allow 5 minutes for graceful shutdown (long-running tasks)
+      terminationGracePeriodSeconds: 300

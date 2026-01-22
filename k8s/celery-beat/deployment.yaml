@@ -1,0 +1,67 @@
+# Celery Beat Deployment
+# Schedules periodic tasks - MUST be single instance
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: celery-beat
+  namespace: chatplatform
+  labels:
+    app.kubernetes.io/name: chatplatform
+    app.kubernetes.io/component: celery-beat
+spec:
+  replicas: 1  # CRITICAL: Must be exactly 1 to avoid duplicate scheduling
+  selector:
+    matchLabels:
+      app: celery-beat
+  strategy:
+    type: Recreate  # Not RollingUpdate - only one instance allowed
+  template:
+    metadata:
+      labels:
+        app: celery-beat
+        app.kubernetes.io/name: chatplatform
+        app.kubernetes.io/component: celery-beat
+    spec:
+      imagePullSecrets:
+        - name: dockerhub-secret
+
+      containers:
+        - name: celery-beat
+          image: nemo2092/chatplatform-backend:latest
+          imagePullPolicy: IfNotPresent
+          command:
+            - celery
+            - -A
+            - config
+            - beat
+            - -l
+            - info
+            - --scheduler
+            - django_celery_beat.schedulers:DatabaseScheduler
+          envFrom:
+            - configMapRef:
+                name: chatplatform-config
+            - secretRef:
+                name: chatplatform-secrets
+          env:
+            - name: DATABASE_URL
+              value: "postgres://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@postgres:5432/$(POSTGRES_DB)"
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "50m"
+            limits:
+              memory: "256Mi"
+              cpu: "200m"
+
+          livenessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - "pgrep -f 'celery.*beat'"
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            failureThreshold: 3
+
+      terminationGracePeriodSeconds: 60
