@@ -37,10 +37,13 @@ resources:
   # TLS
   - cert-manager/cluster-issuer.yaml
 
-# Common labels applied to all resources
-commonLabels:
-  app.kubernetes.io/part-of: chatplatform
-  app.kubernetes.io/managed-by: kustomize
+# Common labels applied to all resources (use labels instead of deprecated commonLabels)
+# NOTE: Do NOT use commonLabels as it adds labels to selectors which are immutable
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: chatplatform
+      app.kubernetes.io/managed-by: kustomize
+    includeSelectors: false
 
 # Images (can be overridden per environment)
 images:
