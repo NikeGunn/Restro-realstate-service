@@ -332,7 +332,7 @@ sudo systemctl reload nginx
 ```
 ~/chatplatform/               # Main project directory
   ├── k8s/                    # Kubernetes manifests
-  │   ├── argocd/            
+  │   ├── argocd/
   │   │   └── application.yaml  ← ArgoCD app config
   │   ├── backend/
   │   ├── frontend/
@@ -374,7 +374,7 @@ sudo systemctl reload nginx
 
 ---
 
-**Last Updated**: January 22, 2026  
-**Server**: ubuntu@43.152.233.234  
-**Cluster**: K3s (Kubernetes)  
+**Last Updated**: January 22, 2026
+**Server**: ubuntu@43.152.233.234
+**Cluster**: K3s (Kubernetes)
 **Domain**: kribaat.com

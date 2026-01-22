@@ -58,5 +58,5 @@ See these files for current deployment:
 
 ---
 
-**Archived Date**: January 22, 2026  
+**Archived Date**: January 22, 2026
 **Reason**: Migrated to Kubernetes for zero-downtime deployments

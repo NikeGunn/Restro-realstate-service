@@ -28,7 +28,7 @@ def health_check(request):
 urlpatterns = [
     # Health check endpoint
     path('api/health/', health_check, name='health-check'),
-    
+
     path('admin/', admin.site.urls),
 
     # API Documentation
@@ -43,14 +43,14 @@ urlpatterns = [
     path('api/handoff/', include('apps.handoff.urls')),
     path('api/analytics/', include('apps.analytics.urls')),
     path('api/v1/widget/', include('apps.widget.urls')),
-    
+
     # Vertical APIs (Phase 2 & 3)
     path('api/restaurant/', include('apps.restaurant.urls')),
     path('api/realestate/', include('apps.realestate.urls')),
-    
+
     # Channel configuration API (Phase 4)
     path('api/channels/', include('apps.channels.urls')),
-    
+
     # Public webhook endpoints (no auth)
     path('api/webhooks/', include(webhook_urlpatterns)),
 ]
