@@ -1,0 +1,20 @@
+# ArgoCD Server ConfigMap Patch
+# This configures ArgoCD to run in insecure mode (HTTP only)
+# TLS termination is handled by Traefik ingress
+# This prevents ERR_TOO_MANY_REDIRECTS errors
+
+# Run this command to patch the existing argocd-cmd-params-cm ConfigMap:
+# kubectl patch configmap argocd-cmd-params-cm -n argocd --type merge -p '{"data":{"server.insecure":"true"}}'
+
+# OR apply this full ConfigMap:
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argocd-cmd-params-cm
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: argocd-cmd-params-cm
+    app.kubernetes.io/part-of: argocd
+data:
+  # Run server without TLS (ingress handles TLS)
+  server.insecure: "true"

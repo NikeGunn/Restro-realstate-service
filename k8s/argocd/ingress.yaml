@@ -1,0 +1,41 @@
+# ArgoCD Ingress Configuration for Traefik
+# This exposes ArgoCD UI via argocd.kribaat.com
+# Fixes ERR_TOO_MANY_REDIRECTS by properly handling TLS termination
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: argocd-server
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: argocd-server
+    app.kubernetes.io/component: server
+  annotations:
+    # Cert-manager for automatic TLS certificates
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+
+    # Traefik annotations for proper TLS handling
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+
+    # CRITICAL: Tell ArgoCD that TLS is terminated at ingress level
+    # This prevents redirect loops
+    nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/ssl-passthrough: "false"
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts:
+        - argocd.kribaat.com
+      secretName: argocd-tls
+  rules:
+    - host: argocd.kribaat.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: argocd-server
+                port:
+                  number: 80

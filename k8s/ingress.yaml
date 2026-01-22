@@ -23,6 +23,9 @@ spec:
         - kribaat.com
         - www.kribaat.com
       secretName: chatplatform-tls
+    - hosts:
+        - argocd.kribaat.com
+      secretName: argocd-tls
   rules:
     # Main domain
     - host: kribaat.com
