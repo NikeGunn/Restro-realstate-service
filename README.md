@@ -15,6 +15,13 @@ Multi-tenant AI business chatbot platform supporting Restaurants and Real Estate
 - Docker & Docker Compose
 - OpenAI API Key
 
+### Security Notice ⚠️
+**IMPORTANT**: This repository uses proper secret management. See [SECURITY.md](SECURITY.md) for:
+- How to set up secrets properly
+- What was fixed (exposed Kubernetes Docker secrets)
+- Secret rotation procedures
+- Never commit `k8s/secrets.yaml` or `.env` files!
+
 ### Setup
 
 1. Clone the repository:
@@ -32,12 +39,24 @@ cp .env.example .env
 OPENAI_API_KEY=your-openai-api-key-here
 ```
 
-4. Start all services:
+4. **For Kubernetes deployment**, set up secrets (DO NOT commit secrets.yaml):
+```bash
+# Copy the template
+cp k8s/secrets.yaml.example k8s/secrets.yaml
+
+# Edit k8s/secrets.yaml with your actual secrets
+# OR use kubectl to create secrets directly (recommended)
+kubectl create secret generic chatplatform-secrets \
+  --from-literal=SECRET_KEY="your-secret" \
+  -n chatplatform
+```
+
+5. Start all services:
 ```bash
 docker-compose up --build
 ```
 
-5. Access the services:
+6. Access the services:
    - **Backend API**: http://localhost:8000
    - **Frontend Dashboard**: http://localhost:3000
    - **API Documentation**: http://localhost:8000/api/docs/

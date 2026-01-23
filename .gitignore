@@ -75,8 +75,26 @@ celerybeat.pid
 # PEM files for security
 *.pem
 
+# Kubernetes secrets - NEVER commit actual secrets!
+k8s/secrets.yaml
+k8s/*/secrets.yaml
+k8s/argocd/secrets.yaml
+**/secrets.yaml
+*.secret.yaml
+*.secrets.yaml
+
+# Environment files
+.env
+.env.*
+!.env.example
+
 # Deployment logs
 deploy/logs/
+
+# Deployment configuration (contains server details and credentials)
+deploy/config.ps1
+deploy/*.ps1
+!deploy/config.ps1.example
 
 # Temporary debug/test scripts
 **/debug_*.py
@@ -107,3 +125,8 @@ agent.md
 # Local documentation
 SSH_DEPLOYMENT_GUIDE.md
 DEPLOYMENT_COMMANDS.md
+
+# Security documentation (keep local only)
+SECURITY.md
+SECURITY_INCIDENT_RESPONSE.md
+*.security.md

@@ -1,0 +1,52 @@
+# ============================================
+# DEPLOYMENT CONFIGURATION - COPY TO config.ps1
+# ============================================
+# IMPORTANT: Copy this file to config.ps1 and fill in your actual values
+# DO NOT commit config.ps1 to Git - it contains sensitive information
+
+# Server Configuration
+$SERVER_IP = "YOUR.SERVER.IP.ADDRESS"
+$SERVER_USER = "ubuntu"  # or your server username
+$PEM_FILE = "$PSScriptRoot\..\YOUR_KEY.pem"  # Path to your SSH key
+
+# Domain Configuration (leave empty if no domain, will use IP)
+$DOMAIN_NAME = "yourdomain.com"  # or "" for IP-only
+
+# Application Ports
+$FRONTEND_PORT = 3000
+$BACKEND_PORT = 8000
+$NGINX_HTTP_PORT = 80
+$NGINX_HTTPS_PORT = 443
+
+# Application Name (used for directory naming)
+$APP_NAME = "chatplatform"
+
+# Remote Paths
+$REMOTE_APP_DIR = "/home/$SERVER_USER/$APP_NAME"
+$REMOTE_DEPLOY_DIR = "/home/$SERVER_USER/$APP_NAME/deploy"
+
+# Environment
+$ENVIRONMENT = "production"
+
+# SSL (set to $true if you have a domain and want SSL)
+$ENABLE_SSL = $true
+
+# Database Configuration
+# IMPORTANT: Use strong passwords in production!
+$POSTGRES_DB = "chatplatform"
+$POSTGRES_USER = "chatplatform"
+$POSTGRES_PASSWORD = "CHANGE_THIS_TO_STRONG_PASSWORD"
+
+# GitHub Configuration (optional, for CI/CD)
+$GIT_REPO = "https://github.com/YOUR_USERNAME/YOUR_REPO.git"
+$GIT_BRANCH = "main"
+
+# ============================================
+# SECURITY NOTES:
+# ============================================
+# 1. Never commit this file to Git
+# 2. Use strong, unique passwords (20+ characters)
+# 3. Store PEM files securely, never commit them
+# 4. Restrict server SSH access by IP if possible
+# 5. Use different passwords for dev/staging/prod
+# ============================================
