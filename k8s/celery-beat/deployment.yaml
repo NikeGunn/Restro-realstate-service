@@ -22,9 +22,6 @@ spec:
         app.kubernetes.io/name: chatplatform
         app.kubernetes.io/component: celery-beat
     spec:
-      imagePullSecrets:
-        - name: dockerhub-secret
-
       containers:
         - name: celery-beat
           image: nemo2092/chatplatform-backend:7ef09a7
@@ -59,7 +56,7 @@ spec:
               command:
                 - /bin/sh
                 - -c
-                - "pgrep -f 'celery.*beat'"
+                - "ps aux | grep -v grep | grep 'celery.*beat' || exit 1"
             initialDelaySeconds: 30
             periodSeconds: 30
             failureThreshold: 3

@@ -25,9 +25,6 @@ spec:
         app.kubernetes.io/name: chatplatform
         app.kubernetes.io/component: celery-worker
     spec:
-      imagePullSecrets:
-        - name: dockerhub-secret
-
       containers:
         - name: celery-worker
           image: nemo2092/chatplatform-backend:7ef09a7

@@ -26,10 +26,6 @@ spec:
         app.kubernetes.io/name: chatplatform
         app.kubernetes.io/component: backend
     spec:
-      # Image pull secret for private Docker Hub
-      imagePullSecrets:
-        - name: dockerhub-secret
-
       # Init container to run migrations before main container starts
       initContainers:
         - name: run-migrations

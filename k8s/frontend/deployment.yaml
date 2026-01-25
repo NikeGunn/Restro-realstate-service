@@ -25,9 +25,6 @@ spec:
         app.kubernetes.io/name: chatplatform
         app.kubernetes.io/component: frontend
     spec:
-      imagePullSecrets:
-        - name: dockerhub-secret
-
       containers:
         - name: frontend
           image: nemo2092/chatplatform-frontend:7ef09a7
