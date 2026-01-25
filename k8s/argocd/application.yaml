@@ -69,6 +69,10 @@ spec:
       jsonPointers:
         - /spec/replicas  # HPA manages replicas
         - /spec/template/metadata/annotations/kubectl.kubernetes.io~1restartedAt  # Ignore restart annotations
+    - group: apps
+      kind: StatefulSet
+      jsonPointers:
+        - /spec/template/metadata/annotations/kubectl.kubernetes.io~1restartedAt  # Ignore restart annotations
     - group: ""
       kind: Secret
       jsonPointers:
