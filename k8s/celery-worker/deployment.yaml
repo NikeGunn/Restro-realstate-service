@@ -30,7 +30,7 @@ spec:
 
       containers:
         - name: celery-worker
-          image: nemo2092/chatplatform-backend:f1f1053
+          image: nemo2092/chatplatform-backend:7ef09a7
           imagePullPolicy: IfNotPresent
           command:
             - celery
