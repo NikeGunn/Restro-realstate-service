@@ -259,19 +259,40 @@ jobs:
         with:
           version: 'latest'
 
-      - name: Configure kubectl for remote cluster
+      - name: Configure SSH and test connection
         env:
           SERVER_IP: ${{ secrets.K8S_SERVER_IP }}
           SERVER_USER: ${{ secrets.K8S_SERVER_USER }}
           SSH_PRIVATE_KEY: ${{ secrets.K8S_SSH_KEY }}
         run: |
-          # Save SSH key
+          # Create .ssh directory
           mkdir -p ~/.ssh
-          echo "$SSH_PRIVATE_KEY" > ~/.ssh/k8s_key
+          chmod 700 ~/.ssh
+          
+          # Save SSH key with proper newline handling
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/k8s_key
           chmod 600 ~/.ssh/k8s_key
-
+          
+          # Verify key format
+          echo "🔍 Verifying SSH key format..."
+          if ! ssh-keygen -l -f ~/.ssh/k8s_key 2>&1; then
+            echo "❌ SSH key format is invalid!"
+            echo "Key starts with: $(head -c 50 ~/.ssh/k8s_key)"
+            exit 1
+          fi
+          echo "✅ SSH key format is valid"
+          
           # Add server to known hosts
-          ssh-keyscan -H $SERVER_IP >> ~/.ssh/known_hosts
+          ssh-keyscan -H $SERVER_IP >> ~/.ssh/known_hosts 2>/dev/null
+          
+          # Test SSH connection
+          echo "🔌 Testing SSH connection..."
+          if ssh -i ~/.ssh/k8s_key -o StrictHostKeyChecking=no -o ConnectTimeout=10 $SERVER_USER@$SERVER_IP "echo 'SSH connection successful'"; then
+            echo "✅ SSH connection working"
+          else
+            echo "❌ SSH connection failed"
+            exit 1
+          fi
 
       - name: Create or update chatplatform-secrets
         env:
@@ -285,11 +306,11 @@ jobs:
           INSTAGRAM_VERIFY_TOKEN: ${{ secrets.INSTAGRAM_VERIFY_TOKEN }}
         run: |
           echo "📝 Creating/updating Kubernetes secrets..."
-
+          
           # Delete existing secret if it exists (to force update)
           ssh -i ~/.ssh/k8s_key -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_IP \
             "kubectl delete secret chatplatform-secrets -n chatplatform --ignore-not-found=true"
-
+          
           # Create secret with values from GitHub Secrets
           ssh -i ~/.ssh/k8s_key -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_IP \
             "kubectl create secret generic chatplatform-secrets -n chatplatform \
@@ -299,7 +320,7 @@ jobs:
               --from-literal=META_APP_SECRET='$META_APP_SECRET' \
               --from-literal=WHATSAPP_DEFAULT_VERIFY_TOKEN='$WHATSAPP_VERIFY_TOKEN' \
               --from-literal=INSTAGRAM_DEFAULT_VERIFY_TOKEN='$INSTAGRAM_VERIFY_TOKEN'"
-
+          
           echo "✅ Secrets deployed successfully"
 
       - name: Restart deployments to pick up new secrets
