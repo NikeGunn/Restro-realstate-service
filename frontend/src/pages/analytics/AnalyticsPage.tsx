@@ -345,37 +345,37 @@ export function AnalyticsPage() {
       {currentOrganization?.business_type === 'restaurant' && overview?.restaurant && (
         <Card className="mt-6">
           <CardHeader>
-            <CardTitle>🍽️ Restaurant Metrics</CardTitle>
-            <CardDescription>Booking and guest analytics for your restaurant</CardDescription>
+            <CardTitle>🍽️ {t('analytics.restaurantMetricsTitle')}</CardTitle>
+            <CardDescription>{t('analytics.restaurantMetricsSubtitle')}</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
               <div className="space-y-2">
-                <p className="text-sm text-muted-foreground">Total Bookings</p>
+                <p className="text-sm text-muted-foreground">{t('analytics.totalBookings')}</p>
                 <p className="text-2xl font-bold">{overview.restaurant.bookings?.total || 0}</p>
               </div>
               <div className="space-y-2">
-                <p className="text-sm text-muted-foreground">Confirmed</p>
+                <p className="text-sm text-muted-foreground">{t('analytics.confirmed')}</p>
                 <p className="text-2xl font-bold text-green-600">
                   {overview.restaurant.bookings?.confirmed || 0}
                 </p>
               </div>
               <div className="space-y-2">
-                <p className="text-sm text-muted-foreground">Completed</p>
+                <p className="text-sm text-muted-foreground">{t('analytics.completed')}</p>
                 <p className="text-2xl font-bold text-blue-600">
                   {overview.restaurant.bookings?.completed || 0}
                 </p>
               </div>
               <div className="space-y-2">
-                <p className="text-sm text-muted-foreground">Total Guests</p>
+                <p className="text-sm text-muted-foreground">{t('analytics.totalGuests')}</p>
                 <p className="text-2xl font-bold">{overview.restaurant.bookings?.total_guests || 0}</p>
               </div>
             </div>
             {((overview.restaurant.bookings?.cancelled ?? 0) > 0 || (overview.restaurant.bookings?.no_shows ?? 0) > 0) && (
               <div className="mt-4 p-3 bg-amber-100 dark:bg-amber-900/40 rounded-lg border-2 border-amber-400 dark:border-amber-600">
                 <p className="text-sm font-semibold text-gray-900 dark:text-white">
-                  ⚠️ {overview.restaurant.bookings?.cancelled ?? 0} cancelled bookings,{' '}
-                  {overview.restaurant.bookings?.no_shows ?? 0} no-shows
+                  ⚠️ {overview.restaurant.bookings?.cancelled ?? 0} {t('analytics.cancelledBookings')},{' '}
+                  {overview.restaurant.bookings?.no_shows ?? 0} {t('analytics.noShows')}
                 </p>
               </div>
             )}
@@ -388,21 +388,21 @@ export function AnalyticsPage() {
         <div className="grid gap-4 md:grid-cols-2 mt-6">
           <Card>
             <CardHeader>
-              <CardTitle>🏠 Lead Analytics</CardTitle>
-              <CardDescription>Property leads and conversion metrics</CardDescription>
+              <CardTitle>🏠 {t('analytics.leadAnalyticsTitle')}</CardTitle>
+              <CardDescription>{t('analytics.leadAnalyticsSubtitle')}</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
-                  <span>Total Leads</span>
+                  <span>{t('analytics.totalLeads')}</span>
                   <span className="font-bold">{overview.real_estate.leads?.total || 0}</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span>Avg Lead Score</span>
+                  <span>{t('analytics.avgLeadScore')}</span>
                   <span className="font-bold">{overview.real_estate.leads?.avg_score || 0}/100</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span>Conversion Rate</span>
+                  <span>{t('analytics.conversionRate')}</span>
                   <span className="font-bold text-green-600">
                     {overview.real_estate.leads?.conversion_rate || 0}%
                   </span>
@@ -413,21 +413,21 @@ export function AnalyticsPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle>📅 Appointments</CardTitle>
-              <CardDescription>Property viewing appointments</CardDescription>
+              <CardTitle>📅 {t('analytics.appointmentsTitle')}</CardTitle>
+              <CardDescription>{t('analytics.appointmentsSubtitle')}</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
-                  <span>Total Appointments</span>
+                  <span>{t('analytics.totalAppointments')}</span>
                   <span className="font-bold">{overview.real_estate.appointments?.total || 0}</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span>Active Listings</span>
+                  <span>{t('analytics.activeListings')}</span>
                   <span className="font-bold">{overview.real_estate.properties?.active_listings || 0}</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span>Sold This Period</span>
+                  <span>{t('analytics.soldThisPeriod')}</span>
                   <span className="font-bold text-green-600">
                     {overview.real_estate.properties?.sold_in_period || 0}
                   </span>
@@ -448,11 +448,10 @@ export function AnalyticsPage() {
               </div>
               <div className="flex-1">
                 <h3 className="font-bold text-lg text-gray-900 dark:text-gray-100">
-                  Upgrade to Power Plan
+                  {t('analytics.upgradeToPowerPlan')}
                 </h3>
                 <p className="text-sm text-gray-700 dark:text-gray-300 mt-1 leading-relaxed">
-                  Get access to advanced analytics features: aggregated multi-location analytics,
-                  custom dashboards, escalation rules, and detailed performance reports.
+                  {t('analytics.powerPlanBenefits')}
                 </p>
               </div>
             </div>
@@ -470,11 +469,11 @@ export function AnalyticsPage() {
             <div className="flex items-center gap-2 mb-2">
               <Crown className="h-5 w-5 text-amber-500" />
               <h2 className="text-xl font-bold text-amber-600 dark:text-amber-400">
-                Power Plan Analytics
+                {t('analytics.powerPlanAnalytics')}
               </h2>
             </div>
             <p className="text-sm text-muted-foreground">
-              Advanced insights and detailed performance metrics exclusive to Power Plan subscribers
+              {t('analytics.powerPlanAnalyticsSubtitle')}
             </p>
           </div>
 
@@ -482,7 +481,7 @@ export function AnalyticsPage() {
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             <Card className="border-amber-200 dark:border-amber-800">
               <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium">Avg Response Time</CardTitle>
+                <CardTitle className="text-sm font-medium">{t('analytics.avgResponseTime')}</CardTitle>
                 <Clock className="h-4 w-4 text-amber-500" />
               </CardHeader>
               <CardContent>
@@ -490,14 +489,14 @@ export function AnalyticsPage() {
                   {formatTime(overview?.power_analytics?.response_time?.avg_seconds ?? null)}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Based on {overview?.power_analytics?.response_time?.sample_size || 0} messages
+                  {t('analytics.basedOnMessages', { count: overview?.power_analytics?.response_time?.sample_size || 0 })}
                 </p>
               </CardContent>
             </Card>
 
             <Card className="border-amber-200 dark:border-amber-800">
               <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium">Fastest Response</CardTitle>
+                <CardTitle className="text-sm font-medium">{t('analytics.fastestResponse')}</CardTitle>
                 <Zap className="h-4 w-4 text-green-500" />
               </CardHeader>
               <CardContent>
@@ -505,14 +504,14 @@ export function AnalyticsPage() {
                   {formatTime(overview?.power_analytics?.response_time?.min_seconds ?? null)}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Best response time achieved
+                  {t('analytics.bestResponseTime')}
                 </p>
               </CardContent>
             </Card>
 
             <Card className="border-amber-200 dark:border-amber-800">
               <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium">AI Resolution Rate</CardTitle>
+                <CardTitle className="text-sm font-medium">{t('analytics.aiResolutionRate')}</CardTitle>
                 <Bot className="h-4 w-4 text-blue-500" />
               </CardHeader>
               <CardContent>
@@ -520,14 +519,14 @@ export function AnalyticsPage() {
                   {overview?.power_analytics?.ai_efficiency?.ai_resolution_rate || 0}%
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  {overview?.power_analytics?.ai_efficiency?.ai_only_resolved || 0} resolved without human
+                  {overview?.power_analytics?.ai_efficiency?.ai_only_resolved || 0} {t('analytics.resolvedWithoutHuman')}
                 </p>
               </CardContent>
             </Card>
 
             <Card className="border-amber-200 dark:border-amber-800">
               <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium">Conversation Trend</CardTitle>
+                <CardTitle className="text-sm font-medium">{t('analytics.conversationTrend')}</CardTitle>
                 {dailyTrends?.trend?.direction === 'up' ? (
                   <TrendingUp className="h-4 w-4 text-green-500" />
                 ) : dailyTrends?.trend?.direction === 'down' ? (
@@ -537,15 +536,14 @@ export function AnalyticsPage() {
                 )}
               </CardHeader>
               <CardContent>
-                <div className={`text-2xl font-bold ${
-                  dailyTrends?.trend?.direction === 'up' ? 'text-green-600' :
-                  dailyTrends?.trend?.direction === 'down' ? 'text-red-600' : 'text-gray-600'
-                }`}>
+                <div className={`text-2xl font-bold ${dailyTrends?.trend?.direction === 'up' ? 'text-green-600' :
+                    dailyTrends?.trend?.direction === 'down' ? 'text-red-600' : 'text-gray-600'
+                  }`}>
                   {dailyTrends?.trend?.direction === 'up' ? '+' : dailyTrends?.trend?.direction === 'down' ? '-' : ''}
                   {dailyTrends?.trend?.percent || 0}%
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  vs. first half of period
+                  {t('analytics.vsFirstHalf')}
                 </p>
               </CardContent>
             </Card>
@@ -557,15 +555,15 @@ export function AnalyticsPage() {
               <CardHeader>
                 <div className="flex items-center gap-2">
                   <Calendar className="h-5 w-5 text-amber-500" />
-                  <CardTitle>Daily Conversation Trends</CardTitle>
+                  <CardTitle>{t('analytics.dailyConversationTrends')}</CardTitle>
                 </div>
-                <CardDescription>Daily breakdown of conversations and resolutions</CardDescription>
+                <CardDescription>{t('analytics.dailyBreakdown')}</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-2 max-h-64 overflow-y-auto">
                   {dailyTrends?.daily?.length === 0 ? (
                     <p className="text-sm text-muted-foreground text-center py-4">
-                      No daily data available
+                      {t('analytics.noDailyData')}
                     </p>
                   ) : (
                     dailyTrends?.daily?.slice(-14).map((day) => {
@@ -576,7 +574,7 @@ export function AnalyticsPage() {
                           <div className="flex justify-between text-xs">
                             <span>{new Date(day.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
                             <span className="text-muted-foreground">
-                              {day.conversations} conv / {day.messages} msg
+                              {day.conversations} {t('analytics.conv')} / {day.messages} {t('analytics.msg')}
                             </span>
                           </div>
                           <div className="h-2 bg-muted rounded-full overflow-hidden">
@@ -598,9 +596,9 @@ export function AnalyticsPage() {
               <CardHeader>
                 <div className="flex items-center gap-2">
                   <BarChart3 className="h-5 w-5 text-amber-500" />
-                  <CardTitle>Peak Activity Hours</CardTitle>
+                  <CardTitle>{t('analytics.peakActivityHours')}</CardTitle>
                 </div>
-                <CardDescription>When your customers are most active</CardDescription>
+                <CardDescription>{t('analytics.whenCustomersActive')}</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
@@ -610,11 +608,10 @@ export function AnalyticsPage() {
                       {overview.power_analytics.peak_hours.peak_hours.map((hour, idx) => (
                         <div
                           key={hour}
-                          className={`px-3 py-1 rounded-full text-sm font-medium ${
-                            idx === 0 ? 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200' :
-                            idx === 1 ? 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200' :
-                            'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
-                          }`}
+                          className={`px-3 py-1 rounded-full text-sm font-medium ${idx === 0 ? 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200' :
+                              idx === 1 ? 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200' :
+                                'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
+                            }`}
                         >
                           #{idx + 1} {formatHour(hour)}
                         </div>
@@ -646,7 +643,7 @@ export function AnalyticsPage() {
                       ) : null
                     })}
                   </div>
-                  <p className="text-xs text-muted-foreground text-center mt-2">Hour of day (24h)</p>
+                  <p className="text-xs text-muted-foreground text-center mt-2">{t('analytics.hourOfDay')}</p>
                 </div>
               </CardContent>
             </Card>
@@ -659,15 +656,15 @@ export function AnalyticsPage() {
               <CardHeader>
                 <div className="flex items-center gap-2">
                   <Activity className="h-5 w-5 text-amber-500" />
-                  <CardTitle>Weekly Activity Pattern</CardTitle>
+                  <CardTitle>{t('analytics.weeklyActivityPattern')}</CardTitle>
                 </div>
-                <CardDescription>Conversation distribution by day of week</CardDescription>
+                <CardDescription>{t('analytics.conversationByDayOfWeek')}</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
                   {overview?.power_analytics?.day_of_week?.length === 0 ? (
                     <p className="text-sm text-muted-foreground text-center py-4">
-                      No weekly data available
+                      {t('analytics.noWeeklyData')}
                     </p>
                   ) : (
                     overview?.power_analytics?.day_of_week?.map((day) => {
@@ -679,7 +676,7 @@ export function AnalyticsPage() {
                         <div key={day.day_of_week} className="space-y-1">
                           <div className="flex justify-between text-sm">
                             <span className="font-medium">{day.day_name}</span>
-                            <span className="text-muted-foreground">{day.count} conversations</span>
+                            <span className="text-muted-foreground">{day.count} {t('analytics.conversations')}</span>
                           </div>
                           <div className="h-2 bg-muted rounded-full overflow-hidden">
                             <div
@@ -700,15 +697,15 @@ export function AnalyticsPage() {
               <CardHeader>
                 <div className="flex items-center gap-2">
                   <MapPin className="h-5 w-5 text-amber-500" />
-                  <CardTitle>Location Performance</CardTitle>
+                  <CardTitle>{t('analytics.locationPerformance')}</CardTitle>
                 </div>
-                <CardDescription>Analytics breakdown by location</CardDescription>
+                <CardDescription>{t('analytics.analyticsByLocation')}</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
                   {locationStats?.by_location?.length === 0 ? (
                     <p className="text-sm text-muted-foreground text-center py-4">
-                      No location data available
+                      {t('analytics.noLocationData')}
                     </p>
                   ) : (
                     locationStats?.by_location?.map((loc) => (
@@ -718,25 +715,24 @@ export function AnalyticsPage() {
                       >
                         <div className="flex items-center justify-between mb-2">
                           <span className="font-medium">{loc.location_name}</span>
-                          <span className={`text-xs px-2 py-1 rounded-full ${
-                            loc.resolution_rate >= 70 
+                          <span className={`text-xs px-2 py-1 rounded-full ${loc.resolution_rate >= 70
                               ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
                               : loc.resolution_rate >= 40
-                              ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
-                              : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
-                          }`}>
-                            {loc.resolution_rate}% resolved
+                                ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
+                                : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+                            }`}>
+                            {loc.resolution_rate}% {t('analytics.resolved')}
                           </span>
                         </div>
                         <div className="grid grid-cols-3 gap-2 text-xs text-muted-foreground">
                           <div>
-                            <span className="font-semibold text-foreground">{loc.conversations}</span> conv
+                            <span className="font-semibold text-foreground">{loc.conversations}</span> {t('analytics.conv')}
                           </div>
                           <div>
-                            <span className="font-semibold text-foreground">{loc.messages}</span> msg
+                            <span className="font-semibold text-foreground">{loc.messages}</span> {t('analytics.msg')}
                           </div>
                           <div>
-                            <span className="font-semibold text-foreground">{loc.handoffs}</span> handoffs
+                            <span className="font-semibold text-foreground">{loc.handoffs}</span> {t('analytics.handoffs')}
                           </div>
                         </div>
                       </div>
@@ -752,9 +748,9 @@ export function AnalyticsPage() {
             <CardHeader>
               <div className="flex items-center gap-2">
                 <BarChart3 className="h-5 w-5 text-amber-500" />
-                <CardTitle>Channel Performance Comparison</CardTitle>
+                <CardTitle>{t('analytics.channelPerformanceComparison')}</CardTitle>
               </div>
-              <CardDescription>Compare resolution rates across different channels</CardDescription>
+              <CardDescription>{t('analytics.compareResolutionRates')}</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="grid gap-4 md:grid-cols-3">
@@ -771,7 +767,7 @@ export function AnalyticsPage() {
                       {ch.resolution_rate}%
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      {ch.resolved} of {ch.total} resolved
+                      {ch.resolved} {t('analytics.of')} {ch.total} {t('analytics.resolved')}
                     </p>
                   </div>
                 ))}
