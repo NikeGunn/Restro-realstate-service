@@ -73,6 +73,9 @@ spec:
       kind: StatefulSet
       jsonPointers:
         - /spec/template/metadata/annotations/kubectl.kubernetes.io~1restartedAt  # Ignore restart annotations
+        - /spec/volumeClaimTemplates/0/status  # Ignore PVC status
+        - /spec/volumeClaimTemplates/0/apiVersion  # Ignore auto-added apiVersion
+        - /spec/volumeClaimTemplates/0/kind  # Ignore auto-added kind
     - group: ""
       kind: Secret
       jsonPointers:
