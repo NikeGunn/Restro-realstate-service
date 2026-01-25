@@ -25,7 +25,7 @@ metadata:
 spec:
   acme:
     server: https://acme-staging-v02.api.letsencrypt.org/directory
-    email: your-email@example.com
+    email: knewboy.nykhil@gmail.com
     privateKeySecretRef:
       name: letsencrypt-staging-account-key
     solvers:
