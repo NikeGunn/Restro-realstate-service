@@ -127,8 +127,7 @@ jobs:
 
     outputs:
       image_tag: ${{ steps.meta.outputs.version }}
-      backend_image: ${{ env.BACKEND_IMAGE }}:${{ steps.meta.outputs.version }}
-      frontend_image: ${{ env.FRONTEND_IMAGE }}:${{ steps.meta.outputs.version }}
+      # Removed backend_image and frontend_image outputs to prevent masking warnings
 
     steps:
       - name: Checkout code
@@ -243,7 +242,78 @@ jobs:
           fi
 
   # ============================================
-  # Job 4: Security Scan (Optional but Recommended)
+  # Job 4: Deploy Kubernetes Secrets
+  # ============================================
+  deploy-secrets:
+    name: Deploy K8s Secrets
+    needs: update-manifests
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'latest'
+
+      - name: Configure kubectl for remote cluster
+        env:
+          SERVER_IP: ${{ secrets.K8S_SERVER_IP }}
+          SERVER_USER: ${{ secrets.K8S_SERVER_USER }}
+          SSH_PRIVATE_KEY: ${{ secrets.K8S_SSH_KEY }}
+        run: |
+          # Save SSH key
+          mkdir -p ~/.ssh
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/k8s_key
+          chmod 600 ~/.ssh/k8s_key
+
+          # Add server to known hosts
+          ssh-keyscan -H $SERVER_IP >> ~/.ssh/known_hosts
+
+      - name: Create or update chatplatform-secrets
+        env:
+          SERVER_IP: ${{ secrets.K8S_SERVER_IP }}
+          SERVER_USER: ${{ secrets.K8S_SERVER_USER }}
+          SECRET_KEY: ${{ secrets.DJANGO_SECRET_KEY }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
+          WHATSAPP_VERIFY_TOKEN: ${{ secrets.WHATSAPP_VERIFY_TOKEN }}
+          INSTAGRAM_VERIFY_TOKEN: ${{ secrets.INSTAGRAM_VERIFY_TOKEN }}
+        run: |
+          echo "📝 Creating/updating Kubernetes secrets..."
+
+          # Delete existing secret if it exists (to force update)
+          ssh -i ~/.ssh/k8s_key -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_IP \
+            "kubectl delete secret chatplatform-secrets -n chatplatform --ignore-not-found=true"
+
+          # Create secret with values from GitHub Secrets
+          ssh -i ~/.ssh/k8s_key -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_IP \
+            "kubectl create secret generic chatplatform-secrets -n chatplatform \
+              --from-literal=SECRET_KEY='$SECRET_KEY' \
+              --from-literal=POSTGRES_PASSWORD='$POSTGRES_PASSWORD' \
+              --from-literal=OPENAI_API_KEY='$OPENAI_API_KEY' \
+              --from-literal=META_APP_SECRET='$META_APP_SECRET' \
+              --from-literal=WHATSAPP_DEFAULT_VERIFY_TOKEN='$WHATSAPP_VERIFY_TOKEN' \
+              --from-literal=INSTAGRAM_DEFAULT_VERIFY_TOKEN='$INSTAGRAM_VERIFY_TOKEN'"
+
+          echo "✅ Secrets deployed successfully"
+
+      - name: Restart deployments to pick up new secrets
+        env:
+          SERVER_IP: ${{ secrets.K8S_SERVER_IP }}
+          SERVER_USER: ${{ secrets.K8S_SERVER_USER }}
+        run: |
+          echo "🔄 Restarting deployments..."
+          ssh -i ~/.ssh/k8s_key -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_IP \
+            "kubectl rollout restart deployment backend celery-worker celery-beat -n chatplatform"
+          echo "✅ Deployments restarted"
+
+  # ============================================
+  # Job 5: Security Scan (Optional but Recommended)
   # ============================================
   security-scan:
     name: Security Scan
@@ -283,14 +353,14 @@ jobs:
           timeout: '10m'
 
       - name: Upload scan results to GitHub Security
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         if: always() && hashFiles('backend-trivy-results.sarif') != ''
         continue-on-error: true
         with:
           sarif_file: 'backend-trivy-results.sarif'
 
       - name: Upload frontend scan results
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         if: always() && hashFiles('frontend-trivy-results.sarif') != ''
         continue-on-error: true
         with:
@@ -298,11 +368,11 @@ jobs:
           category: 'frontend'
 
   # ============================================
-  # Job 5: Notify on Deployment
+  # Job 6: Notify on Deployment
   # ============================================
   notify:
     name: Notify Deployment
-    needs: [build, update-manifests, security-scan]
+    needs: [build, update-manifests, deploy-secrets, security-scan]
     runs-on: ubuntu-latest
     if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main'
 
@@ -314,16 +384,37 @@ jobs:
 
           echo "## 🚀 Deployment Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Docker Images
+          echo "### 🐳 Docker Images" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Component | Image Tag | Status |" >> $GITHUB_STEP_SUMMARY
           echo "|-----------|-----------|--------|" >> $GITHUB_STEP_SUMMARY
-          echo "| Backend | \`${DOCKER_USER}/chatplatform-backend:${IMAGE_TAG}\` | ${{ needs.build.result == 'success' && '✅' || '❌' }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Frontend | \`${DOCKER_USER}/chatplatform-frontend:${IMAGE_TAG}\` | ${{ needs.build.result == 'success' && '✅' || '❌' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Backend | \`${DOCKER_USER}/chatplatform-backend:${IMAGE_TAG}\` | ${{ needs.build.result == 'success' && '✅ Built' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Frontend | \`${DOCKER_USER}/chatplatform-frontend:${IMAGE_TAG}\` | ${{ needs.build.result == 'success' && '✅ Built' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Status" >> $GITHUB_STEP_SUMMARY
-          echo "- Build: ${{ needs.build.result == 'success' && '✅ Success' || '❌ Failed' }}" >> $GITHUB_STEP_SUMMARY
-          echo "- Manifests: ${{ needs.update-manifests.result == 'success' && '✅ Updated' || '❌ Failed' }}" >> $GITHUB_STEP_SUMMARY
-          echo "- Security Scan: ${{ needs.security-scan.result == 'success' && '✅ Passed' || needs.security-scan.result == 'skipped' && '⏭️ Skipped' || '⚠️ Warning (non-blocking)' }}" >> $GITHUB_STEP_SUMMARY
+
+          # Pipeline Status
+          echo "### 📋 Pipeline Status" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**ArgoCD will auto-sync the changes within 3 minutes.**" >> $GITHUB_STEP_SUMMARY
+          echo "| Stage | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| 🧪 Tests | ${{ needs.test.result == 'success' && '✅ Passed' || needs.test.result == 'skipped' && '⏭️ Skipped' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🔨 Build | ${{ needs.build.result == 'success' && '✅ Success' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 📝 Manifests | ${{ needs.update-manifests.result == 'success' && '✅ Updated' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🔐 Secrets | ${{ needs.deploy-secrets.result == 'success' && '✅ Deployed' || needs.deploy-secrets.result == 'skipped' && '⏭️ Skipped' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🛡️ Security Scan | ${{ needs.security-scan.result == 'success' && '✅ Passed' || needs.security-scan.result == 'skipped' && '⏭️ Skipped' || '⚠️ Warning' }} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Monitor deployment: https://argocd.kribaat.com" >> $GITHUB_STEP_SUMMARY
+
+          # Next Steps
+          echo "### 🎯 Next Steps" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "1. ⏳ ArgoCD will auto-sync within 3 minutes" >> $GITHUB_STEP_SUMMARY
+          echo "2. 🔄 Kubernetes will perform rolling update" >> $GITHUB_STEP_SUMMARY
+          echo "3. ✅ Zero-downtime deployment complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "📊 **Monitor**: [ArgoCD Dashboard](https://argocd.kribaat.com)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "_Deployment initiated at $(date -u +'%Y-%m-%d %H:%M:%S UTC') by commit ${IMAGE_TAG}_" >> $GITHUB_STEP_SUMMARY
