@@ -51,14 +51,4 @@ spec:
               memory: "256Mi"
               cpu: "200m"
 
-          livenessProbe:
-            exec:
-              command:
-                - /bin/sh
-                - -c
-                - "ps aux | grep -v grep | grep 'celery.*beat' || exit 1"
-            initialDelaySeconds: 30
-            periodSeconds: 30
-            failureThreshold: 3
-
       terminationGracePeriodSeconds: 60
