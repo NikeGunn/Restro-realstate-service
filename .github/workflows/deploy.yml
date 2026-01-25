@@ -268,11 +268,11 @@ jobs:
           # Create .ssh directory
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
-          
+
           # Save SSH key with proper newline handling
           printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/k8s_key
           chmod 600 ~/.ssh/k8s_key
-          
+
           # Verify key format
           echo "🔍 Verifying SSH key format..."
           if ! ssh-keygen -l -f ~/.ssh/k8s_key 2>&1; then
@@ -281,10 +281,10 @@ jobs:
             exit 1
           fi
           echo "✅ SSH key format is valid"
-          
+
           # Add server to known hosts
           ssh-keyscan -H $SERVER_IP >> ~/.ssh/known_hosts 2>/dev/null
-          
+
           # Test SSH connection
           echo "🔌 Testing SSH connection..."
           if ssh -i ~/.ssh/k8s_key -o StrictHostKeyChecking=no -o ConnectTimeout=10 $SERVER_USER@$SERVER_IP "echo 'SSH connection successful'"; then
@@ -306,11 +306,11 @@ jobs:
           INSTAGRAM_VERIFY_TOKEN: ${{ secrets.INSTAGRAM_VERIFY_TOKEN }}
         run: |
           echo "📝 Creating/updating Kubernetes secrets..."
-          
+
           # Delete existing secret if it exists (to force update)
           ssh -i ~/.ssh/k8s_key -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_IP \
             "kubectl delete secret chatplatform-secrets -n chatplatform --ignore-not-found=true"
-          
+
           # Create secret with values from GitHub Secrets
           ssh -i ~/.ssh/k8s_key -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_IP \
             "kubectl create secret generic chatplatform-secrets -n chatplatform \
@@ -320,7 +320,7 @@ jobs:
               --from-literal=META_APP_SECRET='$META_APP_SECRET' \
               --from-literal=WHATSAPP_DEFAULT_VERIFY_TOKEN='$WHATSAPP_VERIFY_TOKEN' \
               --from-literal=INSTAGRAM_DEFAULT_VERIFY_TOKEN='$INSTAGRAM_VERIFY_TOKEN'"
-          
+
           echo "✅ Secrets deployed successfully"
 
       - name: Restart deployments to pick up new secrets
