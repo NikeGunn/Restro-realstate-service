@@ -17,10 +17,11 @@ on:
       - main
   workflow_dispatch:  # Manual trigger
 
-# Grant write permissions to push manifest updates
+# Grant permissions for manifest updates and security scanning
 permissions:
   contents: write
   packages: write
+  security-events: write  # For uploading Trivy scan results
 
 env:
   # Docker Hub configuration
