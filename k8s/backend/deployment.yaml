@@ -29,7 +29,7 @@ spec:
       # Init container to run migrations before main container starts
       initContainers:
         - name: run-migrations
-          image: nemo2092/chatplatform-backend:b260df5
+          image: nemo2092/chatplatform-backend:3c9a932
           imagePullPolicy: IfNotPresent
           command:
             - python
@@ -46,7 +46,7 @@ spec:
               value: "postgres://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@postgres:5432/$(POSTGRES_DB)"
 
         - name: collect-static
-          image: nemo2092/chatplatform-backend:b260df5
+          image: nemo2092/chatplatform-backend:3c9a932
           imagePullPolicy: IfNotPresent
           command:
             - python
@@ -64,7 +64,7 @@ spec:
 
       containers:
         - name: backend
-          image: nemo2092/chatplatform-backend:b260df5
+          image: nemo2092/chatplatform-backend:3c9a932
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8000
