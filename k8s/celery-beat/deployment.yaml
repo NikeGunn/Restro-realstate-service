@@ -24,7 +24,7 @@ spec:
     spec:
       containers:
         - name: celery-beat
-          image: nemo2092/chatplatform-backend:3c9a932
+          image: nemo2092/chatplatform-backend:1009cd0
           imagePullPolicy: IfNotPresent
           command:
             - celery
