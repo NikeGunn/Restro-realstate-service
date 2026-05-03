@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Bash(docker-compose *)",
+      "Bash(docker compose *)",
+      "Bash(npm run lint)",
+      "Bash(npm run build)",
+      "Bash(npm run build:check)",
+      "Bash(npm run dev)",
+      "Bash(python manage.py migrate*)",
+      "Bash(python manage.py makemigrations*)",
+      "Bash(python manage.py test*)",
+      "Bash(python manage.py shell*)",
+      "Bash(pytest*)",
+      "Bash(git status)",
+      "Bash(git diff*)",
+      "Bash(git log*)",
+      "Bash(git show*)",
+      "Bash(kubectl get *)",
+      "Bash(kubectl describe *)",
+      "Bash(kubectl logs *)"
+    ],
+    "deny": [
+      "Read(./.env)",
+      "Read(./.env.production)",
+      "Read(./Kribaat.pem)",
+      "Read(./k8s/secrets.yaml)",
+      "Bash(rm -rf*)",
+      "Bash(git push --force*)",
+      "Bash(git reset --hard*)",
+      "Bash(./redeploy.ps1*)",
+      "Bash(.\\redeploy.ps1*)",
+      "Bash(./toggle-maintenance.ps1*)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node -e \"const i=JSON.parse(require('fs').readFileSync(0,'utf8'));const p=(i.tool_input&&(i.tool_input.file_path||i.tool_input.path))||'';const blocked=[/(^|[\\\\\\\\\\/])\\.env(\\.|$)/i,/k8s[\\\\\\\\\\/].*secrets?\\.ya?ml$/i,/\\.pem$/i,/k8s[\\\\\\\\\\/].+[\\\\\\\\\\/]deployment\\.ya?ml$/i];const hit=blocked.find(r=>r.test(p));if(hit){console.error('Refusing to write to '+p+' (matches '+hit+'). Secrets files and CI-managed K8s deployment manifests must not be edited by Claude. Image tags in k8s/*/deployment.yaml are rewritten by .github/workflows/deploy.yml on every push to main.');process.exit(2)}\""
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node -e \"const i=JSON.parse(require('fs').readFileSync(0,'utf8'));const c=(i.tool_input&&i.tool_input.command)||'';if(/git\\s+commit\\b/.test(c)&&/(\\.env(\\s|$|\\.)|Kribaat\\.pem|k8s\\/secrets\\.yaml)/.test(c)){console.error('Blocked: commit appears to include a secret file (.env / *.pem / k8s/secrets.yaml). These are gitignored — do not force-add them.');process.exit(2)}if(/git\\s+add\\s+(-A|-a|--all|\\.)/.test(c)){console.error('Avoid \\\"git add -A/.\\\" in this repo — it can sweep in local debug scripts (check_*.py, *.ps1, agent.md) that are gitignored only by pattern. Stage files explicitly by name.');process.exit(2)}\""
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node -e \"console.log('Repo notes: production deploys via GitHub Actions → ArgoCD (do not edit k8s/*/deployment.yaml image tags or run redeploy.ps1). Frontend type-check is npm run build:check (npm run build skips tsc). Product scope is locked by agent.md — no POS/CRM/payments/delivery features.')\""
+          }
+        ]
+      }
+    ]
+  }
+}
