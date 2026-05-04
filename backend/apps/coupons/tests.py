@@ -192,6 +192,21 @@ class CouponAPITests(APITestCase):
         self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn('active', resp.data['detail'].lower())
 
+    def test_register_immune_to_session_csrf(self):
+        """Register endpoint must accept POST when a stale Django session cookie
+        is present (e.g. after browsing /admin). It must NOT trigger CSRF, because
+        SessionAuthentication is excluded on this view."""
+        from django.test import Client as DjangoClient
+        client = DjangoClient(enforce_csrf_checks=True)
+        # Simulate: user has a sessionid cookie from logging into /admin earlier.
+        client.force_login(self.user)
+        resp = client.post(
+            '/api/auth/register/',
+            data='{"email":"newguy@example.com","username":"newguy","first_name":"N","last_name":"G","password":"S0lid-Pass!22","password_confirm":"S0lid-Pass!22"}',
+            content_type='application/json',
+        )
+        self.assertEqual(resp.status_code, status.HTTP_201_CREATED)
+
     def test_seed_migration_created_ai_finyehk(self):
         # The data migration in 0002_seed_ai_finyehk.py must produce this coupon
         # in any fresh DB. (Test DB applies all migrations.)
