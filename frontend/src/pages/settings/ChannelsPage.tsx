@@ -114,6 +114,8 @@ export function ChannelsPage() {
   const [managerQueries, setManagerQueries] = useState<ManagerQuery[]>([])
   const [verifyingId, setVerifyingId] = useState<string | null>(null)
   const [whatsappReady, setWhatsappReady] = useState(false)
+  const [healthData, setHealthData] = useState<Record<string, any>>({})
+  const [loadingHealth, setLoadingHealth] = useState<string | null>(null)
 
   const [showWhatsAppForm, setShowWhatsAppForm] = useState(false)
   const [showInstagramForm, setShowInstagramForm] = useState(false)
@@ -489,6 +491,23 @@ export function ChannelsPage() {
     }
   }
 
+  const handleHealthCheck = async (type: 'whatsapp' | 'instagram', id: string) => {
+    setLoadingHealth(id)
+    try {
+      const { api } = await import('@/services/api')
+      const response = await api.get(`/channels/${type}-config/${id}/health/`)
+      setHealthData(prev => ({ ...prev, [id]: response.data }))
+    } catch (error: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Health check failed',
+        description: error.response?.data?.detail || 'Could not reach health endpoint.',
+      })
+    } finally {
+      setLoadingHealth(null)
+    }
+  }
+
   const handleDeactivateOverride = async (id: string) => {
     try {
       await channelsApi.temporaryOverrides.deactivate(id)
@@ -859,7 +878,47 @@ export function ChannelsPage() {
                     </div>
                   </div>
                 </div>
-                <div className="flex justify-end">
+                {/* Health Check Panel */}
+                {healthData[config.id] && (
+                  <div className={`p-3 rounded-lg border text-sm space-y-2 ${healthData[config.id].overall_status === 'healthy' ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
+                    <div className="font-semibold flex items-center gap-2">
+                      {healthData[config.id].overall_status === 'healthy'
+                        ? <><CheckCircle2 className="h-4 w-4 text-green-600" /> All systems healthy</>
+                        : <><XCircle className="h-4 w-4 text-red-600" /> Issues detected</>}
+                    </div>
+                    <div className="grid grid-cols-2 gap-1 text-xs">
+                      <span>API Connection:</span>
+                      <span className={healthData[config.id].api_connection === 'ok' ? 'text-green-700 font-medium' : 'text-red-700 font-medium'}>
+                        {healthData[config.id].api_connection === 'ok' ? '✅ Connected' : `❌ ${healthData[config.id].api_connection}`}
+                      </span>
+                      <span>Webhooks (24h):</span>
+                      <span>total={healthData[config.id].recent_webhooks?.total_24h}, processed={healthData[config.id].recent_webhooks?.processed_24h}, failed={healthData[config.id].recent_webhooks?.failed_24h}</span>
+                    </div>
+                    {healthData[config.id].issues?.length > 0 && (
+                      <ul className="list-disc list-inside space-y-1 text-xs text-red-800">
+                        {healthData[config.id].issues.map((issue: string, i: number) => (
+                          <li key={i}>{issue}</li>
+                        ))}
+                      </ul>
+                    )}
+                    {healthData[config.id].phone_info && (
+                      <p className="text-xs text-green-800">
+                        Phone: {healthData[config.id].phone_info.display_phone_number || healthData[config.id].phone_info.id} — {healthData[config.id].phone_info.verified_name || 'Verified'}
+                      </p>
+                    )}
+                  </div>
+                )}
+                <div className="flex justify-between items-center">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleHealthCheck('whatsapp', config.id)}
+                    disabled={loadingHealth === config.id}
+                  >
+                    {loadingHealth === config.id
+                      ? <><RefreshCw className="h-4 w-4 mr-2 animate-spin" /> Checking...</>
+                      : <><CheckCircle2 className="h-4 w-4 mr-2" /> Run Health Check</>}
+                  </Button>
                   <Button
                     variant="ghost"
                     size="sm"

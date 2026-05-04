@@ -1,6 +1,8 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { useEffect } from 'react'
 import { Toaster } from '@/components/ui/toaster'
 import { useAuthStore } from '@/store/auth'
+import { authApi, organizationsApi } from '@/services/api'
 import { AuthLayout } from '@/layouts/AuthLayout'
 import { DashboardLayout } from '@/layouts/DashboardLayout'
 import { LoginPage } from '@/pages/auth/LoginPage'
@@ -28,8 +30,54 @@ import { LandingPage } from '@/pages/LandingPage'
 import { PrivacyPolicy } from '@/pages/PrivacyPolicy'
 import { TermsOfService } from '@/pages/TermsOfService'
 
+// Reconciles persisted token state with the API on every cold load.
+// Without this, a user with valid tokens but a missing/stale currentOrganization
+// in localStorage would be bounced to /setup-organization instead of /dashboard.
+function AppInitializer() {
+  const { tokens, currentOrganization, setUser, setCurrentOrganization, setInitialized, logout } = useAuthStore()
+
+  useEffect(() => {
+    if (!tokens?.access) {
+      setInitialized(true)
+      return
+    }
+
+    // Tokens exist — verify them and hydrate org if missing
+    const hydrate = async () => {
+      try {
+        const [user, organizations] = await Promise.all([
+          authApi.getCurrentUser(),
+          organizationsApi.list(),
+        ])
+        setUser(user)
+        if (organizations.length > 0) {
+          // Only update if store is stale/empty to avoid resetting a manually-chosen org
+          if (!currentOrganization) {
+            setCurrentOrganization(organizations[0])
+          }
+        } else {
+          setCurrentOrganization(null)
+        }
+      } catch {
+        // Tokens are invalid/expired and refresh failed → force logout
+        logout()
+      } finally {
+        setInitialized(true)
+      }
+    }
+
+    hydrate()
+    // Run once on mount only
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  return null
+}
+
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { tokens } = useAuthStore()
+  const { tokens, isInitialized } = useAuthStore()
+
+  if (!isInitialized) return null
 
   if (!tokens?.access) {
     return <Navigate to="/login" replace />
@@ -39,13 +87,15 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 }
 
 function OrganizationRequiredRoute({ children }: { children: React.ReactNode }) {
-  const { tokens, currentOrganization } = useAuthStore()
+  const { tokens, currentOrganization, isInitialized } = useAuthStore()
+
+  // Wait for AppInitializer to finish before making redirect decisions
+  if (!isInitialized) return null
 
   if (!tokens?.access) {
     return <Navigate to="/login" replace />
   }
 
-  // If no organization is set, redirect to organization setup
   if (!currentOrganization) {
     return <Navigate to="/setup-organization" replace />
   }
@@ -54,10 +104,14 @@ function OrganizationRequiredRoute({ children }: { children: React.ReactNode }) 
 }
 
 function PublicRoute({ children }: { children: React.ReactNode }) {
-  const { tokens } = useAuthStore()
+  const { tokens, currentOrganization, isInitialized } = useAuthStore()
+
+  // Wait for AppInitializer to finish so we know the real org state
+  if (!isInitialized) return null
 
   if (tokens?.access) {
-    return <Navigate to="/dashboard" replace />
+    // Authenticated: go to dashboard if org exists, else setup
+    return <Navigate to={currentOrganization ? '/dashboard' : '/setup-organization'} replace />
   }
 
   return <>{children}</>
@@ -66,6 +120,7 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
 function App() {
   return (
     <BrowserRouter>
+      <AppInitializer />
       <Routes>
         {/* Landing Page - Public */}
         <Route path="/" element={<LandingPage />} />

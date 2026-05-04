@@ -78,14 +78,6 @@ class WhatsAppService:
         Process incoming WhatsApp webhook event.
         """
         try:
-            # Log the webhook
-            WebhookLog.objects.create(
-                source=WebhookLog.Source.WHATSAPP,
-                organization=self.organization,
-                body=data,
-                is_processed=False
-            )
-            
             # Parse webhook structure
             entry = data.get('entry', [{}])[0]
             changes = entry.get('changes', [{}])[0]
