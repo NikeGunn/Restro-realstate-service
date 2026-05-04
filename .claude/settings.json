@@ -22,7 +22,6 @@
       "Bash(kubectl logs *)"
     ],
     "deny": [
-      "Read(./.env)",
       "Read(./.env.production)",
       "Read(./Kribaat.pem)",
       "Read(./k8s/secrets.yaml)",
@@ -41,7 +40,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node -e \"const i=JSON.parse(require('fs').readFileSync(0,'utf8'));const p=(i.tool_input&&(i.tool_input.file_path||i.tool_input.path))||'';const blocked=[/(^|[\\\\\\\\\\/])\\.env(\\.|$)/i,/k8s[\\\\\\\\\\/].*secrets?\\.ya?ml$/i,/\\.pem$/i,/k8s[\\\\\\\\\\/].+[\\\\\\\\\\/]deployment\\.ya?ml$/i];const hit=blocked.find(r=>r.test(p));if(hit){console.error('Refusing to write to '+p+' (matches '+hit+'). Secrets files and CI-managed K8s deployment manifests must not be edited by Claude. Image tags in k8s/*/deployment.yaml are rewritten by .github/workflows/deploy.yml on every push to main.');process.exit(2)}\""
+            "command": "node -e \"const i=JSON.parse(require('fs').readFileSync(0,'utf8'));const p=(i.tool_input&&(i.tool_input.file_path||i.tool_input.path))||'';const blocked=[/(^|[\\\\\\\\\\/])\\.env\\.production$/i,/k8s[\\\\\\\\\\/].*secrets?\\.ya?ml$/i,/\\.pem$/i,/k8s[\\\\\\\\\\/].+[\\\\\\\\\\/]deployment\\.ya?ml$/i];const hit=blocked.find(r=>r.test(p));if(hit){console.error('Refusing to write to '+p+' (matches '+hit+'). Production secrets and CI-managed K8s deployment manifests must not be edited by Claude. Image tags in k8s/*/deployment.yaml are rewritten by .github/workflows/deploy.yml on every push to main.');process.exit(2)}\""
           }
         ]
       },

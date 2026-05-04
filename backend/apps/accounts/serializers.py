@@ -82,12 +82,12 @@ class OrganizationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Organization
         fields = [
-            'id', 'name', 'business_type', 'plan', 'email', 'phone', 'website',
+            'id', 'name', 'business_type', 'plan', 'plan_expires_at', 'email', 'phone', 'website',
             'widget_key', 'widget_color', 'widget_position', 'widget_greeting',
             'is_active', 'created_at', 'updated_at', 'locations', 'locations_count',
             'is_power_plan'
         ]
-        read_only_fields = ['id', 'widget_key', 'created_at', 'updated_at', 'is_power_plan']
+        read_only_fields = ['id', 'widget_key', 'plan', 'plan_expires_at', 'created_at', 'updated_at', 'is_power_plan']
 
     def get_locations_count(self, obj):
         return obj.locations.filter(is_active=True).count()

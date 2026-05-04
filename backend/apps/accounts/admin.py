@@ -16,10 +16,16 @@ class UserAdmin(BaseUserAdmin):
 
 @admin.register(Organization)
 class OrganizationAdmin(admin.ModelAdmin):
-    list_display = ['name', 'business_type', 'plan', 'is_active', 'created_at']
+    list_display = ['name', 'business_type', 'plan', 'plan_expires_at', 'is_active', 'created_at']
     list_filter = ['business_type', 'plan', 'is_active']
     search_fields = ['name', 'email']
     readonly_fields = ['widget_key', 'created_at', 'updated_at']
+    fieldsets = (
+        ('Identity', {'fields': ('name', 'business_type', 'email', 'phone', 'website')}),
+        ('Plan', {'fields': ('plan', 'plan_expires_at', 'is_active')}),
+        ('Widget', {'fields': ('widget_key', 'widget_color', 'widget_position', 'widget_greeting')}),
+        ('Timestamps', {'fields': ('created_at', 'updated_at')}),
+    )
 
 
 @admin.register(Location)

@@ -109,6 +109,39 @@ export const organizationsApi = {
   },
 }
 
+// Coupons API
+export interface CouponPublic {
+  code: string
+  description: string
+  plan_granted: 'basic' | 'power'
+  duration_days: number
+}
+
+export interface CouponRedemptionResult {
+  id: string
+  coupon: CouponPublic
+  organization: string
+  redeemed_at: string
+  granted_until: string
+}
+
+export const couponsApi = {
+  validate: async (code: string, organization: string): Promise<{ valid: boolean; coupon?: CouponPublic; detail?: string }> => {
+    try {
+      const response = await api.post('/coupons/validate/', { code, organization })
+      return response.data
+    } catch (err) {
+      const e = err as AxiosError<{ detail?: string }>
+      return { valid: false, detail: e.response?.data?.detail || 'Invalid coupon.' }
+    }
+  },
+
+  redeem: async (code: string, organization: string): Promise<CouponRedemptionResult> => {
+    const response = await api.post('/coupons/redeem/', { code, organization })
+    return response.data
+  },
+}
+
 // Conversations API
 export const conversationsApi = {
   list: async (params?: {

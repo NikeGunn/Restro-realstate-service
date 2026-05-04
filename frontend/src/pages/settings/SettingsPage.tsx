@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useToast } from '@/hooks/use-toast'
 import { WidgetPreview } from '@/components/WidgetPreview'
+import { RedeemCouponCard } from '@/components/RedeemCouponCard'
 import {
   Building2,
   MapPin,
@@ -202,6 +203,7 @@ export function SettingsPage() {
           <TabsTrigger value="organization">{t('settings.organization')}</TabsTrigger>
           <TabsTrigger value="widget">{t('settings.widget')}</TabsTrigger>
           <TabsTrigger value="locations">{t('settings.locations')}</TabsTrigger>
+          <TabsTrigger value="plan">Plan & Coupons</TabsTrigger>
         </TabsList>
 
         <TabsContent value="organization" className="mt-4">
@@ -535,6 +537,10 @@ export function SettingsPage() {
               </CardContent>
             </Card>
           </div>
+        </TabsContent>
+
+        <TabsContent value="plan" className="mt-4">
+          <RedeemCouponCard />
         </TabsContent>
       </Tabs>
       </div>

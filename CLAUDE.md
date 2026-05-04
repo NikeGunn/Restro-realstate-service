@@ -17,7 +17,16 @@ docker-compose exec backend python manage.py migrate
 docker-compose exec backend python manage.py createsuperuser
 docker-compose exec backend python manage.py makemigrations <app>
 ```
-Backend → http://localhost:8000 · Frontend → http://localhost:3000 · API docs → http://localhost:8000/api/docs/
+Backend → http://localhost:18000 · Frontend → http://localhost:13000 · API docs → http://localhost:18000/api/docs/
+
+**Host ports are deliberately shifted off the defaults** so this stack can run alongside sibling projects (e.g. `migalpha` on 5432/6379/8000). Container-internal ports stay at the standard values; only the host side moves. Override via env vars if needed: `HOST_DB_PORT` (default 15432), `HOST_REDIS_PORT` (16379), `HOST_BACKEND_PORT` (18000), `HOST_FRONTEND_PORT` (13000).
+
+### Tests (run inside Docker)
+```bash
+docker-compose run --rm backend pytest                       # all backend tests (pytest-django)
+docker-compose run --rm backend pytest apps/coupons -v       # single app
+docker-compose run --rm frontend npm test                    # frontend (vitest)
+```
 
 ### Backend (run inside `backend/` or via `docker-compose exec backend ...`)
 ```bash

@@ -43,6 +43,7 @@ urlpatterns = [
     path('api/handoff/', include('apps.handoff.urls')),
     path('api/analytics/', include('apps.analytics.urls')),
     path('api/v1/widget/', include('apps.widget.urls')),
+    path('api/coupons/', include('apps.coupons.urls')),
 
     # Vertical APIs (Phase 2 & 3)
     path('api/restaurant/', include('apps.restaurant.urls')),

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '@/store/auth';
-import { organizationsApi } from '@/services/api';
+import { organizationsApi, couponsApi } from '@/services/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -16,6 +16,7 @@ export function OrganizationSetupPage() {
   const [step, setStep] = useState<'type' | 'details'>('type');
   const [businessType, setBusinessType] = useState<'restaurant' | 'real_estate' | null>(null);
   const [orgName, setOrgName] = useState('');
+  const [couponCode, setCouponCode] = useState('');
   const [loading, setLoading] = useState(false);
   const { setCurrentOrganization } = useAuthStore();
   const navigate = useNavigate();
@@ -36,7 +37,29 @@ export function OrganizationSetupPage() {
         business_type: businessType,
       });
 
-      // Fetch full org details
+      // Optional: redeem coupon if provided. Failure is non-fatal — org is already created.
+      const trimmedCoupon = couponCode.trim();
+      if (trimmedCoupon) {
+        try {
+          const redemption = await couponsApi.redeem(trimmedCoupon, org.id);
+          toast({
+            title: t('coupon.redeemedTitle', 'Coupon applied'),
+            description: t('coupon.redeemedDescription', '{{plan}} plan active until {{until}}.', {
+              plan: redemption.coupon.plan_granted,
+              until: new Date(redemption.granted_until).toLocaleDateString(),
+            }),
+          });
+        } catch (err) {
+          const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+          toast({
+            variant: 'destructive',
+            title: t('coupon.invalidTitle', 'Coupon could not be applied'),
+            description: detail || t('coupon.invalidDescription', 'You can try again from settings.'),
+          });
+        }
+      }
+
+      // Fetch full org details (will include any plan upgrade from coupon redemption).
       const fullOrg = await organizationsApi.get(org.id);
       setCurrentOrganization(fullOrg);
 
@@ -170,6 +193,20 @@ export function OrganizationSetupPage() {
                     {t('organization.realEstate')}
                   </Button>
                 </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="couponCode">
+                  {t('coupon.codeLabel', 'Coupon code')}{' '}
+                  <span className="text-xs text-muted-foreground">({t('common.optional', 'optional')})</span>
+                </Label>
+                <Input
+                  id="couponCode"
+                  placeholder={t('coupon.codePlaceholder', 'Enter coupon code if you have one')}
+                  value={couponCode}
+                  onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                  autoComplete="off"
+                />
               </div>
 
               <div className="flex gap-3">

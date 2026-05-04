@@ -4,6 +4,7 @@ Accounts models - User, Organization, Location, Role
 import uuid
 from django.contrib.auth.models import AbstractUser
 from django.db import models
+from django.utils import timezone
 
 
 class User(AbstractUser):
@@ -53,6 +54,8 @@ class Organization(models.Model):
         choices=Plan.choices,
         default=Plan.BASIC
     )
+    # When the current paid/promo plan tier expires. Null = no expiry (permanent at current plan).
+    plan_expires_at = models.DateTimeField(null=True, blank=True)
 
     # Contact info
     email = models.EmailField(blank=True)
@@ -78,8 +81,14 @@ class Organization(models.Model):
         return self.name
 
     @property
+    def effective_plan(self):
+        if self.plan_expires_at and self.plan_expires_at < timezone.now():
+            return self.Plan.BASIC
+        return self.plan
+
+    @property
     def is_power_plan(self):
-        return self.plan == self.Plan.POWER
+        return self.effective_plan == self.Plan.POWER
 
 
 class Location(models.Model):

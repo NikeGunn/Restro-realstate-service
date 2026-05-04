@@ -50,6 +50,7 @@ INSTALLED_APPS = [
     'apps.analytics',
     'apps.widget',
     'apps.channels',  # Phase 4: WhatsApp & Instagram
+    'apps.coupons',
     # Vertical apps
     'apps.restaurant',
     'apps.realestate',
@@ -203,6 +204,16 @@ CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = TIME_ZONE
+
+# Periodic tasks. crontab(hour=2, minute=15) runs nightly at 02:15 UTC.
+from celery.schedules import crontab  # noqa: E402
+
+CELERY_BEAT_SCHEDULE = {
+    'downgrade-expired-plans-daily': {
+        'task': 'coupons.downgrade_expired_plans',
+        'schedule': crontab(hour=2, minute=15),
+    },
+}
 
 # Redis Cache
 CACHES = {
