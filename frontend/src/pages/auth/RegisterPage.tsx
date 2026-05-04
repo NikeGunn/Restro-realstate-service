@@ -60,10 +60,34 @@ export function RegisterPage() {
       navigate('/setup-organization')
     } catch (error: unknown) {
       console.error('Registration error:', error)
+      // Surface the actual API error instead of a generic message — DRF returns
+      // either {"field": ["msg", ...]} on 400 or {"detail": "msg"} on other errors.
+      const err = error as {
+        response?: { data?: Record<string, unknown> }
+        message?: string
+      }
+      const data = err?.response?.data
+      let description: string = t('auth.registerErrorDescription')
+      if (data && typeof data === 'object') {
+        if (typeof data.detail === 'string') {
+          description = data.detail
+        } else {
+          const messages: string[] = []
+          for (const [field, value] of Object.entries(data)) {
+            const list = Array.isArray(value) ? value : [value]
+            for (const msg of list) {
+              messages.push(field === 'non_field_errors' ? String(msg) : `${field}: ${msg}`)
+            }
+          }
+          if (messages.length) description = messages.join(' · ')
+        }
+      } else if (err?.message) {
+        description = err.message
+      }
       toast({
         variant: 'destructive',
         title: t('auth.registerError'),
-        description: t('auth.registerErrorDescription'),
+        description,
       })
     } finally {
       setLoading(false)
