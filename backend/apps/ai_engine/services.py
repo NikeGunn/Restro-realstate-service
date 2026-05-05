@@ -1566,7 +1566,15 @@ Consider irrelevant if:
         return messages
 
     def _parse_ai_response(self, content: str) -> Dict[str, Any]:
-        """Parse AI response JSON."""
+        """
+        Parse AI response JSON.
+
+        OpenAI is called with response_format=json_object, but truncation
+        (max_tokens cutoff) can produce a JSON envelope that fails strict
+        json.loads(). When that happens we still try to recover the inner
+        `content` field so we never leak raw `{"content": "..."}` to the
+        customer's WhatsApp/widget.
+        """
         try:
             parsed = json.loads(content)
             return {
@@ -1582,7 +1590,23 @@ Consider irrelevant if:
                 'language': self.detected_language,
             }
         except json.JSONDecodeError:
-            # If not valid JSON, return as plain text with low confidence
+            recovered = self._recover_content_from_broken_json(content)
+            if recovered is not None:
+                logger.warning(
+                    "AI response was not valid JSON; recovered %d chars of content via fallback parser",
+                    len(recovered),
+                )
+                return {
+                    'content': recovered,
+                    'confidence': 0.5,
+                    'intent': 'other',
+                    'extracted_data': {},
+                    'metadata': {'parse_recovered': True},
+                    'needs_handoff': False,
+                    'handoff_reason': '',
+                    'language': self.detected_language,
+                }
+            # Last resort — return as-is with low confidence
             return {
                 'content': content,
                 'confidence': 0.5,
@@ -1593,6 +1617,63 @@ Consider irrelevant if:
                 'handoff_reason': '',
                 'language': self.detected_language,
             }
+
+    @staticmethod
+    def _recover_content_from_broken_json(raw: str) -> Optional[str]:
+        """
+        Extract the inner `content` field from a malformed/truncated JSON
+        response. Handles the common case where the model produced
+        `{"content": "..."` but got cut off before the closing quote+brace.
+        Returns the unescaped content string, or None if unrecoverable.
+        """
+        if not raw:
+            return None
+        stripped = raw.lstrip()
+        if not stripped.startswith('{'):
+            return None
+
+        # Find `"content"` key, then the opening quote of its string value
+        key_pos = stripped.find('"content"')
+        if key_pos == -1:
+            return None
+        colon_pos = stripped.find(':', key_pos)
+        if colon_pos == -1:
+            return None
+        quote_pos = stripped.find('"', colon_pos)
+        if quote_pos == -1:
+            return None
+        start = quote_pos + 1
+
+        # Walk forward, respecting backslash escapes, looking for the
+        # closing quote that ends the string value.
+        out = []
+        i = start
+        while i < len(stripped):
+            ch = stripped[i]
+            if ch == '\\' and i + 1 < len(stripped):
+                nxt = stripped[i + 1]
+                escapes = {'n': '\n', 't': '\t', 'r': '\r', '"': '"', '\\': '\\', '/': '/'}
+                if nxt in escapes:
+                    out.append(escapes[nxt])
+                    i += 2
+                    continue
+                if nxt == 'u' and i + 5 < len(stripped):
+                    try:
+                        out.append(chr(int(stripped[i + 2:i + 6], 16)))
+                        i += 6
+                        continue
+                    except ValueError:
+                        pass
+                out.append(nxt)
+                i += 2
+                continue
+            if ch == '"':
+                break
+            out.append(ch)
+            i += 1
+
+        recovered = ''.join(out).strip()
+        return recovered or None
 
     def _create_handoff_response(
         self,

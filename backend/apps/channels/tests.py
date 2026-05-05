@@ -168,6 +168,39 @@ class TwilioServiceOutboundTest(TestCase):
         mock_post.assert_not_called()
 
 
+class AIResponseRecoveryTest(TestCase):
+    """The robust JSON parser must never leak a raw `{"content": ...` envelope."""
+
+    def setUp(self):
+        from apps.ai_engine.services import AIService
+        self.recover = AIService._recover_content_from_broken_json
+
+    def test_recovers_truncated_envelope(self):
+        # The exact failure mode that hit production: max_tokens cut the response
+        broken = '{"content": "Here is our menu:\\n\\n*Appetizer:*\\n- Aludum: $60.00\\n- Chicken'
+        recovered = self.recover(broken)
+        self.assertIsNotNone(recovered)
+        self.assertIn("Here is our menu:", recovered)
+        self.assertIn("Aludum", recovered)
+        self.assertNotIn('"content"', recovered)
+        self.assertNotIn('\\n', recovered)  # backslash-n must be unescaped
+
+    def test_recovers_complete_envelope(self):
+        recovered = self.recover('{"content": "hello world", "intent": "greeting"}')
+        # complete JSON would normally be parsed via json.loads upstream; the
+        # recovery path should still extract just the content
+        self.assertEqual(recovered, "hello world")
+
+    def test_returns_none_for_non_json(self):
+        self.assertIsNone(self.recover("just plain text"))
+        self.assertIsNone(self.recover(""))
+        self.assertIsNone(self.recover("{not json"))
+
+    def test_handles_unicode_escapes(self):
+        recovered = self.recover('{"content": "Caf\\u00e9 open!')
+        self.assertEqual(recovered, "Café open!")
+
+
 class TwilioWebhookViewTest(TestCase):
     """Smoke test for the webhook URL: routes to the right org by To-number."""
 
