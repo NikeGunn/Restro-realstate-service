@@ -44,25 +44,23 @@ class InstagramService:
         """Verify the webhook signature from Meta."""
         app_secret = getattr(settings, 'META_APP_SECRET', '')
         if not app_secret:
-            logger.warning("META_APP_SECRET not configured")
+            logger.warning("META_APP_SECRET not configured - skipping signature verification")
             return True  # Skip verification in dev
-        
+
         expected_signature = hmac.new(
             app_secret.encode('utf-8'),
             payload,
             hashlib.sha256
         ).hexdigest()
-        
-        is_valid = hmac.compare_digest(f"sha256={expected_signature}", signature)
-        
+
+        expected_full = f"sha256={expected_signature}"
+        is_valid = hmac.compare_digest(expected_full, signature or '')
+
         if not is_valid:
-            # Log for debugging but allow processing (same app secret works for WhatsApp)
-            # This may be due to encoding differences in how Meta sends Instagram vs WhatsApp webhooks
-            logger.warning(f"Instagram signature mismatch - Expected: sha256={expected_signature[:20]}..., Got: {signature[:30]}...")
-            logger.warning("Allowing webhook processing despite signature mismatch (TODO: investigate)")
-            return True  # Temporarily allow to debug messaging flow
-        
-        return True
+            logger.error("Instagram webhook signature verification FAILED")
+            logger.error(f"   Expected: {expected_full[:60]}...")
+            logger.error(f"   Received: {(signature or '')[:60]}...")
+        return is_valid
     
     def process_webhook(self, data: Dict[str, Any]) -> bool:
         """
@@ -447,15 +445,6 @@ class InstagramService:
             logger.exception(f"❌ Failed to send Instagram message to {recipient_id}: {e}")
             if hasattr(e, 'response') and e.response is not None:
                 logger.error(f"   API Response: {e.response.text}")
-            return None
-            
-            logger.info(f"Instagram message sent to {recipient_id}: {message_id}")
-            return message_id
-            
-        except requests.exceptions.RequestException as e:
-            logger.exception(f"Failed to send Instagram message: {e}")
-            if hasattr(e, 'response') and e.response is not None:
-                logger.error(f"Response: {e.response.text}")
             return None
     
     def send_quick_replies(

@@ -122,6 +122,10 @@ Direct link if the homepage card is not visible:
 (switch from "API Keys" tab to "Live Credentials" tab; Account SID +
 Auth Token are at the top.)
 
+OR
+
+Goto: https://console.twilio.com/?frameUrl=%2Fconsole%3Fx-target-region%3Dus1
+
 > **Auth Token = production secret.** Never paste it into Slack, email, a
 > screenshot, or chat. Paste it directly into Kribaat and close the tab.
 
@@ -184,6 +188,197 @@ If credentials are valid, the badge flips to **"Verified"** within seconds.
    instantly.
 
 If all four work, you're done.
+
+---
+
+## ⚠️ Twilio Sandbox limits — what staff and customers must know
+
+The Sandbox is for **testing only**. It has hard limits that cannot be removed
+without migrating to a production WhatsApp Sender. Make sure the customer
+understands these before you walk away.
+
+### What expires (and what doesn't)
+
+| Item | Expires? | Notes |
+|---|---|---|
+| Account SID | Never | Permanent identifier |
+| Auth Token | Never (unless rotated manually) | Treat as a password — store securely |
+| Sandbox number `+14155238886` | Never | Shared by all Twilio Sandbox users globally |
+| **A customer's right to message your bot** | **After 72 hours of inactivity** | They must send `join <code>` again to resume |
+| Twilio trial credit | When spent | Trial accounts get ~$15 USD; messages cost ~$0.005 each |
+
+### The 72-hour rule (most important to understand)
+
+After a customer sends `join <code>` to opt in, they have a 72-hour rolling
+window to message the bot. **Each new message resets the clock by another
+72 hours.** If they go quiet for 3 full days, Twilio drops them and they
+must re-join with `join <code>`.
+
+This is enforced by Meta (WhatsApp's owner) on all sandbox usage globally —
+Twilio cannot waive it.
+
+**For active daily users this is invisible** — they message every day, the
+window keeps rolling, they never notice. **For occasional users** (someone
+who messages once a week) this is painful — they have to remember the join
+code every time.
+
+### When the customer should upgrade to production
+
+Recommend production migration when ANY of these is true:
+
+- Customer plans to advertise the WhatsApp number publicly (e.g. on a website,
+  flyer, or Google listing)
+- Customer expects walk-up customers (people who haven't pre-joined) to chat
+- Customer wants to use their own branded business phone number, not
+  `+1 415 523 8886`
+- Customer has more than ~50 daily WhatsApp conversations
+- Customer wants to send templated messages, marketing notifications, or
+  proactive messages outside the 24-hour reply window
+
+### How to migrate from Sandbox to production WhatsApp Sender
+
+> Estimated time: **1–2 weeks** (Meta does the slow part — WhatsApp Business
+> verification). Cost: a Twilio phone number (~$1/mo) plus per-message fees.
+
+**Step 1 — Verify the customer's Facebook Business**
+1. Go to https://business.facebook.com → Business Settings
+2. Customer's business must be a real registered entity with a website,
+   email, and a public phone number that matches business records.
+3. Submit "Business Verification" (upload registration certificate, utility
+   bill, etc.). Approval takes 1–7 days typically.
+
+**Step 2 — In Twilio Console, request a WhatsApp Sender**
+1. Twilio Console → **Messaging → Senders → WhatsApp Senders → New WhatsApp
+   Sender**.
+2. Pick the Twilio phone number you want to use for WhatsApp (or buy a new
+   one from Twilio).
+3. Twilio walks you through linking it to the customer's verified Facebook
+   Business Manager.
+4. Choose a display name (the name customers see — must be related to the
+   actual business name; Meta reviews it).
+5. Submit. Meta approves the sender within 1–3 days after Business
+   Verification is done.
+
+**Step 3 — Update the Kribaat config**
+1. Once Meta approves the sender, the new WhatsApp number is live.
+2. In Kribaat → Settings → Channels → Twilio tab → edit the existing config:
+   - Change **From Number** to the new approved number
+   - **Uncheck** "This is a Twilio Sandbox sender"
+   - Clear the **Sandbox Join Code** field (no longer needed)
+   - Save
+3. In Twilio Console, configure the inbound webhook on the new sender:
+   **Messaging → Senders → [your-sender] → Configure → Inbound URL**:
+   `https://kribaat.com/api/webhooks/twilio/` (POST). Save.
+4. Test by messaging the new number from any phone — no `join` code needed.
+
+**Step 4 — Decommission Sandbox (optional)**
+Once production works, the customer can ignore the Sandbox. They don't need
+to remove the Sandbox config — it just sits unused. If you want to clean
+up, delete the Sandbox config row from Kribaat and tell existing testers
+to stop messaging `+1 415 523 8886`.
+
+### Meanwhile — keeping the Sandbox alive for staff testing
+
+If you're using the Sandbox just for internal testing while Meta verification
+is pending, here's how to keep your test number from getting kicked out:
+
+- Send any message to the bot at least once every 72 hours
+- Or add a calendar reminder for the staff phone every 2 days
+- Or have any team member text the bot — same join code, multiple devices
+
+There is **no way to extend the 72-hour window from our side** — it's
+enforced by Meta.
+
+---
+
+## Setting up Instagram (Power plan only)
+
+Unlike WhatsApp, **Instagram has no sandbox shortcut**. Every customer must
+have a real Facebook Business + Instagram Business setup. Plan for ~30
+minutes per customer for this step. Twilio cannot help here — Instagram
+requires direct Meta integration.
+
+### Prerequisites
+
+- Customer is on **Power plan** (Basic plan blocks Instagram setup)
+- Customer has a **Facebook Business Manager** account
+- Customer's **Instagram is converted to a Business or Creator account**
+  (not a personal account)
+- Instagram is **linked to a Facebook Page** the customer owns
+- Customer is admin of both the Page and the Instagram account
+
+If any of these is false, walk through the Facebook Business setup first
+(or hand off to the customer's social-media person — it's not really our
+domain to set up their Facebook Business).
+
+### Step-by-step
+
+1. **Create a Meta Developer App**
+   - Go to https://developers.facebook.com/apps → **Create App** → "Business"
+   - App name: `<Customer Name> - Kribaat Bot`
+   - Add the **Instagram** product to the app
+   - Add the **Webhooks** product to the app
+   - Copy the **App Secret** from the app's settings — Kribaat needs this
+     in the `META_APP_SECRET` env var (this is configured cluster-wide,
+     not per-customer; ping engineering if it's not set)
+
+2. **Get the Instagram Business Account ID**
+   - Tools → Graph API Explorer
+   - Use the customer's User Access Token, query: `me/accounts` → find the
+     Page → use that Page Access Token to query
+     `<page-id>?fields=instagram_business_account`
+   - Copy the `instagram_business_account.id` → that's the
+     **Instagram Business ID** for Kribaat
+
+3. **Get a Long-Lived Page Access Token**
+   - Graph API Explorer → use Page Access Token (NOT user)
+   - Token → "Get Long-Lived Access Token" (extends to ~60 days)
+   - Or even better: request `pages_messaging` permission and exchange for
+     a never-expiring system-user token via Business Settings
+
+4. **In Kribaat → Settings → Channels → Instagram tab:**
+   - Instagram Business ID: paste from step 2
+   - Page ID: the linked Facebook Page's ID
+   - Access Token: paste the long-lived token from step 3
+   - Verify Token: leave the default (Kribaat auto-generates one)
+   - Save
+
+5. **Configure the webhook in Meta**
+   - In your Meta App → Webhooks → Instagram → Edit Subscription
+   - Callback URL: `https://kribaat.com/api/webhooks/instagram/`
+   - Verify Token: paste the verify token from Kribaat (visible after save)
+   - Subscribe to: `messages`, `messaging_postbacks`
+   - Click "Verify and Save" → if Kribaat's "is_verified" badge flips to
+     green, you're done
+
+6. **Test:** Send a DM to the customer's Instagram account from another
+   account. Bot should reply within 5 seconds.
+
+### Instagram token expiry — the big gotcha
+
+Page access tokens commonly **expire in 60 days**. If you walk away and
+forget to set up a permanent token, Instagram will silently stop replying
+in two months and the customer won't know why.
+
+To make Instagram permanent:
+
+- Go to **Business Settings → Users → System Users** → create a system
+  user for the integration
+- Generate a token with `pages_messaging` and `instagram_basic` permissions
+  → no expiry
+- Paste this into Kribaat instead of the short-lived token
+
+If a token does expire, the customer will see no replies on Instagram and
+Kribaat → Channels → Instagram tab → Health Check will report a token
+error. Just generate a fresh token in Business Settings and update the
+config.
+
+### Instagram limits (Meta's rules, not ours)
+
+- 24-hour customer service window: bot can only reply within 24h of the
+  customer's last message
+- No proactive outbound messages without an approved message tag
+- Cannot DM users who haven't messaged the customer first
 
 ---
 
