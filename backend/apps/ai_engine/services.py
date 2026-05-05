@@ -41,6 +41,55 @@ class AIService:
         if settings.OPENAI_API_KEY:
             self.client = OpenAI(api_key=settings.OPENAI_API_KEY)
     
+    def _fast_path_greeting(self, user_message: str, detected_lang: str) -> Optional[Dict[str, Any]]:
+        """
+        Return an instant reply for plain greetings, bypassing OpenAI.
+
+        Only triggers when:
+          - The whole message is short (≤25 chars)
+          - The normalized text exactly matches a known greeting trigger
+
+        Returns None to let the regular AI flow handle anything else.
+        """
+        if not user_message:
+            return None
+        normalized = user_message.strip().lower().rstrip('.!?,。！？，')
+        if not normalized or len(normalized) > 25:
+            return None
+        if normalized not in self._GREETING_TRIGGERS:
+            return None
+
+        business_name = self.organization.name
+        # Per-language warm greeting that nudges the customer to ask a question.
+        # Mirrors the friendly tone of the existing AI replies.
+        if detected_lang == 'zh-CN':
+            content = (
+                f"你好！欢迎来到 {business_name} 👋\n\n"
+                f"请问有什么可以帮您？您可以问我营业时间、菜单、预订等问题。"
+            )
+        elif detected_lang == 'zh-TW':
+            content = (
+                f"您好！歡迎來到 {business_name} 👋\n\n"
+                f"請問有什麼可以幫您？您可以問我營業時間、菜單、預訂等問題。"
+            )
+        else:
+            content = (
+                f"Hi there! 👋 Welcome to {business_name}.\n\n"
+                f"How can I help you today? You can ask me about our hours, "
+                f"menu, bookings, or anything else."
+            )
+
+        return {
+            'content': content,
+            'confidence': 0.95,
+            'intent': 'greeting',
+            'metadata': {'source': 'fast_path'},
+            'needs_handoff': False,
+            'handoff_reason': '',
+            'language': detected_lang,
+            'extracted_data': {},
+        }
+
     def _detect_and_set_language(self, user_message: str) -> str:
         """
         Detect the language of the user message and update conversation if needed.
@@ -62,6 +111,23 @@ class AIService:
         
         return detected
 
+    # Short-circuit replies for common greetings — bypasses OpenAI entirely
+    # so the customer sees an answer in <500ms instead of 5-20s.
+    # Keys are normalized (lowercased, stripped) and matched against the
+    # full user message. Only used when the user message is very short
+    # (≤25 chars) so we don't accidentally swallow real questions.
+    _GREETING_TRIGGERS = {
+        # English
+        'hi', 'hello', 'hey', 'hii', 'hiii', 'hi!', 'hello!', 'hey!',
+        'hi there', 'hello there', 'hey there', 'good morning', 'good afternoon',
+        'good evening', 'morning', 'evening', 'yo', 'sup', 'howdy', 'hye',
+        'helo', 'hellow', 'heyy', 'heyyy',
+        # Hindi/Nepali (transliterated)
+        'namaste', 'namaskar', 'hii bhai', 'hi bro', 'dai',
+        # Chinese
+        '你好', '您好', '哈喽', '嗨', '早安', '晚安', '午安',
+    }
+
     def process_message(self, user_message: str) -> Dict[str, Any]:
         """
         Process a user message and generate AI response.
@@ -72,10 +138,19 @@ class AIService:
             Dict with keys: content, confidence, intent, metadata, needs_handoff, handoff_reason, language
         """
         start_time = time.time()
-        
+
         # Detect user's language first
         detected_lang = self._detect_and_set_language(user_message)
         logger.info(f"Processing message in language: {detected_lang}")
+
+        # ⚡ FAST PATH: short greeting → instant reply, skip OpenAI entirely.
+        # Saves the 5-20s round-trip for "hi"/"hello"/etc. — the most common
+        # first message a customer sends. Real questions still go to AI.
+        fast_reply = self._fast_path_greeting(user_message, detected_lang)
+        if fast_reply is not None:
+            latency_ms = int((time.time() - start_time) * 1000)
+            logger.info(f"⚡ Fast-path greeting reply in {latency_ms}ms (skipped OpenAI)")
+            return fast_reply
         
         # PRIORITY 1: Check for manager contact request (e.g., "Can you provide me manager number?")
         manager_contact_response = self._handle_manager_contact_request(user_message, detected_lang)

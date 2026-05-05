@@ -201,6 +201,74 @@ class AIResponseRecoveryTest(TestCase):
         self.assertEqual(recovered, "Café open!")
 
 
+class FastPathGreetingTest(TestCase):
+    """Greetings should bypass OpenAI and reply instantly."""
+
+    def setUp(self):
+        from apps.messaging.models import Conversation, Channel
+        from apps.ai_engine.services import AIService
+        self.AIService = AIService
+
+        self.org = Organization.objects.create(name="FastPath Resto")
+        self.conversation = Conversation.objects.create(
+            organization=self.org,
+            channel=Channel.WHATSAPP,
+            customer_phone="+15551234567",
+        )
+
+    def _service(self):
+        s = self.AIService(self.conversation)
+        # Force English so we don't depend on language detection here
+        s.detected_language = 'en'
+        return s
+
+    def test_hi_triggers_fast_path(self):
+        s = self._service()
+        result = s._fast_path_greeting("hi", 'en')
+        self.assertIsNotNone(result)
+        self.assertEqual(result['intent'], 'greeting')
+        self.assertEqual(result['metadata']['source'], 'fast_path')
+        self.assertIn('FastPath Resto', result['content'])
+
+    def test_common_variants_all_trigger(self):
+        s = self._service()
+        for greeting in ['Hi', 'HELLO', 'hey!', 'good morning', 'hye', 'Namaste']:
+            self.assertIsNotNone(
+                s._fast_path_greeting(greeting, 'en'),
+                f"expected fast-path for {greeting!r}",
+            )
+
+    def test_chinese_greeting_returns_chinese_reply(self):
+        s = self._service()
+        result = s._fast_path_greeting("你好", 'zh-CN')
+        self.assertIsNotNone(result)
+        self.assertIn('你好', result['content'])
+        self.assertIn('FastPath Resto', result['content'])
+
+    def test_real_question_does_not_trigger_fast_path(self):
+        s = self._service()
+        for question in [
+            "Can you share me your menu?",
+            "What time do you open?",
+            "I want to book a table for 4",
+            "hi can I make a booking",  # starts with hi but is a real question
+        ]:
+            self.assertIsNone(
+                s._fast_path_greeting(question, 'en'),
+                f"fast-path should NOT trigger for {question!r}",
+            )
+
+    def test_long_message_does_not_trigger(self):
+        s = self._service()
+        long_msg = "hi" * 20
+        self.assertIsNone(s._fast_path_greeting(long_msg, 'en'))
+
+    def test_empty_returns_none(self):
+        s = self._service()
+        self.assertIsNone(s._fast_path_greeting("", 'en'))
+        self.assertIsNone(s._fast_path_greeting("   ", 'en'))
+
+
 class TwilioWebhookViewTest(TestCase):
     """Smoke test for the webhook URL: routes to the right org by To-number."""
 
