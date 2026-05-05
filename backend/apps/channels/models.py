@@ -51,6 +51,56 @@ class WhatsAppConfig(models.Model):
         return f"WhatsApp - {self.organization.name}"
 
 
+class TwilioConfig(models.Model):
+    """
+    Twilio WhatsApp configuration.
+    Easier alternative to Meta Cloud API - works with Twilio's WhatsApp Sandbox
+    out of the box, with minimal setup. Customers only provide:
+      - Account SID
+      - Auth Token
+      - Twilio WhatsApp number (e.g. +14155238886 for sandbox)
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    organization = models.OneToOneField(
+        Organization,
+        on_delete=models.CASCADE,
+        related_name='twilio_config'
+    )
+
+    account_sid = models.CharField(max_length=64, blank=True, help_text="Twilio Account SID")
+    auth_token = models.TextField(blank=True, help_text="Twilio Auth Token")
+    from_number = models.CharField(
+        max_length=32,
+        blank=True,
+        help_text="Twilio WhatsApp number in E.164, e.g. +14155238886 (sandbox)"
+    )
+
+    is_sandbox = models.BooleanField(
+        default=True,
+        help_text="Whether using Twilio's WhatsApp Sandbox (vs. an approved sender)"
+    )
+    sandbox_join_code = models.CharField(
+        max_length=64,
+        blank=True,
+        help_text="Sandbox 'join <code>' that customers send to opt-in (sandbox only)"
+    )
+
+    webhook_url = models.URLField(blank=True, help_text="Auto-generated webhook URL")
+
+    is_verified = models.BooleanField(default=False)
+    is_active = models.BooleanField(default=False)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'channel_twilio_config'
+        verbose_name = 'Twilio WhatsApp Configuration'
+
+    def __str__(self):
+        return f"Twilio WhatsApp - {self.organization.name}"
+
+
 class InstagramConfig(models.Model):
     """
     Instagram Messaging API configuration.
@@ -101,6 +151,7 @@ class WebhookLog(models.Model):
     class Source(models.TextChoices):
         WHATSAPP = 'whatsapp', 'WhatsApp'
         INSTAGRAM = 'instagram', 'Instagram'
+        TWILIO = 'twilio', 'Twilio WhatsApp'
 
     source = models.CharField(max_length=20, choices=Source.choices)
     organization = models.ForeignKey(

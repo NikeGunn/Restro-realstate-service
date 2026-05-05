@@ -9,23 +9,23 @@
 (function() {
   'use strict';
 
-  // Configuration - dynamically determine API URL from script source
-  // This allows the widget to work on any domain where the script is loaded from
+  // Configuration - dynamically determine API URL from script source.
+  // Always derives from the actual <script> origin, so the widget works
+  // whether served from /static/widget.js or /api/v1/widget/widget.js.
   function getApiBaseUrl() {
-    // Try to get the URL from the script that loaded this widget
     const scripts = document.querySelectorAll('script[data-widget-key]');
     for (const script of scripts) {
       const src = script.src;
-      if (src) {
-        // Extract base URL from script source (e.g., https://kribaat.com/api/v1/widget/widget.js -> https://kribaat.com/api/v1)
-        const match = src.match(/^(https?:\/\/[^\/]+)\/api\/v1\/widget\/widget\.js/);
-        if (match) {
-          return `${match[1]}/api/v1`;
-        }
+      if (!src) continue;
+      try {
+        const url = new URL(src, window.location.href);
+        return `${url.origin}/api/v1`;
+      } catch (e) {
+        // fall through
       }
     }
-    // Fallback for development
-    return 'http://localhost:8000/api/v1';
+    // Last-resort fallback (development only)
+    return `${window.location.origin}/api/v1`;
   }
   
   const API_BASE_URL = getApiBaseUrl();

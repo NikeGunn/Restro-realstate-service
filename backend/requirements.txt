@@ -18,6 +18,9 @@ django-celery-results>=2.5,<3.0
 # OpenAI
 openai>=1.6,<2.0
 
+# Twilio (WhatsApp Sandbox + production)
+twilio>=8.0,<9.0
+
 # Utilities
 python-decouple>=3.8,<4.0
 python-dotenv>=1.0,<2.0

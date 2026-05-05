@@ -2,7 +2,7 @@
 Channel serializers.
 """
 from rest_framework import serializers
-from .models import WhatsAppConfig, InstagramConfig, WebhookLog, ManagerNumber, TemporaryOverride, ManagerQuery
+from .models import WhatsAppConfig, InstagramConfig, TwilioConfig, WebhookLog, ManagerNumber, TemporaryOverride, ManagerQuery
 
 
 class WhatsAppConfigSerializer(serializers.ModelSerializer):
@@ -26,6 +26,29 @@ class WhatsAppConfigSerializer(serializers.ModelSerializer):
         if request:
             return request.build_absolute_uri('/api/webhooks/whatsapp/')
         return '/api/webhooks/whatsapp/'
+
+
+class TwilioConfigSerializer(serializers.ModelSerializer):
+    """Serializer for Twilio WhatsApp configuration."""
+    webhook_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = TwilioConfig
+        fields = [
+            'id', 'organization', 'account_sid', 'auth_token', 'from_number',
+            'is_sandbox', 'sandbox_join_code', 'webhook_url',
+            'is_verified', 'is_active', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'webhook_url', 'is_verified', 'created_at', 'updated_at']
+        extra_kwargs = {
+            'auth_token': {'write_only': True}
+        }
+
+    def get_webhook_url(self, obj):
+        request = self.context.get('request')
+        if request:
+            return request.build_absolute_uri('/api/webhooks/twilio/')
+        return '/api/webhooks/twilio/'
 
 
 class InstagramConfigSerializer(serializers.ModelSerializer):

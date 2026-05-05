@@ -14,12 +14,14 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 
 from apps.accounts.models import Organization, OrganizationMembership
-from .models import WhatsAppConfig, InstagramConfig, WebhookLog, ManagerNumber, TemporaryOverride, ManagerQuery
+from .models import WhatsAppConfig, InstagramConfig, TwilioConfig, WebhookLog, ManagerNumber, TemporaryOverride, ManagerQuery
 from .whatsapp_service import WhatsAppService
 from .instagram_service import InstagramService
+from .twilio_service import TwilioService
 from .serializers import (
-    WhatsAppConfigSerializer, 
+    WhatsAppConfigSerializer,
     InstagramConfigSerializer,
+    TwilioConfigSerializer,
     WebhookLogSerializer,
     ManagerNumberSerializer,
     ManagerNumberCreateSerializer,
@@ -278,6 +280,232 @@ class InstagramWebhookView(View):
                 webhook_log.error_message = error_msg
                 webhook_log.save()
             return HttpResponse('OK', status=200)  # Still return 200 to prevent retries
+
+
+@method_decorator(csrf_exempt, name='dispatch')
+class TwilioWebhookView(View):
+    """
+    Twilio WhatsApp webhook endpoint.
+
+    Twilio sends application/x-www-form-urlencoded POSTs with a
+    `From` field like 'whatsapp:+9779705651002'. We use the To/From
+    pair to route to the right org's TwilioConfig.
+
+    GET requests are treated as a health probe (Twilio doesn't use a
+    Meta-style hub.challenge handshake).
+    """
+
+    def get(self, request):
+        return HttpResponse('Twilio webhook OK', content_type='text/plain')
+
+    def post(self, request):
+        webhook_log = None
+        try:
+            # Twilio is form-encoded; request.POST has the params
+            params = {k: request.POST.get(k, '') for k in request.POST.keys()}
+
+            # The Twilio "To" is the business number (our `from_number`).
+            # That's how we find the org. Strip 'whatsapp:' prefix.
+            to_field = params.get('To', '')
+            twilio_number = to_field[len('whatsapp:'):] if to_field.startswith('whatsapp:') else to_field
+
+            config = None
+            if twilio_number:
+                config = TwilioConfig.objects.filter(
+                    is_active=True
+                ).filter(
+                    # match either '+1415...' or 'whatsapp:+1415...'
+                    from_number__in=[twilio_number, f"whatsapp:{twilio_number}"]
+                ).first()
+
+            # Fallback: if only one active TwilioConfig exists, use it
+            if not config:
+                actives = list(TwilioConfig.objects.filter(is_active=True)[:2])
+                if len(actives) == 1:
+                    config = actives[0]
+
+            webhook_log = WebhookLog.objects.create(
+                source=WebhookLog.Source.TWILIO,
+                organization=config.organization if config else None,
+                headers=dict(request.headers),
+                body=params,
+                is_processed=False
+            )
+
+            if not config:
+                msg = f"No active TwilioConfig for To={twilio_number}"
+                logger.error(f"❌ {msg}")
+                webhook_log.error_message = msg
+                webhook_log.save()
+                # Still 200 so Twilio doesn't retry forever
+                return HttpResponse('OK', status=200)
+
+            service = TwilioService(config)
+
+            # Verify signature when present
+            signature = request.headers.get('X-Twilio-Signature', '')
+            if signature:
+                # Use the URL Twilio actually called. Honour proxy headers.
+                proto = request.headers.get('X-Forwarded-Proto') or request.scheme
+                host = request.headers.get('X-Forwarded-Host') or request.get_host()
+                full_url = f"{proto}://{host}{request.get_full_path()}"
+                if not service.verify_webhook_signature(full_url, params, signature):
+                    msg = "Twilio signature verification failed"
+                    logger.error(msg)
+                    webhook_log.error_message = msg
+                    webhook_log.save()
+                    return HttpResponse('Invalid signature', status=401)
+
+            success = service.process_webhook(params)
+            webhook_log.is_processed = success
+            if not success:
+                webhook_log.error_message = "process_webhook returned False"
+            webhook_log.save()
+
+            # Twilio doesn't require TwiML response; empty 200 is fine
+            return HttpResponse('<Response/>', content_type='application/xml', status=200)
+
+        except Exception as e:
+            logger.exception(f"❌ Unexpected error in Twilio webhook: {e}")
+            if webhook_log:
+                webhook_log.error_message = str(e)
+                webhook_log.save()
+            return HttpResponse('OK', status=200)
+
+
+class TwilioConfigViewSet(viewsets.ModelViewSet):
+    """ViewSet for managing Twilio WhatsApp configuration."""
+    serializer_class = TwilioConfigSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        org_ids = OrganizationMembership.objects.filter(
+            user=user
+        ).values_list('organization_id', flat=True)
+        return TwilioConfig.objects.filter(organization_id__in=org_ids)
+
+    def perform_create(self, serializer):
+        org_id = self.request.data.get('organization')
+        if not OrganizationMembership.objects.filter(
+            user=self.request.user,
+            organization_id=org_id
+        ).exists():
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("Not a member of this organization")
+
+        config = serializer.save()
+        self._auto_verify(config)
+
+    def perform_update(self, serializer):
+        config = serializer.save()
+        if any(f in serializer.validated_data for f in ('account_sid', 'auth_token', 'from_number')):
+            self._auto_verify(config)
+
+    def _auto_verify(self, config):
+        """Hit Twilio's Account API to confirm credentials."""
+        if not (config.account_sid and config.auth_token):
+            return
+        try:
+            ok = TwilioService(config).verify_credentials()
+            config.is_verified = ok
+            config.save(update_fields=['is_verified'])
+            logger.info(
+                "%s Twilio config for %s",
+                "✅ Auto-verified" if ok else "❌ Auto-verification failed",
+                config.organization.name,
+            )
+        except Exception as e:
+            config.is_verified = False
+            config.save(update_fields=['is_verified'])
+            logger.error("Twilio auto-verify error: %s", e)
+
+    @action(detail=True, methods=['post'])
+    def test_connection(self, request, pk=None):
+        """Verify Twilio credentials work."""
+        config = self.get_object()
+        ok = TwilioService(config).verify_credentials()
+        if ok:
+            return Response({'success': True, 'message': 'Twilio credentials verified.'})
+        return Response(
+            {'success': False, 'error': 'Twilio rejected the SID/Auth Token.'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    @action(detail=True, methods=['post'])
+    def test_message(self, request, pk=None):
+        """Send a test WhatsApp message to a provided phone number."""
+        config = self.get_object()
+        to = request.data.get('to', '').strip()
+        if not to:
+            return Response(
+                {'success': False, 'error': 'Provide "to" phone number (E.164, e.g. +9779705651002).'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        sid = TwilioService(config).send_message(
+            to,
+            f"🤖 Test from {config.organization.name}\n\n"
+            f"This is a test message from your Kribaat chatbot via Twilio WhatsApp. "
+            f"If you received this, the integration is working."
+        )
+        if sid:
+            return Response({'success': True, 'message_sid': sid})
+        return Response(
+            {'success': False, 'error': 'Send failed - check is_active, credentials, and that the recipient has joined the sandbox.'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    @action(detail=True, methods=['get'])
+    def health(self, request, pk=None):
+        """Health summary for the Twilio integration."""
+        config = self.get_object()
+        from datetime import timedelta
+        from django.utils import timezone
+
+        health_data = {
+            'organization': config.organization.name,
+            'is_active': config.is_active,
+            'is_verified': config.is_verified,
+            'is_sandbox': config.is_sandbox,
+            'configuration': {
+                'account_sid': bool(config.account_sid),
+                'auth_token': bool(config.auth_token),
+                'from_number': config.from_number,
+            },
+            'api_connection': 'unknown',
+            'recent_webhooks': {'total_24h': 0, 'processed_24h': 0, 'failed_24h': 0},
+            'issues': []
+        }
+
+        if config.account_sid and config.auth_token:
+            ok = TwilioService(config).verify_credentials()
+            health_data['api_connection'] = 'ok' if ok else 'failed'
+            if not ok:
+                health_data['issues'].append('Twilio API credentials rejected — check SID/Auth Token.')
+        else:
+            health_data['issues'].append('Missing account_sid or auth_token')
+
+        cutoff = timezone.now() - timedelta(hours=24)
+        webhooks = WebhookLog.objects.filter(
+            source=WebhookLog.Source.TWILIO,
+            organization=config.organization,
+            created_at__gte=cutoff
+        )
+        health_data['recent_webhooks']['total_24h'] = webhooks.count()
+        health_data['recent_webhooks']['processed_24h'] = webhooks.filter(is_processed=True).count()
+        health_data['recent_webhooks']['failed_24h'] = webhooks.filter(is_processed=False).count()
+
+        if not config.is_active:
+            health_data['issues'].append('Configuration is inactive')
+        if not config.from_number:
+            health_data['issues'].append('Missing from_number (Twilio WhatsApp sender)')
+
+        from django.conf import settings
+        if not settings.OPENAI_API_KEY:
+            health_data['issues'].append('CRITICAL: OPENAI_API_KEY not configured - AI will not respond')
+
+        health_data['overall_status'] = 'healthy' if not health_data['issues'] else 'degraded'
+        return Response(health_data)
 
 
 class WhatsAppConfigViewSet(viewsets.ModelViewSet):

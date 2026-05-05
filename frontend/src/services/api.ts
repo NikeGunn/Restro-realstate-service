@@ -1027,6 +1027,63 @@ export const channelsApi = {
     },
   },
 
+  // Twilio WhatsApp Configuration (easy setup, sandbox-friendly)
+  twilio: {
+    list: async (params?: { organization?: string }) => {
+      const response = await api.get('/channels/twilio-config/', { params })
+      return Array.isArray(response.data) ? response.data : (response.data.results || [])
+    },
+
+    get: async (id: string) => {
+      const response = await api.get(`/channels/twilio-config/${id}/`)
+      return response.data
+    },
+
+    create: async (data: {
+      organization: string
+      account_sid: string
+      auth_token: string
+      from_number: string
+      is_sandbox?: boolean
+      sandbox_join_code?: string
+    }) => {
+      const response = await api.post('/channels/twilio-config/', data)
+      return response.data
+    },
+
+    update: async (id: string, data: Partial<{
+      account_sid: string
+      auth_token: string
+      from_number: string
+      is_sandbox: boolean
+      sandbox_join_code: string
+      is_active: boolean
+    }>) => {
+      const response = await api.patch(`/channels/twilio-config/${id}/`, data)
+      return response.data
+    },
+
+    delete: async (id: string) => {
+      const response = await api.delete(`/channels/twilio-config/${id}/`)
+      return response.data
+    },
+
+    testConnection: async (id: string) => {
+      const response = await api.post(`/channels/twilio-config/${id}/test_connection/`)
+      return response.data
+    },
+
+    testMessage: async (id: string, to: string) => {
+      const response = await api.post(`/channels/twilio-config/${id}/test_message/`, { to })
+      return response.data
+    },
+
+    health: async (id: string) => {
+      const response = await api.get(`/channels/twilio-config/${id}/health/`)
+      return response.data
+    },
+  },
+
   // Instagram Configuration
   instagram: {
     list: async (params?: { organization?: string }) => {

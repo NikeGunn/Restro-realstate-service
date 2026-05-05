@@ -45,6 +45,20 @@ interface WhatsAppConfig {
   updated_at: string
 }
 
+interface TwilioConfig {
+  id: string
+  organization: string
+  account_sid: string
+  auth_token?: string
+  from_number: string
+  is_sandbox: boolean
+  sandbox_join_code: string
+  is_verified: boolean
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}
+
 interface InstagramConfig {
   id: string
   organization: string
@@ -108,6 +122,7 @@ export function ChannelsPage() {
   const { toast } = useToast()
 
   const [whatsappConfigs, setWhatsappConfigs] = useState<WhatsAppConfig[]>([])
+  const [twilioConfigs, setTwilioConfigs] = useState<TwilioConfig[]>([])
   const [instagramConfigs, setInstagramConfigs] = useState<InstagramConfig[]>([])
   const [managerNumbers, setManagerNumbers] = useState<ManagerNumber[]>([])
   const [temporaryOverrides, setTemporaryOverrides] = useState<TemporaryOverride[]>([])
@@ -118,8 +133,11 @@ export function ChannelsPage() {
   const [loadingHealth, setLoadingHealth] = useState<string | null>(null)
 
   const [showWhatsAppForm, setShowWhatsAppForm] = useState(false)
+  const [showTwilioForm, setShowTwilioForm] = useState(false)
   const [showInstagramForm, setShowInstagramForm] = useState(false)
   const [showManagerForm, setShowManagerForm] = useState(false)
+  const [twilioTestTo, setTwilioTestTo] = useState('')
+  const [twilioBusy, setTwilioBusy] = useState<string | null>(null)
   const [showAccessTokens, setShowAccessTokens] = useState<Record<string, boolean>>({})
   const [showGuide, setShowGuide] = useState(false)
   const [sendingTestMessage, setSendingTestMessage] = useState<string | null>(null)
@@ -129,6 +147,14 @@ export function ChannelsPage() {
     business_account_id: '',
     access_token: '',
     verify_token: '',
+  })
+
+  const [twilioForm, setTwilioForm] = useState({
+    account_sid: '',
+    auth_token: '',
+    from_number: '+14155238886',
+    is_sandbox: true,
+    sandbox_join_code: '',
   })
 
   const [instagramForm, setInstagramForm] = useState({
@@ -177,14 +203,16 @@ export function ChannelsPage() {
 
     setLoading(true)
     try {
-      const [whatsapp, instagram, managers, overrides, queries] = await Promise.all([
+      const [whatsapp, twilio, instagram, managers, overrides, queries] = await Promise.all([
         channelsApi.whatsapp.list({ organization: currentOrganization.id }),
+        channelsApi.twilio.list({ organization: currentOrganization.id }).catch(() => []),
         channelsApi.instagram.list({ organization: currentOrganization.id }),
         channelsApi.managerNumbers.list({ organization: currentOrganization.id }).catch(() => []),
         channelsApi.temporaryOverrides.list({ organization: currentOrganization.id, active: 'true' }).catch(() => []),
         channelsApi.managerQueries.list({ organization: currentOrganization.id }).catch(() => []),
       ])
       setWhatsappConfigs(whatsapp)
+      setTwilioConfigs(twilio)
       setInstagramConfigs(instagram)
       setManagerNumbers(managers)
       setTemporaryOverrides(overrides)
@@ -559,7 +587,80 @@ export function ChannelsPage() {
     })
   }
 
-  const getWebhookUrl = (type: 'whatsapp' | 'instagram') => {
+  const handleSaveTwilio = async () => {
+    if (!currentOrganization) return
+    if (!twilioForm.account_sid.trim() || !twilioForm.auth_token.trim() || !twilioForm.from_number.trim()) {
+      toast({ variant: 'destructive', title: 'Missing fields', description: 'SID, Auth Token, and From Number are all required.' })
+      return
+    }
+    setSaving(true)
+    try {
+      const created = await channelsApi.twilio.create({
+        organization: currentOrganization.id,
+        account_sid: twilioForm.account_sid.trim(),
+        auth_token: twilioForm.auth_token.trim(),
+        from_number: twilioForm.from_number.trim(),
+        is_sandbox: twilioForm.is_sandbox,
+        sandbox_join_code: twilioForm.sandbox_join_code.trim(),
+      })
+      // Activate by default — minimal manual setup
+      const activated = await channelsApi.twilio.update(created.id, { is_active: true })
+      setTwilioConfigs([...twilioConfigs, activated])
+      setShowTwilioForm(false)
+      setTwilioForm({ account_sid: '', auth_token: '', from_number: '+14155238886', is_sandbox: true, sandbox_join_code: '' })
+      toast({ title: 'Twilio connected', description: 'WhatsApp via Twilio is configured and active.' })
+    } catch (error: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Failed to save',
+        description: error.response?.data?.detail || error.response?.data?.error || 'Could not connect Twilio.',
+      })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleDeleteTwilio = async (id: string) => {
+    if (!confirm('Remove this Twilio configuration?')) return
+    try {
+      await channelsApi.twilio.delete(id)
+      setTwilioConfigs(twilioConfigs.filter((c) => c.id !== id))
+      toast({ title: 'Removed', description: 'Twilio configuration deleted.' })
+    } catch {
+      toast({ variant: 'destructive', title: 'Error', description: 'Could not delete.' })
+    }
+  }
+
+  const handleToggleTwilio = async (id: string, isActive: boolean) => {
+    try {
+      const updated = await channelsApi.twilio.update(id, { is_active: !isActive })
+      setTwilioConfigs(twilioConfigs.map((c) => (c.id === id ? { ...c, is_active: updated.is_active } : c)))
+    } catch {
+      toast({ variant: 'destructive', title: 'Error', description: 'Could not toggle.' })
+    }
+  }
+
+  const handleTwilioTest = async (id: string) => {
+    if (!twilioTestTo.trim()) {
+      toast({ variant: 'destructive', title: 'Phone required', description: 'Enter a phone number in E.164, e.g. +9779705651002.' })
+      return
+    }
+    setTwilioBusy(id)
+    try {
+      const res = await channelsApi.twilio.testMessage(id, twilioTestTo.trim())
+      if (res.success) {
+        toast({ title: 'Test sent', description: `Message SID: ${res.message_sid}` })
+      } else {
+        toast({ variant: 'destructive', title: 'Send failed', description: res.error || 'Twilio rejected the request.' })
+      }
+    } catch (e: any) {
+      toast({ variant: 'destructive', title: 'Send failed', description: e.response?.data?.error || 'Network error.' })
+    } finally {
+      setTwilioBusy(null)
+    }
+  }
+
+  const getWebhookUrl = (type: 'whatsapp' | 'instagram' | 'twilio') => {
     // Use API URL from environment, fallback to kribaat.com for production
     const apiUrl = import.meta.env.VITE_API_URL || '';
     if (apiUrl && !apiUrl.includes('localhost')) {
@@ -738,11 +839,20 @@ export function ChannelsPage() {
         </Card>
       )}
 
-      <Tabs defaultValue="whatsapp">
+      <Tabs defaultValue="twilio">
         <TabsList>
+          <TabsTrigger value="twilio" className="flex items-center gap-2">
+            <Send className="h-4 w-4" />
+            Twilio (Easy Setup)
+            {twilioConfigs.length > 0 && (
+              <Badge variant="secondary" className="ml-1">
+                {twilioConfigs.length}
+              </Badge>
+            )}
+          </TabsTrigger>
           <TabsTrigger value="whatsapp" className="flex items-center gap-2">
             <Phone className="h-4 w-4" />
-            WhatsApp
+            WhatsApp (Meta)
             {whatsappConfigs.length > 0 && (
               <Badge variant="secondary" className="ml-1">
                 {whatsappConfigs.length}
@@ -768,6 +878,227 @@ export function ChannelsPage() {
             )}
           </TabsTrigger>
         </TabsList>
+
+        {/* Twilio Tab — easiest path: WhatsApp Sandbox */}
+        <TabsContent value="twilio" className="mt-4 space-y-4">
+          <Card className="border-emerald-200 bg-emerald-50">
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Send className="h-5 w-5 text-emerald-700" />
+                Twilio WhatsApp — Easy Setup
+              </CardTitle>
+              <CardDescription className="text-emerald-900">
+                Skip the Meta Business approval. Use Twilio's WhatsApp Sandbox to start chatting in minutes.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm text-emerald-900">
+              <ol className="list-decimal list-inside space-y-1">
+                <li>Create a free Twilio account at <a className="underline" href="https://www.twilio.com/try-twilio" target="_blank" rel="noopener noreferrer">twilio.com/try-twilio</a>.</li>
+                <li>Go to <strong>Messaging → Try it out → Send a WhatsApp message</strong>. Note your Sandbox number (usually <code>+1 415 523 8886</code>) and join code (e.g. <code>join using-pink</code>).</li>
+                <li>Customers send <code>join &lt;your-code&gt;</code> from WhatsApp to opt in.</li>
+                <li>In Sandbox settings, paste the webhook URL below into <strong>"When a message comes in"</strong>.</li>
+                <li>Paste your SID, Auth Token, and Sandbox number below — that's it.</li>
+              </ol>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Webhook URL</CardTitle>
+              <CardDescription>Paste this into Twilio Sandbox → "When a message comes in" (POST).</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex items-center gap-2">
+                <Input value={getWebhookUrl('twilio')} readOnly className="flex-1 font-mono text-sm" />
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => copyToClipboard(getWebhookUrl('twilio'), 'Twilio webhook URL')}
+                >
+                  <Copy className="h-4 w-4" />
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Configure at <a className="underline" href="https://console.twilio.com/us1/develop/sms/try-it-out/whatsapp-learn" target="_blank" rel="noopener noreferrer">Twilio Console → WhatsApp Sandbox <ExternalLink className="inline h-3 w-3" /></a>
+              </p>
+            </CardContent>
+          </Card>
+
+          {/* Existing Twilio configs */}
+          {twilioConfigs.map((config) => (
+            <Card key={config.id}>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-emerald-100 rounded-lg">
+                      <Send className="h-5 w-5 text-emerald-700" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-lg">Twilio WhatsApp{config.is_sandbox ? ' (Sandbox)' : ''}</CardTitle>
+                      <CardDescription>From: {config.from_number}</CardDescription>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    {config.is_verified ? (
+                      <Badge variant="default" className="bg-emerald-600">
+                        <CheckCircle2 className="h-3 w-3 mr-1" />
+                        Verified
+                      </Badge>
+                    ) : (
+                      <Badge variant="secondary">
+                        <XCircle className="h-3 w-3 mr-1" />
+                        Pending
+                      </Badge>
+                    )}
+                    <Switch
+                      checked={config.is_active}
+                      onCheckedChange={() => handleToggleTwilio(config.id, config.is_active)}
+                    />
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <Label className="text-muted-foreground text-xs">Account SID</Label>
+                    <p className="font-mono">{config.account_sid?.slice(0, 8)}…{config.account_sid?.slice(-4)}</p>
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground text-xs">Mode</Label>
+                    <p>{config.is_sandbox ? `Sandbox${config.sandbox_join_code ? ` (join ${config.sandbox_join_code})` : ''}` : 'Production sender'}</p>
+                  </div>
+                </div>
+
+                <div className="border-t pt-3 space-y-2">
+                  <Label htmlFor={`twilio_test_${config.id}`}>Send test message</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      id={`twilio_test_${config.id}`}
+                      placeholder="+9779705651002"
+                      value={twilioTestTo}
+                      onChange={(e) => setTwilioTestTo(e.target.value)}
+                      className="font-mono text-sm"
+                    />
+                    <Button
+                      variant="outline"
+                      onClick={() => handleTwilioTest(config.id)}
+                      disabled={twilioBusy === config.id}
+                    >
+                      {twilioBusy === config.id ? <RefreshCw className="h-4 w-4 mr-2 animate-spin" /> : <Send className="h-4 w-4 mr-2" />}
+                      Send
+                    </Button>
+                  </div>
+                  {config.is_sandbox && (
+                    <p className="text-xs text-muted-foreground">
+                      Recipient must have already sent <code>join {config.sandbox_join_code || '&lt;your-code&gt;'}</code> from their WhatsApp to <code>{config.from_number}</code>.
+                    </p>
+                  )}
+                </div>
+
+                <div className="flex justify-end">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-destructive hover:text-destructive"
+                    onClick={() => handleDeleteTwilio(config.id)}
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Remove
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+
+          {/* Add Twilio config */}
+          {showTwilioForm ? (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Plus className="h-5 w-5" />
+                  Connect Twilio WhatsApp
+                </CardTitle>
+                <CardDescription>
+                  Find these in your Twilio Console → Account → API keys & tokens.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="tw_sid">Account SID *</Label>
+                  <Input
+                    id="tw_sid"
+                    placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                    value={twilioForm.account_sid}
+                    onChange={(e) => setTwilioForm({ ...twilioForm, account_sid: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="tw_token">Auth Token *</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      id="tw_token"
+                      type={showAccessTokens['tw_new'] ? 'text' : 'password'}
+                      placeholder="your-twilio-auth-token"
+                      value={twilioForm.auth_token}
+                      onChange={(e) => setTwilioForm({ ...twilioForm, auth_token: e.target.value })}
+                    />
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => setShowAccessTokens({ ...showAccessTokens, tw_new: !showAccessTokens['tw_new'] })}
+                    >
+                      {showAccessTokens['tw_new'] ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </Button>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="tw_from">From Number *</Label>
+                    <Input
+                      id="tw_from"
+                      placeholder="+14155238886"
+                      value={twilioForm.from_number}
+                      onChange={(e) => setTwilioForm({ ...twilioForm, from_number: e.target.value })}
+                    />
+                    <p className="text-xs text-muted-foreground">Twilio Sandbox default: <code>+14155238886</code></p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="tw_join">Sandbox Join Code</Label>
+                    <Input
+                      id="tw_join"
+                      placeholder="using-pink"
+                      value={twilioForm.sandbox_join_code}
+                      onChange={(e) => setTwilioForm({ ...twilioForm, sandbox_join_code: e.target.value })}
+                    />
+                    <p className="text-xs text-muted-foreground">For sandbox only; customers text <code>join &lt;code&gt;</code> to opt in.</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="tw_sandbox"
+                    checked={twilioForm.is_sandbox}
+                    onCheckedChange={(checked) => setTwilioForm({ ...twilioForm, is_sandbox: !!checked })}
+                  />
+                  <Label htmlFor="tw_sandbox" className="text-sm">This is a Twilio Sandbox sender (uncheck for an approved production number)</Label>
+                </div>
+                <div className="flex gap-2 justify-end">
+                  <Button variant="outline" onClick={() => setShowTwilioForm(false)}>Cancel</Button>
+                  <Button onClick={handleSaveTwilio} disabled={saving}>
+                    <Save className="h-4 w-4 mr-2" />
+                    {saving ? 'Saving...' : 'Save & Activate'}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            twilioConfigs.length === 0 && (
+              <Button onClick={() => setShowTwilioForm(true)} className="w-full">
+                <Plus className="h-4 w-4 mr-2" />
+                Connect Twilio WhatsApp (recommended)
+              </Button>
+            )
+          )}
+        </TabsContent>
 
         {/* WhatsApp Tab */}
         <TabsContent value="whatsapp" className="mt-4 space-y-4">

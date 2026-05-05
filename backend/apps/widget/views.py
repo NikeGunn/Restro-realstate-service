@@ -258,6 +258,39 @@ class WidgetMessageView(APIView):
                     print(traceback.format_exc())
 
 
+class WidgetLanguageView(APIView):
+    """
+    Accept a language preference change from the widget.
+    Stores it on the conversation so the AI replies in that language going forward.
+    """
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        session_token = request.data.get('session_token') or request.data.get('session_id')
+        language = (request.data.get('language') or 'en').strip()
+
+        if not session_token:
+            return Response({'ok': True})  # graceful no-op
+
+        try:
+            session = WidgetSession.objects.get(id=session_token)
+        except (WidgetSession.DoesNotExist, ValueError):
+            return Response({'ok': True})
+
+        conversation = session.conversation
+        if conversation:
+            allowed = {choice[0] for choice in Conversation._meta.get_field('detected_language').choices or []}
+            if not allowed or language in allowed:
+                conversation.detected_language = language
+                conversation.save(update_fields=['detected_language', 'updated_at'])
+
+        greeting = ''
+        if session.organization and getattr(session.organization, 'widget_greeting', None):
+            greeting = session.organization.widget_greeting
+
+        return Response({'ok': True, 'language': language, 'greeting': greeting})
+
+
 class WidgetConversationView(APIView):
     """Get conversation history for widget"""
     permission_classes = [AllowAny]
