@@ -49,6 +49,14 @@ npm run lint         # eslint, --max-warnings 0
 ```
 Note: `npm run build` deliberately skips `tsc`. CI also doesn't gate on TypeScript errors. Run `npm run build:check` locally before pushing if you've touched types.
 
+**Dependency auto-sync.** The frontend container has an entrypoint (`frontend/docker-entrypoint.sh`) that hashes `package.json` + `package-lock.json` on every start and reruns `npm install` if the hash differs from the marker stored in `node_modules/.deps.hash`. So the workflow for adding a library is:
+
+1. Edit `frontend/package.json` on the host (add the dep + version), OR run `docker compose exec frontend npm install <pkg>` (writes both files).
+2. Restart the frontend container: `docker compose restart frontend` (or just stop+start the stack).
+3. The entrypoint detects the hash change, runs `npm install`, updates the marker, and starts Vite. No manual `exec` step needed.
+
+The `node_modules` lives in a **named volume** (`frontend_node_modules`), not anonymous, so it survives `docker compose down`. Only `docker compose down -v` (which `kribaat-down.ps1 -Wipe` runs) drops it — and even then the entrypoint rehydrates on next start.
+
 ### Production / deployment
 - **CI is the deploy mechanism.** Pushing to `main` triggers `.github/workflows/deploy.yml`, which builds Docker images, tags them with the short SHA, rewrites `image:` lines in `k8s/*/deployment.yaml`, commits the manifest update back to `main` ("🚀 Deploy: ..."), and ArgoCD auto-syncs within ~3 minutes. Do not manually edit image tags in `k8s/`.
 - `redeploy.ps1` and `toggle-maintenance.ps1` are legacy SSH-based deploy tools for the pre-K8s VM at `43.152.233.234`. Do not use them for the production cluster — they bypass GitOps. They are gitignored (see `.gitignore`: `*.ps1`).
@@ -177,7 +185,8 @@ The inventory module is the "sealed vault" admin counterpart to the public chatb
 - Reusable components: `components/inventory/StockDisplay.tsx` (used everywhere stock surfaces; tolerance band in tooltip), `components/inventory/LockedField.tsx` (read-only display for immutable fields with reason).
 - Service layer `services/inventory.ts` extended with all Phase 2/3 types and endpoints.
 - Pages added under `pages/inventory/`: `InventoryDashboardPage` (KPIs + recharts), `PurchaseOrdersPage` (list/create/receive/cancel with multi-line dialog), `RecipesPage` (card grid + create/edit + real-time calculator with live feasibility + version history), `SalesImportPage` & `PurchaseImportPage` (3-step wizard: upload → preview with column-map and valid-% indicator → processing with progress poll → done with summary + error CSV), `InventoryReportsPage` (tabbed: stock by category, in/out timeline, variance table), `AuditLogPage` (filterable, expandable before/after diff, CSV export), `InventoryAIPage` (chat with confidence badges, suggestion chips, graceful 403 on non-power plan).
-- All new routes wired in `App.tsx` under `OrganizationRequiredRoute`. Sidebar (`layouts/DashboardLayout.tsx`) has 11 inventory entries.
+- All new routes wired in `App.tsx` under `OrganizationRequiredRoute`.
+- Sidebar (`layouts/DashboardLayout.tsx`) uses a typed `NavItem = NavLeaf | NavGroup` model. Inventory is a single collapsible **group** (`inventoryGroup`) whose children are the 11 sub-pages. The group auto-expands when the route starts with `/inventory`, and user expand/collapse state persists to `localStorage` under `sidebar.groupState.v1`. **Future Phase 4-6 inventory features MUST add a new `NavLeaf` to `inventoryGroup.children`, not a new top-level sidebar entry** — this keeps the top-level sidebar from growing beyond ~10 items as the inventory module expands.
 - Full i18n coverage in en/zh-CN/zh-TW under `inventory.*` (dashboard, po, recipes, import, reports, audit, ai sub-blocks) and `nav.inventory*`.
 - `npm run build:check` — zero new inventory TS errors. `npm run build` — production bundle compiles clean.
 

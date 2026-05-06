@@ -1,0 +1,5 @@
+# Force LF on shell scripts even on Windows checkouts so they run inside
+# Linux containers. Without this, Git's autocrlf setting can rewrite shebangs
+# with \r\n and break alpine's /bin/sh.
+*.sh text eol=lf
+docker-entrypoint.sh text eol=lf

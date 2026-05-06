@@ -1,5 +1,5 @@
-import { useState, useMemo } from 'react'
-import { Outlet, NavLink, useNavigate } from 'react-router-dom'
+import { useState, useMemo, useEffect } from 'react'
+import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/store/auth'
 import { cn } from '@/lib/utils'
@@ -33,73 +33,155 @@ import {
   ScrollText,
   Sparkles,
   Boxes,
+  ChevronRight,
 } from 'lucide-react'
 
-const coreNavKeys = [
-  { path: '/dashboard', labelKey: 'nav.dashboard', icon: LayoutDashboard },
-  { path: '/inbox', labelKey: 'nav.inbox', icon: Inbox },
-  { path: '/alerts', labelKey: 'nav.alerts', icon: Bell },
-  { path: '/knowledge', labelKey: 'nav.knowledgeBase', icon: BookOpen },
-  { path: '/analytics', labelKey: 'nav.analytics', icon: BarChart3 },
+type NavLeaf = {
+  kind: 'leaf'
+  path: string
+  labelKey: string
+  icon: React.ComponentType<{ className?: string }>
+}
+
+type NavGroup = {
+  kind: 'group'
+  id: string
+  labelKey: string
+  icon: React.ComponentType<{ className?: string }>
+  /** Any active path beginning with this prefix auto-expands the group. */
+  pathPrefix: string
+  children: NavLeaf[]
+}
+
+type NavItem = NavLeaf | NavGroup
+
+const coreNavKeys: NavLeaf[] = [
+  { kind: 'leaf', path: '/dashboard', labelKey: 'nav.dashboard', icon: LayoutDashboard },
+  { kind: 'leaf', path: '/inbox', labelKey: 'nav.inbox', icon: Inbox },
+  { kind: 'leaf', path: '/alerts', labelKey: 'nav.alerts', icon: Bell },
+  { kind: 'leaf', path: '/knowledge', labelKey: 'nav.knowledgeBase', icon: BookOpen },
+  { kind: 'leaf', path: '/analytics', labelKey: 'nav.analytics', icon: BarChart3 },
 ]
 
-const restaurantNavKeys = [
-  { path: '/restaurant/menu', labelKey: 'nav.menu', icon: UtensilsCrossed },
-  { path: '/restaurant/bookings', labelKey: 'nav.bookings', icon: CalendarDays },
+const restaurantNavKeys: NavLeaf[] = [
+  { kind: 'leaf', path: '/restaurant/menu', labelKey: 'nav.menu', icon: UtensilsCrossed },
+  { kind: 'leaf', path: '/restaurant/bookings', labelKey: 'nav.bookings', icon: CalendarDays },
 ]
 
-const realEstateNavKeys = [
-  { path: '/realestate/properties', labelKey: 'nav.properties', icon: Building2 },
-  { path: '/realestate/leads', labelKey: 'nav.leads', icon: Users },
+const realEstateNavKeys: NavLeaf[] = [
+  { kind: 'leaf', path: '/realestate/properties', labelKey: 'nav.properties', icon: Building2 },
+  { kind: 'leaf', path: '/realestate/leads', labelKey: 'nav.leads', icon: Users },
 ]
 
-const inventoryNavKeys = [
-  { path: '/inventory', labelKey: 'nav.inventoryDashboard', icon: Boxes },
-  { path: '/inventory/items', labelKey: 'nav.inventoryItems', icon: Package },
-  { path: '/inventory/suppliers', labelKey: 'nav.inventorySuppliers', icon: Truck },
-  { path: '/inventory/purchase-orders', labelKey: 'nav.inventoryPurchaseOrders', icon: ClipboardList },
-  { path: '/inventory/recipes', labelKey: 'nav.inventoryRecipes', icon: ChefHat },
-  { path: '/inventory/movements', labelKey: 'nav.inventoryMovements', icon: ArrowLeftRight },
-  { path: '/inventory/imports/sales', labelKey: 'nav.inventoryImports', icon: Upload },
-  { path: '/inventory/reports', labelKey: 'nav.inventoryReports', icon: PieChart },
-  { path: '/inventory/alerts', labelKey: 'nav.inventoryAlerts', icon: Bell },
-  { path: '/inventory/audit-log', labelKey: 'nav.inventoryAudit', icon: ScrollText },
-  { path: '/inventory/ai', labelKey: 'nav.inventoryAI', icon: Sparkles },
-]
+/**
+ * Inventory is a single sidebar GROUP. Its children are the full Plane B
+ * surface — clicking the parent toggles the section, clicking the dashboard
+ * sub-item lands on `/inventory`. Future Phase 4-6 features add new children
+ * here rather than crowding the top-level sidebar.
+ */
+const inventoryGroup: NavGroup = {
+  kind: 'group',
+  id: 'inventory',
+  labelKey: 'nav.inventory',
+  icon: Boxes,
+  pathPrefix: '/inventory',
+  children: [
+    { kind: 'leaf', path: '/inventory', labelKey: 'nav.inventoryDashboard', icon: LayoutDashboard },
+    { kind: 'leaf', path: '/inventory/items', labelKey: 'nav.inventoryItems', icon: Package },
+    { kind: 'leaf', path: '/inventory/suppliers', labelKey: 'nav.inventorySuppliers', icon: Truck },
+    { kind: 'leaf', path: '/inventory/purchase-orders', labelKey: 'nav.inventoryPurchaseOrders', icon: ClipboardList },
+    { kind: 'leaf', path: '/inventory/recipes', labelKey: 'nav.inventoryRecipes', icon: ChefHat },
+    { kind: 'leaf', path: '/inventory/movements', labelKey: 'nav.inventoryMovements', icon: ArrowLeftRight },
+    { kind: 'leaf', path: '/inventory/imports/sales', labelKey: 'nav.inventoryImports', icon: Upload },
+    { kind: 'leaf', path: '/inventory/reports', labelKey: 'nav.inventoryReports', icon: PieChart },
+    { kind: 'leaf', path: '/inventory/alerts', labelKey: 'nav.inventoryAlerts', icon: Bell },
+    { kind: 'leaf', path: '/inventory/audit-log', labelKey: 'nav.inventoryAudit', icon: ScrollText },
+    { kind: 'leaf', path: '/inventory/ai', labelKey: 'nav.inventoryAI', icon: Sparkles },
+  ],
+}
 
-const settingsNavKey = { path: '/settings', labelKey: 'nav.settings', icon: Settings }
-const channelsNavKey = { path: '/settings/channels', labelKey: 'nav.channels', icon: Phone }
+const settingsNavKey: NavLeaf = { kind: 'leaf', path: '/settings', labelKey: 'nav.settings', icon: Settings }
+const channelsNavKey: NavLeaf = { kind: 'leaf', path: '/settings/channels', labelKey: 'nav.channels', icon: Phone }
+
+const GROUP_STATE_STORAGE_KEY = 'sidebar.groupState.v1'
+
+function loadGroupState(): Record<string, boolean> {
+  try {
+    const raw = localStorage.getItem(GROUP_STATE_STORAGE_KEY)
+    return raw ? JSON.parse(raw) : {}
+  } catch {
+    return {}
+  }
+}
+
+function saveGroupState(state: Record<string, boolean>) {
+  try {
+    localStorage.setItem(GROUP_STATE_STORAGE_KEY, JSON.stringify(state))
+  } catch {
+    // localStorage may be disabled — non-fatal
+  }
+}
 
 export function DashboardLayout() {
   const { t } = useTranslation()
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const { user, currentOrganization, logout } = useAuthStore()
   const navigate = useNavigate()
+  const location = useLocation()
 
   // Build navigation items based on organization business type
-  const navItems = useMemo(() => {
-    const items = [...coreNavKeys]
-    
-    // Add vertical-specific navigation based on current organization
+  const navItems = useMemo<NavItem[]>(() => {
+    const items: NavItem[] = [...coreNavKeys]
+
     const businessType = currentOrganization?.business_type
-    
     if (businessType === 'restaurant') {
       items.push(...restaurantNavKeys)
     } else if (businessType === 'real_estate') {
       items.push(...realEstateNavKeys)
     } else {
-      // Show both if no specific type or generic
       items.push(...restaurantNavKeys)
       items.push(...realEstateNavKeys)
     }
 
-    // Inventory is shared across both verticals
-    items.push(...inventoryNavKeys)
+    // Inventory is shared across both verticals — single collapsible group.
+    items.push(inventoryGroup)
 
     items.push(settingsNavKey)
     items.push(channelsNavKey)
     return items
   }, [currentOrganization?.business_type])
+
+  // Group expand/collapse state, persisted across reloads.
+  const [groupState, setGroupState] = useState<Record<string, boolean>>(loadGroupState)
+
+  // Auto-expand any group whose pathPrefix matches the current route.
+  // Runs after navigation so deep-linking to /inventory/recipes opens the group.
+  useEffect(() => {
+    const updates: Record<string, boolean> = {}
+    let changed = false
+    for (const item of navItems) {
+      if (item.kind !== 'group') continue
+      if (location.pathname.startsWith(item.pathPrefix) && !groupState[item.id]) {
+        updates[item.id] = true
+        changed = true
+      }
+    }
+    if (changed) {
+      setGroupState(prev => {
+        const next = { ...prev, ...updates }
+        saveGroupState(next)
+        return next
+      })
+    }
+  }, [location.pathname, navItems, groupState])
+
+  function toggleGroup(id: string) {
+    setGroupState(prev => {
+      const next = { ...prev, [id]: !prev[id] }
+      saveGroupState(next)
+      return next
+    })
+  }
 
   const handleLogout = () => {
     logout()
@@ -156,24 +238,91 @@ export function DashboardLayout() {
           {/* Navigation */}
           <ScrollArea className="flex-1 py-4">
             <nav className="space-y-1 px-2">
-              {navItems.map((item) => (
-                <NavLink
-                  key={item.path}
-                  to={item.path}
-                  end
-                  className={({ isActive }) =>
-                    cn(
-                      'flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors',
-                      isActive
-                        ? 'bg-primary text-primary-foreground'
-                        : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
-                    )
-                  }
-                >
-                  <item.icon className="h-5 w-5 flex-shrink-0" />
-                  {sidebarOpen && <span>{t(item.labelKey)}</span>}
-                </NavLink>
-              ))}
+              {navItems.map((item) => {
+                if (item.kind === 'leaf') {
+                  return (
+                    <NavLink
+                      key={item.path}
+                      to={item.path}
+                      end
+                      className={({ isActive }) =>
+                        cn(
+                          'flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors',
+                          isActive
+                            ? 'bg-primary text-primary-foreground'
+                            : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+                        )
+                      }
+                    >
+                      <item.icon className="h-5 w-5 flex-shrink-0" />
+                      {sidebarOpen && <span>{t(item.labelKey)}</span>}
+                    </NavLink>
+                  )
+                }
+
+                // Group
+                const isOpen = !!groupState[item.id]
+                const isOnSection = location.pathname.startsWith(item.pathPrefix)
+                return (
+                  <div key={item.id} className="space-y-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!sidebarOpen) {
+                          // When the sidebar itself is collapsed, expand it
+                          // AND open the group so the user can pick a child.
+                          setSidebarOpen(true)
+                          if (!isOpen) toggleGroup(item.id)
+                        } else {
+                          toggleGroup(item.id)
+                        }
+                      }}
+                      title={!sidebarOpen ? t(item.labelKey) : undefined}
+                      className={cn(
+                        'flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors',
+                        isOnSection
+                          ? 'bg-accent text-accent-foreground font-medium'
+                          : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+                      )}
+                    >
+                      <item.icon className="h-5 w-5 flex-shrink-0" />
+                      {sidebarOpen && (
+                        <>
+                          <span className="flex-1 text-left">{t(item.labelKey)}</span>
+                          <ChevronRight
+                            className={cn(
+                              'h-4 w-4 flex-shrink-0 transition-transform',
+                              isOpen && 'rotate-90',
+                            )}
+                          />
+                        </>
+                      )}
+                    </button>
+                    {sidebarOpen && isOpen && (
+                      <div className="ml-3 space-y-1 border-l pl-3">
+                        {item.children.map((child) => (
+                          <NavLink
+                            key={child.path}
+                            to={child.path}
+                            end
+                            className={({ isActive }) =>
+                              cn(
+                                'flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors',
+                                isActive
+                                  ? 'bg-primary text-primary-foreground'
+                                  : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+                              )
+                            }
+                          >
+                            <child.icon className="h-4 w-4 flex-shrink-0" />
+                            <span>{t(child.labelKey)}</span>
+                          </NavLink>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
             </nav>
           </ScrollArea>
 

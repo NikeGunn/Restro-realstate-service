@@ -95,7 +95,9 @@ services:
     container_name: chatplatform_frontend
     volumes:
       - ./frontend:/app
-      - /app/node_modules
+      # Named volume (not anonymous) so node_modules survives `docker compose down`.
+      # The entrypoint script auto-syncs it with package.json on every start.
+      - frontend_node_modules:/app/node_modules
     ports:
       - "${HOST_FRONTEND_PORT:-13000}:3000"
     environment:
@@ -106,3 +108,4 @@ services:
 volumes:
   postgres_data:
   redis_data:
+  frontend_node_modules:
