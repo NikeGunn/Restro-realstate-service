@@ -23,6 +23,9 @@ import {
   Building2,
   Users,
   Phone,
+  Package,
+  Truck,
+  ArrowLeftRight,
 } from 'lucide-react'
 
 const coreNavKeys = [
@@ -41,6 +44,13 @@ const restaurantNavKeys = [
 const realEstateNavKeys = [
   { path: '/realestate/properties', labelKey: 'nav.properties', icon: Building2 },
   { path: '/realestate/leads', labelKey: 'nav.leads', icon: Users },
+]
+
+const inventoryNavKeys = [
+  { path: '/inventory', labelKey: 'nav.inventoryItems', icon: Package },
+  { path: '/inventory/suppliers', labelKey: 'nav.inventorySuppliers', icon: Truck },
+  { path: '/inventory/movements', labelKey: 'nav.inventoryMovements', icon: ArrowLeftRight },
+  { path: '/inventory/alerts', labelKey: 'nav.inventoryAlerts', icon: Bell },
 ]
 
 const settingsNavKey = { path: '/settings', labelKey: 'nav.settings', icon: Settings }
@@ -68,7 +78,10 @@ export function DashboardLayout() {
       items.push(...restaurantNavKeys)
       items.push(...realEstateNavKeys)
     }
-    
+
+    // Inventory is shared across both verticals
+    items.push(...inventoryNavKeys)
+
     items.push(settingsNavKey)
     items.push(channelsNavKey)
     return items

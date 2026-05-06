@@ -49,6 +49,9 @@ urlpatterns = [
     path('api/restaurant/', include('apps.restaurant.urls')),
     path('api/realestate/', include('apps.realestate.urls')),
 
+    # Inventory (Plane B — admin-only)
+    path('api/v1/inventory/', include('apps.inventory.urls')),
+
     # Channel configuration API (Phase 4)
     path('api/channels/', include('apps.channels.urls')),
 

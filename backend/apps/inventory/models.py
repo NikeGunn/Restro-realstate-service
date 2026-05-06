@@ -1,0 +1,380 @@
+"""
+Inventory models — Plane B.
+
+All tables prefixed `inv_` for visual isolation in DB tooling.
+StockMovement is an append-only ledger; InventoryAuditLog is non-deletable.
+InventoryItem.current_stock is signal-computed from StockMovement and must
+NEVER be written to directly.
+"""
+import uuid
+from datetime import date
+from decimal import Decimal
+
+from django.core.exceptions import ValidationError
+from django.core.validators import MinValueValidator, MaxValueValidator
+from django.db import models
+
+from apps.accounts.models import Organization, Location, User
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Mixins
+# ──────────────────────────────────────────────────────────────────────
+class _InventoryTimestamps(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        abstract = True
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Category
+# ──────────────────────────────────────────────────────────────────────
+class InventoryCategory(_InventoryTimestamps):
+    organization = models.ForeignKey(
+        Organization, on_delete=models.CASCADE, related_name='inventory_categories'
+    )
+    location = models.ForeignKey(
+        Location, on_delete=models.CASCADE,
+        null=True, blank=True, related_name='inventory_categories',
+    )
+    name = models.CharField(max_length=100)
+    description = models.TextField(blank=True)
+    is_active = models.BooleanField(default=True)
+    created_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='created_inventory_categories',
+    )
+
+    class Meta:
+        db_table = 'inv_category'
+        unique_together = [('organization', 'name')]
+        ordering = ['name']
+        verbose_name = 'Inventory Category'
+        verbose_name_plural = 'Inventory Categories'
+
+    def __str__(self):
+        return self.name
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Supplier
+# ──────────────────────────────────────────────────────────────────────
+class Supplier(_InventoryTimestamps):
+    class PaymentTerms(models.TextChoices):
+        COD = 'cod', 'Cash on Delivery'
+        NET7 = 'net7', 'Net 7'
+        NET15 = 'net15', 'Net 15'
+        NET30 = 'net30', 'Net 30'
+        NET60 = 'net60', 'Net 60'
+
+    organization = models.ForeignKey(
+        Organization, on_delete=models.CASCADE, related_name='suppliers'
+    )
+    location = models.ForeignKey(
+        Location, on_delete=models.SET_NULL, null=True, blank=True, related_name='suppliers',
+    )
+    name = models.CharField(max_length=200)
+    contact_name = models.CharField(max_length=100, blank=True)
+    email = models.EmailField(blank=True)
+    phone = models.CharField(max_length=20, blank=True)
+    address = models.TextField(blank=True)
+    tax_id = models.CharField(max_length=50, blank=True)
+    payment_terms = models.CharField(
+        max_length=10, choices=PaymentTerms.choices, default=PaymentTerms.COD,
+    )
+    notes = models.TextField(blank=True)
+    is_active = models.BooleanField(default=True)
+    created_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='created_suppliers',
+    )
+
+    class Meta:
+        db_table = 'inv_supplier'
+        ordering = ['name']
+        indexes = [models.Index(fields=['organization', 'is_active'])]
+
+    def __str__(self):
+        return self.name
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Item
+# ──────────────────────────────────────────────────────────────────────
+class InventoryItem(_InventoryTimestamps):
+    class Unit(models.TextChoices):
+        KG = 'kg', 'Kilogram'
+        G = 'g', 'Gram'
+        LITER = 'liter', 'Liter'
+        ML = 'ml', 'Milliliter'
+        PIECE = 'piece', 'Piece'
+        BOX = 'box', 'Box'
+        BAG = 'bag', 'Bag'
+        DOZEN = 'dozen', 'Dozen'
+        PACK = 'pack', 'Pack'
+
+    organization = models.ForeignKey(
+        Organization, on_delete=models.CASCADE, related_name='inventory_items'
+    )
+    location = models.ForeignKey(
+        Location, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='inventory_items',
+    )
+    sku = models.CharField(max_length=50, blank=True)
+    name = models.CharField(max_length=200)
+    description = models.TextField(blank=True)
+    category = models.ForeignKey(
+        InventoryCategory, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='items',
+    )
+    unit = models.CharField(max_length=10, choices=Unit.choices)
+    unit_cost = models.DecimalField(max_digits=10, decimal_places=4, default=Decimal('0'))
+    selling_price = models.DecimalField(
+        max_digits=10, decimal_places=4, null=True, blank=True,
+    )
+    reorder_level = models.DecimalField(
+        max_digits=10, decimal_places=4, default=Decimal('0'),
+    )
+    reorder_quantity = models.DecimalField(
+        max_digits=10, decimal_places=4, default=Decimal('0'),
+    )
+    current_stock = models.DecimalField(
+        max_digits=12, decimal_places=4, default=Decimal('0'),
+        help_text="Computed by signal from StockMovement ledger. Do not write directly.",
+    )
+    tolerance_percent = models.DecimalField(
+        max_digits=5, decimal_places=2, default=Decimal('0.5'),
+        validators=[MinValueValidator(Decimal('0')), MaxValueValidator(Decimal('5'))],
+    )
+    is_active = models.BooleanField(default=True)
+    is_perishable = models.BooleanField(default=False)
+    expiry_days = models.PositiveIntegerField(null=True, blank=True)
+    supplier = models.ForeignKey(
+        Supplier, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='items',
+    )
+    barcode = models.CharField(max_length=100, null=True, blank=True)
+    created_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='created_inventory_items',
+    )
+
+    class Meta:
+        db_table = 'inv_item'
+        unique_together = [
+            ('organization', 'sku'),
+            ('organization', 'barcode'),
+        ]
+        ordering = ['name']
+        indexes = [
+            models.Index(fields=['organization', 'is_active']),
+            models.Index(fields=['organization', 'category']),
+        ]
+
+    def __str__(self):
+        return f"{self.sku} — {self.name}"
+
+    def save(self, *args, **kwargs):
+        if self._state.adding:
+            if not self.sku:
+                self.sku = self._generate_sku()
+        else:
+            original = type(self).objects.get(pk=self.pk)
+            if original.unit != self.unit:
+                raise ValidationError(
+                    {'unit': 'Unit cannot be changed after item creation.'}
+                )
+            if original.sku != self.sku:
+                raise ValidationError(
+                    {'sku': 'SKU cannot be changed after item creation.'}
+                )
+        super().save(*args, **kwargs)
+
+    def _generate_sku(self):
+        prefix = ''.join(c for c in self.organization.name if c.isalnum())[:4].upper() or 'INV'
+        date_str = date.today().strftime('%Y%m%d')
+        last = (
+            type(self).objects.filter(
+                organization=self.organization,
+                sku__startswith=f'INV-{prefix}-{date_str}-',
+            )
+            .order_by('-sku')
+            .first()
+        )
+        seq = 1
+        if last:
+            try:
+                seq = int(last.sku.split('-')[-1]) + 1
+            except (ValueError, IndexError):
+                seq = 1
+        return f'INV-{prefix}-{date_str}-{seq:04d}'
+
+
+# ──────────────────────────────────────────────────────────────────────
+# StockMovement (append-only ledger)
+# ──────────────────────────────────────────────────────────────────────
+class StockMovement(_InventoryTimestamps):
+    class MovementType(models.TextChoices):
+        PURCHASE = 'purchase', 'Purchase'
+        SALE = 'sale', 'Sale'
+        WASTE = 'waste', 'Waste / Spoilage'
+        ADJUSTMENT = 'adjustment', 'Manual Adjustment'
+        RECIPE_CONSUMPTION = 'recipe_consumption', 'Recipe Consumption'
+        SUPPLIER_RETURN = 'supplier_return', 'Supplier Return'
+        OPENING_STOCK = 'opening_stock', 'Opening Stock'
+        IMPORT_SALE = 'import_sale', 'Imported Sale'
+        IMPORT_PURCHASE = 'import_purchase', 'Imported Purchase'
+
+    NEGATIVE_TYPES = {'sale', 'waste', 'recipe_consumption', 'import_sale'}
+    POSITIVE_TYPES = {'purchase', 'supplier_return', 'opening_stock', 'import_purchase'}
+
+    organization = models.ForeignKey(
+        Organization, on_delete=models.CASCADE, related_name='stock_movements'
+    )
+    location = models.ForeignKey(
+        Location, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='stock_movements',
+    )
+    item = models.ForeignKey(
+        InventoryItem, on_delete=models.PROTECT, related_name='movements',
+    )
+    movement_type = models.CharField(max_length=24, choices=MovementType.choices)
+    quantity = models.DecimalField(max_digits=12, decimal_places=4)
+    unit_cost = models.DecimalField(
+        max_digits=10, decimal_places=4, null=True, blank=True,
+    )
+    reference_id = models.CharField(max_length=200, blank=True)
+    reference_type = models.CharField(max_length=50, blank=True)
+    notes = models.TextField(blank=True)
+    movement_date = models.DateField(default=date.today)
+    created_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='stock_movements',
+    )
+    batch_id = models.UUIDField(null=True, blank=True, db_index=True)
+    is_reversed = models.BooleanField(default=False)
+    reversed_by = models.ForeignKey(
+        'self', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='reversal_of',
+    )
+
+    class Meta:
+        db_table = 'inv_stock_movement'
+        ordering = ['-movement_date', '-created_at']
+        indexes = [
+            models.Index(fields=['item', 'movement_date']),
+            models.Index(fields=['organization', '-created_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.movement_type} {self.quantity} {self.item.name}"
+
+    def clean(self):
+        super().clean()
+        if self.movement_type in self.NEGATIVE_TYPES and self.quantity > 0:
+            raise ValidationError(
+                {'quantity': f'{self.movement_type} movements must have a negative quantity.'}
+            )
+        if self.movement_type in self.POSITIVE_TYPES and self.quantity < 0:
+            raise ValidationError(
+                {'quantity': f'{self.movement_type} movements must have a positive quantity.'}
+            )
+
+    def save(self, *args, **kwargs):
+        if self.pk and not self._state.adding:
+            raise ValidationError(
+                "StockMovement is an append-only ledger. "
+                "To correct an error, use StockEngine.reverse_movement(). "
+                f"Record ID: {self.pk}"
+            )
+        self.full_clean(exclude=['organization', 'item'])
+        super().save(*args, **kwargs)
+
+
+# ──────────────────────────────────────────────────────────────────────
+# StockAlert
+# ──────────────────────────────────────────────────────────────────────
+class StockAlert(_InventoryTimestamps):
+    class AlertType(models.TextChoices):
+        LOW_STOCK = 'low_stock', 'Low Stock'
+        EXPIRY = 'expiry', 'Expiring Soon'
+        NEGATIVE_STOCK = 'negative_stock', 'Negative Stock'
+        VARIANCE = 'variance', 'Variance Detected'
+        OVERSTOCK = 'overstock', 'Overstock'
+
+    organization = models.ForeignKey(
+        Organization, on_delete=models.CASCADE, related_name='inventory_alerts'
+    )
+    location = models.ForeignKey(
+        Location, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='inventory_alerts',
+    )
+    item = models.ForeignKey(
+        InventoryItem, on_delete=models.CASCADE, related_name='alerts',
+    )
+    alert_type = models.CharField(max_length=20, choices=AlertType.choices)
+    message = models.TextField()
+    is_resolved = models.BooleanField(default=False)
+    resolved_at = models.DateTimeField(null=True, blank=True)
+    resolved_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='resolved_inventory_alerts',
+    )
+    triggered_at = models.DateTimeField(auto_now_add=True)
+    whatsapp_sent = models.BooleanField(default=False)
+    whatsapp_sent_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = 'inv_stock_alert'
+        ordering = ['-triggered_at']
+        indexes = [
+            models.Index(fields=['organization', 'is_resolved']),
+            models.Index(fields=['item', 'is_resolved']),
+        ]
+
+    def __str__(self):
+        return f"{self.alert_type}: {self.item.name}"
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Audit Log (non-deletable)
+# ──────────────────────────────────────────────────────────────────────
+class InventoryAuditLog(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    organization = models.ForeignKey(
+        Organization, on_delete=models.CASCADE, related_name='inventory_audit_logs'
+    )
+    location = models.ForeignKey(
+        Location, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='inventory_audit_logs',
+    )
+    action = models.CharField(max_length=50)
+    model_name = models.CharField(max_length=100)
+    object_id = models.UUIDField()
+    object_repr = models.CharField(max_length=200)
+    before = models.JSONField(null=True, blank=True)
+    after = models.JSONField(null=True, blank=True)
+    diff = models.JSONField(null=True, blank=True)
+    performed_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='inventory_audit_logs',
+    )
+    timestamp = models.DateTimeField(auto_now_add=True, db_index=True)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+
+    class Meta:
+        db_table = 'inv_audit_log'
+        ordering = ['-timestamp']
+        indexes = [
+            models.Index(fields=['organization', '-timestamp']),
+            models.Index(fields=['model_name', 'object_id']),
+        ]
+
+    def __str__(self):
+        return f"{self.action} {self.model_name} {self.object_repr} @ {self.timestamp:%Y-%m-%d %H:%M}"
+
+    def delete(self, *args, **kwargs):
+        raise ValidationError("Audit log entries cannot be deleted.")

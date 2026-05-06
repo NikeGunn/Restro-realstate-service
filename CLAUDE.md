@@ -10,6 +10,8 @@ The product spec is `agent.md` (gitignored locally but authoritative for scope d
 
 ## Common Commands
 
+> **Always run this app via Docker.** Never use `python manage.py runserver` or `npm run dev` against the host directly — host Python / Node versions can drift from the container (Python 3.11 in the backend image vs. whatever is on the host) and silently mask bugs that production will hit. **Always run tests inside Docker too** (`docker-compose run --rm backend pytest ...`, `docker-compose run --rm frontend npm test`). A "host green / Docker red" gap has burned us before.
+
 ### Local development (docker-compose)
 ```bash
 docker-compose up --build                                    # All services (db, redis, backend, celery, celery-beat, frontend)
@@ -99,9 +101,45 @@ The widget is **not** a separate npm package. It's a single static file at `back
 
 ## Conventions specific to this repo
 
-- **Don't add features outside `agent.md` scope** (no payments, no POS, no CRM features, no delivery). If unsure, prefer human handoff over a new feature.
+- **`agent.md` scope lock is overridden for the inventory feature** (user authorized 2026-05-06). Inventory work proceeds; other off-scope features still require fresh authorization.
 - **Don't hardcode prompts** — AI prompt templates live as files (referenced from `apps/ai_engine/`), not inline strings.
 - **Don't commit secrets, `.env*`, `.pem`, or `k8s/secrets.yaml`** — `.gitignore` blocks the common cases but be deliberate.
 - **`*.ps1` scripts are gitignored** (except `config.ps1.example`). Local-only deployment helpers; don't rely on them in CI or docs.
 - **`agent.md`, `QUICK_REFERENCE.txt`, `SECURITY*.md`, `*-diagnostic.ps1`, `check_*.py` and similar debug scripts are gitignored** — when investigating, you may find such files locally; don't commit them.
 - The repo path contains a space (`Restro & real estate`). Quote paths in shell commands.
+
+## Inventory app — Plane B (resume notes)
+
+The inventory module is the "sealed vault" admin counterpart to the public chatbot. The full design lives in `INVENTORY_CLAUDE_CODE_PROMPT_V2.md` (gitignored, ~1.5k lines, FAANG-grade spec). Read it before extending phase 2+.
+
+### Dual-engine principle (memorize this)
+- **Plane A (public)**: existing `apps/ai_engine/services.AIService`. Customer-facing on widget / WhatsApp / Instagram. Knows menus, hours, bookings, listings.
+- **Plane B (admin)**: `apps/inventory/`. Owner-only. Knows stock, suppliers, costs, recipes.
+- The ONLY bridge is `apps/inventory/firewall.InventoryContextFirewall`. Stateless, no DB, no inventory imports at module level. AIService.process_message calls `firewall.check()` immediately after language detection — if it returns True, deflect with a localized message and skip OpenAI entirely. Firewall must be import-safe; never add DB calls to it.
+
+### Phase 1 — DONE (2026-05-06, all 80 backend tests pass, frontend build clean)
+- `backend/apps/inventory/` scaffolded and registered in `INSTALLED_APPS` and `config/urls.py` at `/api/v1/inventory/`.
+- Models (`models.py`): `InventoryCategory`, `Supplier`, `InventoryItem` (auto-SKU `INV-{4char}-{YYYYMMDD}-{seq}`, unit + sku immutable after create), `StockMovement` (append-only ledger; `clean()` enforces sign-by-type; `save()` raises on update), `StockAlert`, `InventoryAuditLog` (delete blocked). All tables prefixed `inv_`.
+- Signals (`signals.py`): on StockMovement create → recompute `InventoryItem.current_stock` via `update()` (bypasses item save guard), then auto-create LOW_STOCK / NEGATIVE_STOCK alerts (no spam: only one open alert per item+type).
+- Permissions: roles in this codebase are `owner` / `manager` only (no `admin`). Inventory **write** = `owner`; **read** = owner or manager. Checked via `apps/accounts/OrganizationMembership`.
+- ViewSets (`views.py`): items (full CRUD + `/adjust/` action + `/dashboard/`), suppliers, categories, movements (read-only), alerts (read-only + resolve action), audit-log (read-only).
+- Migration: `apps/inventory/migrations/0001_initial.py`.
+- Tests (`apps/inventory/tests/`): `test_firewall.py` (26 cases en/zh-CN/zh-TW), `test_models.py` (10 cases), `test_security.py` (5 cases). Run: `pytest apps/inventory/tests/`.
+- Surgical AIService patch: 1 import + 14-line firewall block at the top of `process_message`. Returns same shape as other code paths. Pre-existing `apps/ai_engine` tests still pass.
+
+### Phase 1 frontend — DONE
+- `frontend/src/services/inventory.ts` — typed axios wrapper for all inventory endpoints.
+- Pages under `frontend/src/pages/inventory/`: `ItemsPage` (polished — dashboard cards, filters, create/edit dialog with unit-locked-after-create, stock adjustment dialog), `SuppliersPage`, `MovementsPage` (ledger with reversal styling), `InventoryAlertsPage`.
+- Sidebar entries added in `DashboardLayout.tsx` after vertical nav: items, suppliers, movements, alerts.
+- Routes wired in `App.tsx` under `OrganizationRequiredRoute` at `/inventory*`.
+- i18n keys added to all three locale files under `inventory.*` and `nav.inventory*`.
+
+### Phase 2 — NOT YET BUILT (deferred)
+Models in spec but not yet implemented: `PurchaseOrder`, `PurchaseOrderItem`, `Recipe`, `RecipeIngredient`, `RecipeVersion`, `SalesImport`, `SupplierImport`. Services not yet built: `tolerance_engine.py`, `stock_engine.py` (mostly inlined into views.adjust for now — extract when receiving POs / recipes land), `recipe_engine.py`, `excel_parser.py`, `ai_engine.py` (Plane B's separate OpenAI engine), prompt files. Celery tasks not yet built (low-stock WhatsApp alert to owner, daily digest). Frontend pages not yet built: Purchase Orders, Recipes (with feasibility check), Excel import wizard with column mapping, Audit log viewer, Inventory AI chat panel.
+
+### Phase 1 known limitations / debt
+- StockEngine class not extracted; manual adjustments go through the view directly. When Phase 2 (POs, recipes) lands, refactor adjust + receive_po + consume_recipe into `services/stock_engine.py` with `_create_movement()` as the single creation point.
+- ToleranceEngine is approximated inline in the InventoryItem serializer's `effective_stock` computation. Extract when recipe feasibility lands.
+- No Celery tasks; signal does the alert creation synchronously. Move to Celery when WhatsApp owner alerts land.
+- Audit log is created from views (`adjust` action only); other CRUD operations don't yet auto-log. Add a generic mixin or signals when adding more mutating endpoints.
+- Pyright shows many warnings; this matches the rest of the codebase (no Django stubs). Don't chase them.

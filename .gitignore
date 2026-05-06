@@ -123,6 +123,7 @@ agent.md
 # Local documentation
 SSH_DEPLOYMENT_GUIDE.md
 DEPLOYMENT_COMMANDS.md
+INVENTORY_CLAUDE_CODE_PROMPT_V2.md
 
 # Security documentation (keep local only)
 SECURITY.md

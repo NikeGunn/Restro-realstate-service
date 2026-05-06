@@ -25,6 +25,12 @@ import { BookingsPage } from '@/pages/restaurant/BookingsPage'
 import { PropertiesPage } from '@/pages/realestate/PropertiesPage'
 import { LeadsPage } from '@/pages/realestate/LeadsPage'
 
+// Inventory pages
+import { ItemsPage } from '@/pages/inventory/ItemsPage'
+import { SuppliersPage } from '@/pages/inventory/SuppliersPage'
+import { MovementsPage } from '@/pages/inventory/MovementsPage'
+import { InventoryAlertsPage } from '@/pages/inventory/InventoryAlertsPage'
+
 // Public pages
 import { LandingPage } from '@/pages/LandingPage'
 import { PrivacyPolicy } from '@/pages/PrivacyPolicy'
@@ -173,6 +179,12 @@ function App() {
           {/* Real Estate Routes */}
           <Route path="/realestate/properties" element={<PropertiesPage />} />
           <Route path="/realestate/leads" element={<LeadsPage />} />
+
+          {/* Inventory Routes (Plane B — admin only, enforced by backend) */}
+          <Route path="/inventory" element={<ItemsPage />} />
+          <Route path="/inventory/suppliers" element={<SuppliersPage />} />
+          <Route path="/inventory/movements" element={<MovementsPage />} />
+          <Route path="/inventory/alerts" element={<InventoryAlertsPage />} />
         </Route>
       </Routes>
       <Toaster />

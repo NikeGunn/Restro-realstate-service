@@ -54,6 +54,8 @@ INSTALLED_APPS = [
     # Vertical apps
     'apps.restaurant',
     'apps.realestate',
+    # Inventory (Plane B — admin-only, sealed from public chatbot)
+    'apps.inventory',
 ]
 
 MIDDLEWARE = [

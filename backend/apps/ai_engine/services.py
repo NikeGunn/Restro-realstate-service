@@ -15,6 +15,7 @@ from openai import OpenAI
 
 from apps.messaging.models import Conversation, Message, MessageSender
 from apps.knowledge.models import KnowledgeBase, FAQ
+from apps.inventory.firewall import InventoryContextFirewall
 from .models import AILog
 from .language_service import LanguageService, LanguageCode, detect_language
 
@@ -142,6 +143,26 @@ class AIService:
         # Detect user's language first
         detected_lang = self._detect_and_set_language(user_message)
         logger.info(f"Processing message in language: {detected_lang}")
+
+        # 🛡️ INVENTORY FIREWALL: Plane B (operational data) is sealed from
+        # customers. If the customer is probing for stock/recipe/supplier
+        # info, deflect immediately — no AI call, no knowledge lookup.
+        # This guard MUST run before any path that reads business data.
+        should_deflect, deflection_text = InventoryContextFirewall.check(
+            user_message, language=detected_lang,
+        )
+        if should_deflect:
+            logger.info("🛡️ Inventory firewall deflected an inventory probe")
+            return {
+                'content': deflection_text,
+                'confidence': 1.0,
+                'intent': 'inventory_probe_deflected',
+                'metadata': {'source': 'inventory_firewall'},
+                'needs_handoff': False,
+                'handoff_reason': '',
+                'language': detected_lang,
+                'extracted_data': {},
+            }
 
         # ⚡ FAST PATH: short greeting → instant reply, skip OpenAI entirely.
         # Saves the 5-20s round-trip for "hi"/"hello"/etc. — the most common
