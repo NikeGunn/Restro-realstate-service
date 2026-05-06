@@ -134,12 +134,108 @@ The inventory module is the "sealed vault" admin counterpart to the public chatb
 - Routes wired in `App.tsx` under `OrganizationRequiredRoute` at `/inventory*`.
 - i18n keys added to all three locale files under `inventory.*` and `nav.inventory*`.
 
-### Phase 2 — NOT YET BUILT (deferred)
-Models in spec but not yet implemented: `PurchaseOrder`, `PurchaseOrderItem`, `Recipe`, `RecipeIngredient`, `RecipeVersion`, `SalesImport`, `SupplierImport`. Services not yet built: `tolerance_engine.py`, `stock_engine.py` (mostly inlined into views.adjust for now — extract when receiving POs / recipes land), `recipe_engine.py`, `excel_parser.py`, `ai_engine.py` (Plane B's separate OpenAI engine), prompt files. Celery tasks not yet built (low-stock WhatsApp alert to owner, daily digest). Frontend pages not yet built: Purchase Orders, Recipes (with feasibility check), Excel import wizard with column mapping, Audit log viewer, Inventory AI chat panel.
+### Phases 2 & 3 — DONE (2026-05-07, 133/133 backend tests pass, frontend production build clean)
 
-### Phase 1 known limitations / debt
-- StockEngine class not extracted; manual adjustments go through the view directly. When Phase 2 (POs, recipes) lands, refactor adjust + receive_po + consume_recipe into `services/stock_engine.py` with `_create_movement()` as the single creation point.
-- ToleranceEngine is approximated inline in the InventoryItem serializer's `effective_stock` computation. Extract when recipe feasibility lands.
-- No Celery tasks; signal does the alert creation synchronously. Move to Celery when WhatsApp owner alerts land.
-- Audit log is created from views (`adjust` action only); other CRUD operations don't yet auto-log. Add a generic mixin or signals when adding more mutating endpoints.
-- Pyright shows many warnings; this matches the rest of the codebase (no Django stubs). Don't chase them.
+**Models added** (`models.py`, migration `0002_purchaseorder_recipe_…`):
+`PurchaseOrder` (auto `PO-{YYYYMMDD}-{org4}-{seq:04d}`, supplier locked once status leaves draft, order_number immutable), `PurchaseOrderItem`, `Recipe` (auto-bumped `version` field), `RecipeIngredient` (item + unit immutable after creation; unit must match item.unit), `RecipeVersion` (JSON snapshot per change), `SalesImport`, `SupplierImport` (file upload + status FSM).
+
+**Services** (`apps/inventory/services/`):
+- `tolerance_engine.py` — pure-arithmetic, dataclass-based; `effective_stock()` and `check_recipe_feasibility()`. Zero Django imports at module level.
+- `stock_engine.py` — single creation point for all StockMovements via `_create_movement()`. Methods: `manual_adjustment`, `reverse_movement` (atomic, marks original via `update()` to bypass append-only guard), `receive_purchase_order_item` (auto-flips PO status to partial/received, queries siblings via fresh queryset to bypass any prefetch cache), `consume_recipe`, `apply_sales_import`, `apply_purchase_import`.
+- `recipe_engine.py` — `calculate_batch` (yield_percent inflates required: required = qty × batches / (yield/100)), `suggest_batches`, `cost_of_batch`, `version_diff`.
+- `excel_parser.py` — `.xlsx` (openpyxl) / `.xls` (xlrd) / `.csv` (csv). Fuzzy column detection via `COLUMN_SYNONYMS` + difflib cutoff 0.75. 30% error-row threshold causes import to abort with status=failed. Two-phase: `parse()` (no DB writes) and `resolve_item()` (SKU exact → fuzzy name).
+- `ai_engine.py` — Plane B `InventoryAIEngine`. Loads prompts from `prompts/*.txt` (never inline). Pre-flight skips OpenAI when org has zero items. Confidence floor 0.70 → safe deflection. Every query writes an `InventoryAuditLog` row with action='ai_query'. Degrades gracefully when `OPENAI_API_KEY` empty.
+- 3 prompt files: `prompts/inventory_query.txt`, `prompts/stock_alert.txt`, `prompts/daily_summary.txt`.
+
+**Celery tasks** (`tasks.py`):
+- `process_excel_import_task` — parses + applies via StockEngine, marks failed on >30% errors.
+- `check_low_stock_task` — async low-stock check with `LOW_STOCK_ALERT_COOLDOWN_HOURS` cooldown; queues WhatsApp.
+- `send_stock_alert_whatsapp_task` — sends alert to OWNER's phone via `apps.channels.whatsapp_service.WhatsAppService` (never to a customer conversation).
+- `generate_daily_inventory_summary_task` — beat-scheduled 08:00 UTC daily, per org.
+- `check_expiry_task` — beat-scheduled 07:00 UTC daily, creates EXPIRY alerts on perishables past their threshold.
+- Beat schedule entries added to `config/settings.CELERY_BEAT_SCHEDULE`.
+
+**API** (`views.py`, `serializers.py`, `urls.py`):
+- `AuditLoggedMixin` — auto-logs create/update/destroy on every mutating ViewSet with before/after JSON snapshot + computed diff. Drop-in via class inheritance.
+- New ViewSets: `PurchaseOrderViewSet` (+`receive`, +`cancel`), `RecipeViewSet` (+`calculate`, +`consume`, +`suggest_batches`, +`versions`, +`version-diff`), `SalesImportViewSet` & `SupplierImportViewSet` (+`preview`, +`commit`, +`status`), `InventoryAIViewSet` (+`query`, gated to `org.plan == 'power'`), `InventoryReportViewSet` (+`stock-health`, +`movement-timeline`, +`top-consumed`, +`variance`).
+- New item actions: `effective-stock`, `movements`. New movement action: `reverse` (owner-only, requires reason ≥5 chars).
+- Item `adjust` and movement `reverse` now route through StockEngine (the inline view-level logic from Phase 1 was migrated).
+- All ViewSets enforce `InventoryOrgScopeMixin`. Cross-org access returns 404 (does not leak existence).
+- Serializers expose `locked_fields: string[]` on Item, Supplier, PurchaseOrder, RecipeIngredient so the frontend can render `<LockedField>` correctly.
+
+**Settings + deps**:
+- `INVENTORY_SETTINGS` block in `config/settings.py` (tolerance defaults, file size, error threshold, alert cooldown, AI model, alert channels).
+- `requirements.txt` adds `openpyxl>=3.1`, `xlrd>=2.0`, `python-dateutil>=2.8`.
+
+**Tests** (`apps/inventory/tests/`):
+- New: `test_tolerance_engine.py` (7 cases), `test_stock_engine.py` (9), `test_recipe_engine.py` (6), `test_excel_parser.py` (10), `test_api.py` (16 — covers PO create/receive/cancel, Recipe create/calc/consume/versions, imports upload + extension reject, reports, AI graceful degradation, cross-org isolation, audit log writes).
+- Shared `conftest.py` with org/owner/manager/outsider/supplier/item/recipe/purchase_order fixtures.
+- **94 inventory tests, 133 total backend tests, all green in Docker** (`docker compose exec backend pytest -v`).
+
+**Frontend**:
+- `recharts` added to `package.json`. Used for dashboard pie + line + horizontal-bar charts and report stack chart.
+- Reusable components: `components/inventory/StockDisplay.tsx` (used everywhere stock surfaces; tolerance band in tooltip), `components/inventory/LockedField.tsx` (read-only display for immutable fields with reason).
+- Service layer `services/inventory.ts` extended with all Phase 2/3 types and endpoints.
+- Pages added under `pages/inventory/`: `InventoryDashboardPage` (KPIs + recharts), `PurchaseOrdersPage` (list/create/receive/cancel with multi-line dialog), `RecipesPage` (card grid + create/edit + real-time calculator with live feasibility + version history), `SalesImportPage` & `PurchaseImportPage` (3-step wizard: upload → preview with column-map and valid-% indicator → processing with progress poll → done with summary + error CSV), `InventoryReportsPage` (tabbed: stock by category, in/out timeline, variance table), `AuditLogPage` (filterable, expandable before/after diff, CSV export), `InventoryAIPage` (chat with confidence badges, suggestion chips, graceful 403 on non-power plan).
+- All new routes wired in `App.tsx` under `OrganizationRequiredRoute`. Sidebar (`layouts/DashboardLayout.tsx`) has 11 inventory entries.
+- Full i18n coverage in en/zh-CN/zh-TW under `inventory.*` (dashboard, po, recipes, import, reports, audit, ai sub-blocks) and `nav.inventory*`.
+- `npm run build:check` — zero new inventory TS errors. `npm run build` — production bundle compiles clean.
+
+### Phase 2/3 known limitations / debt
+- WhatsApp owner-alert task uses a defensive lookup chain (`user.phone` → `user.whatsapp_number` → `org.phone`). If your `User` model uses a different field name, `tasks.py:send_stock_alert_whatsapp_task` will log and skip silently — adjust the lookup if you store phones elsewhere.
+- The InventoryAI endpoint requires `org.plan == 'power'` AND a valid `OPENAI_API_KEY`. With an empty org (no items) the engine short-circuits before calling OpenAI and returns a clear "inventory is empty" message — confidence 0% in that case is correct, not a bug.
+- Pyright shows many warnings (`Cannot access attribute "objects"` etc.); this matches the rest of the codebase (no Django stubs). Don't chase them.
+
+### Future phases (4, 5, 6) — PROPOSALS ONLY, NOT SPEC
+
+> **STOP. Read this before writing any code for Phase 4+.**
+>
+> `INVENTORY_CLAUDE_CODE_PROMPT_V2.md` ends at Part 7. **Everything in that file has been delivered through Phase 3.** The V2 spec defines no Phase 4, Phase 5, or Phase 6.
+>
+> The bullets below are **candidate scope** — possible directions the inventory module could grow. They are NOT authorised, NOT designed in detail, and NOT a build queue. Treat each phase as a fresh feature that requires:
+> 1. Explicit user authorization (the same way `agent.md` scope was overridden for inventory on 2026-05-06).
+> 2. A written design discussion before any model/migration/UI work begins — confirm fields, FSM, permissions, and acceptance tests with the user.
+> 3. A new entry in `agent.md` if the proposed feature crosses into POS / CRM / payments / delivery territory (which is currently scope-locked).
+>
+> **DO NOT**: read this section and start implementing. **DO**: when the user says "start Phase 4", first ask which sub-items they actually want, in what order, and whether anything that smells like POS/CRM/payments/delivery is in or out.
+
+#### Phase 4 candidates — Operations polish (low risk, in current scope)
+
+These extend existing Phase 1-3 surfaces; no new domain concepts.
+
+- **Multi-location stock split.** Today, `InventoryItem.location` is a single optional FK and `current_stock` aggregates across all movements regardless of location. Real chains need per-location stock per item. Proposal: introduce `LocationStock(item, location, current_stock, reorder_level_override)` as the per-location ledger projection, change the signal to `update_or_create` per `(item, location)`, surface a location selector on every Inventory page. Touches: models, signals, all serializers, all reports, frontend filters.
+- **Barcode scanning UI.** Use the device camera (`navigator.mediaDevices` + a scanner library like `@zxing/browser`) to scan into the adjustment dialog and PO receive dialog. Frontend-only.
+- **Stock-take / cycle-count workflow.** New `StockTake` model (org, location, started_at, completed_at, owner) with `StockTakeLine(item, system_count, counted, variance, notes)`. On commit → emit `adjustment` movements via StockEngine for each variance. Adds a guided "physical count" page.
+- **Movement export.** Server-side CSV/XLSX export of `StockMovement` filtered by item / type / date range. Pair with the existing audit-log CSV download pattern.
+- **Bulk item edit.** Multi-select in the Items list → bulk update reorder_level / supplier / category / is_active. Backend: a `bulk-update` action on `InventoryItemViewSet` that accepts `{ids: [], patch: {}}` and writes one audit-log row per item.
+- **Tighter PO lifecycle.** `draft → sent` action that emails the supplier (PDF attached). PO PDF generation (server-side via `weasyprint` or similar). Currently POs are created and immediately receivable; many shops want to "send" first.
+- **Per-location pricing.** Allow `unit_cost` and `selling_price` to vary by location. Either via a `LocationItemPricing` table or a JSON field on `InventoryItem`.
+
+#### Phase 5 candidates — Forecasting & cost analytics (mid risk)
+
+Read-only analytics on top of the existing ledger. No new mutating surfaces.
+
+- **Reorder forecast.** For each item, compute average daily consumption over the last N days (excluding reversed movements), project days-of-cover, surface a "Items to reorder this week" page. Recharts area chart per item.
+- **Supplier scorecards.** Per-supplier stats: average lead time (PO created → received), receive accuracy (% of PO lines where `quantity_received == quantity_ordered`), price-trend volatility. Powers a Supplier detail page.
+- **Recipe profitability.** For recipes whose `output_item.selling_price` is set, compute margin = selling_price − cost_of_batch (per output unit). Rank recipes by margin and by volume. Surfaces the "drop these dishes / push these dishes" insight.
+- **Waste analysis.** Slice `StockMovement.movement_type='waste'` by item, time bucket, location. Highlight outlier weeks.
+- **AI-powered weekly insights.** New Plane B prompt + Celery task that runs every Monday and produces a one-paragraph "what to pay attention to this week" summary delivered via the existing WhatsApp owner channel. Extends `InventoryAIEngine` with an `insights()` method; no new external dependencies.
+
+#### Phase 6 candidates — Plane A integration & multi-tenant ops (higher risk, must check scope-lock)
+
+These touch the firewall or cross into POS/CRM/payments territory. Most require fresh `agent.md` authorization.
+
+- **Bookings → recipe consumption.** When a restaurant booking is fulfilled, optionally auto-consume the recipe(s) for the dishes ordered. Touches Plane A (`apps.restaurant.bookings`) ↔ Plane B (`apps.inventory.services.stock_engine`). The bridge must remain one-directional (Plane A reads its own data, calls a narrow method on StockEngine; StockEngine must NOT call back into Plane A).
+- **POS imports.** Pull sales rows from a third-party POS (Square, Toast, etc.) via webhook or polling and feed them through the existing `apply_sales_import` path. **THIS IS POS TERRITORY** — `agent.md` scope-locks POS by default. Get explicit user override before starting.
+- **Supplier marketplace / e-procurement.** Catalog of items the supplier offers, online quoting, e-signature on POs. **CROSSES INTO PROCUREMENT/PAYMENTS**. Likely scope-locked. Confirm.
+- **Per-org isolated AI fine-tuning.** Hourly job that distils each org's inventory + Q&A history into a JSON profile fed into the prompt. Improves answer quality for big orgs without leaking cross-org data. Stays inside Plane B; no scope concern, but adds OpenAI cost.
+- **Mobile (PWA) shell** — install-to-homescreen, offline-tolerant Items + adjust pages for inventory clerks doing physical counts on the warehouse floor. Touches PWA manifest, service worker, IndexedDB queueing.
+
+#### How to start any of the above
+
+1. User says: *"Phase 4: do bulk item edit and movement export"* (or whatever subset).
+2. Claude responds with a brief plan (models touched, migrations needed, test plan, frontend touchpoints) and asks the user to confirm.
+3. Only after confirmation, Claude implements in slices using the same pattern as Phase 2/3 (TaskCreate per slice, Docker pytest after each, frontend `npm run build:check` at the end).
+4. CLAUDE.md gets updated to move the implemented bullets out of "Future phases" and into a new dated `### Phase 4 — DONE` block.
+
+If the user asks for "Phase 4" without specifying scope, Claude must NOT pick from this list arbitrarily. Ask which bullets, in which order. The list is unordered on purpose.

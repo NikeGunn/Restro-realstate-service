@@ -1,0 +1,7 @@
+⚠️ Stock Alert — {item_name}
+
+Current stock: {current_stock} {unit}
+Reorder level: {reorder_level} {unit}
+SKU: {sku}
+
+Action required: please reorder this item to avoid a stockout.

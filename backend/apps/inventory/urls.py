@@ -10,6 +10,9 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     InventoryCategoryViewSet, SupplierViewSet, InventoryItemViewSet,
     StockMovementViewSet, StockAlertViewSet, InventoryAuditLogViewSet,
+    PurchaseOrderViewSet, RecipeViewSet,
+    SalesImportViewSet, SupplierImportViewSet,
+    InventoryAIViewSet, InventoryReportViewSet,
 )
 
 app_name = 'inventory'
@@ -21,6 +24,12 @@ router.register(r'items', InventoryItemViewSet, basename='inventory-item')
 router.register(r'movements', StockMovementViewSet, basename='inventory-movement')
 router.register(r'alerts', StockAlertViewSet, basename='inventory-alert')
 router.register(r'audit-log', InventoryAuditLogViewSet, basename='inventory-audit-log')
+router.register(r'purchase-orders', PurchaseOrderViewSet, basename='inventory-purchase-order')
+router.register(r'recipes', RecipeViewSet, basename='inventory-recipe')
+router.register(r'imports/sales', SalesImportViewSet, basename='inventory-sales-import')
+router.register(r'imports/purchases', SupplierImportViewSet, basename='inventory-purchase-import')
+router.register(r'ai', InventoryAIViewSet, basename='inventory-ai')
+router.register(r'reports', InventoryReportViewSet, basename='inventory-report')
 
 urlpatterns = [
     path('', include(router.urls)),

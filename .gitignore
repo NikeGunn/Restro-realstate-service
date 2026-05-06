@@ -103,6 +103,9 @@ deploy/*.ps1
 **/check_*.py
 **/*_diagnostic*.py
 **/*_debug*.py
+# But DO ship real test suites under apps/*/tests/
+!backend/apps/*/tests/test_*.py
+!backend/apps/*/tests/**/test_*.py
 debug-*.ps1
 fix-*.ps1
 *-diagnostic.ps1
@@ -119,6 +122,7 @@ scripts-archive/
 *.postman_collection.json
 AI_Chat_Platform_API.postman_collection.json
 agent.md
+expert-designer-research
 
 # Local documentation
 SSH_DEPLOYMENT_GUIDE.md

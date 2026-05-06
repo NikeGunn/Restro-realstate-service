@@ -26,6 +26,13 @@ import {
   Package,
   Truck,
   ArrowLeftRight,
+  ClipboardList,
+  ChefHat,
+  Upload,
+  PieChart,
+  ScrollText,
+  Sparkles,
+  Boxes,
 } from 'lucide-react'
 
 const coreNavKeys = [
@@ -47,10 +54,17 @@ const realEstateNavKeys = [
 ]
 
 const inventoryNavKeys = [
-  { path: '/inventory', labelKey: 'nav.inventoryItems', icon: Package },
+  { path: '/inventory', labelKey: 'nav.inventoryDashboard', icon: Boxes },
+  { path: '/inventory/items', labelKey: 'nav.inventoryItems', icon: Package },
   { path: '/inventory/suppliers', labelKey: 'nav.inventorySuppliers', icon: Truck },
+  { path: '/inventory/purchase-orders', labelKey: 'nav.inventoryPurchaseOrders', icon: ClipboardList },
+  { path: '/inventory/recipes', labelKey: 'nav.inventoryRecipes', icon: ChefHat },
   { path: '/inventory/movements', labelKey: 'nav.inventoryMovements', icon: ArrowLeftRight },
+  { path: '/inventory/imports/sales', labelKey: 'nav.inventoryImports', icon: Upload },
+  { path: '/inventory/reports', labelKey: 'nav.inventoryReports', icon: PieChart },
   { path: '/inventory/alerts', labelKey: 'nav.inventoryAlerts', icon: Bell },
+  { path: '/inventory/audit-log', labelKey: 'nav.inventoryAudit', icon: ScrollText },
+  { path: '/inventory/ai', labelKey: 'nav.inventoryAI', icon: Sparkles },
 ]
 
 const settingsNavKey = { path: '/settings', labelKey: 'nav.settings', icon: Settings }

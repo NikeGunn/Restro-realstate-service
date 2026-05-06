@@ -127,6 +127,218 @@ export interface InventoryDashboard {
 }
 
 // ──────────────────────────────────────────────────────────
+// Phase 2 / 3 types
+// ──────────────────────────────────────────────────────────
+export type POStatus = 'draft' | 'sent' | 'partial' | 'received' | 'cancelled'
+
+export interface PurchaseOrderItem {
+  id: string
+  purchase_order: string
+  item: string
+  item_name: string
+  item_sku: string
+  item_unit: string
+  quantity_ordered: string
+  quantity_received: string
+  unit_cost: string
+  notes: string
+  line_total: string
+  created_at: string
+  updated_at: string
+}
+
+export interface PurchaseOrder {
+  id: string
+  organization: string
+  location: string | null
+  supplier: string
+  supplier_name: string
+  order_number: string
+  status: POStatus
+  order_date: string
+  expected_date: string | null
+  received_date: string | null
+  notes: string
+  total_amount: string
+  items: PurchaseOrderItem[]
+  locked_fields: string[]
+  created_at: string
+  updated_at: string
+}
+
+export interface RecipeIngredient {
+  id?: string
+  recipe?: string
+  item: string
+  item_name?: string
+  item_sku?: string
+  item_unit?: string
+  quantity: string
+  unit: string
+  is_optional: boolean
+  notes?: string
+  locked_fields?: string[]
+}
+
+export interface Recipe {
+  id: string
+  organization: string
+  location: string | null
+  name: string
+  description: string
+  category: string | null
+  output_item: string | null
+  output_item_name: string | null
+  output_quantity: string
+  output_unit: string
+  yield_percent: string
+  is_active: boolean
+  version: number
+  ingredients: RecipeIngredient[]
+  created_at: string
+  updated_at: string
+}
+
+export interface RecipeCalculation {
+  recipe_id: string
+  recipe_name: string
+  version: number
+  batches: string
+  yield_percent: string
+  output_quantity: string | null
+  output_item: string | null
+  feasible: boolean
+  shortfalls: Array<{
+    item_id: string
+    item_name: string
+    required: string
+    available: string
+    shortfall: string
+  }>
+  warnings: Array<{
+    item_id: string
+    item_name: string
+    post_deduction_stock: string
+    reorder_level: string
+    message: string
+  }>
+  estimated_cost: string
+  cost_per_output: string | null
+  ingredients: Array<{
+    item_id: string
+    item_name: string
+    unit: string
+    required_quantity: string
+    available_raw: string
+    available_reported: string
+    lower_bound: string
+    upper_bound: string
+    shortfall: string
+  }>
+}
+
+export interface RecipeVersion {
+  id: string
+  recipe: string
+  version_number: number
+  snapshot: Record<string, unknown>
+  changed_by: string | null
+  changed_by_email: string | null
+  changed_at: string
+  reason: string
+}
+
+export type ImportStatus = 'pending' | 'processing' | 'completed' | 'failed'
+
+export interface ImportRecord {
+  id: string
+  organization: string
+  location: string | null
+  file_url: string | null
+  file_name: string
+  status: ImportStatus
+  row_count: number
+  processed_count: number
+  error_count: number
+  error_log: Array<{ row: number; column: string; message: string }>
+  batch_id: string
+  imported_at: string | null
+  summary: Record<string, { name: string; sku: string; unit: string; deducted?: string; received?: string; new_stock?: string }>
+  column_map: Record<string, number>
+  task_id: string
+  created_at: string
+  updated_at: string
+}
+
+export interface SupplierImportRecord extends ImportRecord {
+  supplier: string | null
+}
+
+export interface ImportPreview {
+  rows: Array<{
+    row_num: number
+    name: string
+    sku: string
+    quantity: string
+    unit_cost: string | null
+    movement_date: string | null
+    supplier_name: string
+    notes: string
+    errors: Array<{ row: number; column: string; message: string }>
+    raw: unknown[]
+  }>
+  errors: Array<{ row: number; column: string; message: string }>
+  column_map: Record<string, number>
+  total_rows: number
+  valid_rows: number
+  error_rows: number
+  warnings: string[]
+  headers: string[]
+}
+
+export interface AuditLogEntry {
+  id: string
+  organization: string
+  location: string | null
+  action: string
+  model_name: string
+  object_id: string
+  object_repr: string
+  before: Record<string, unknown> | null
+  after: Record<string, unknown> | null
+  diff: Record<string, { before: unknown; after: unknown }> | null
+  performed_by: string | null
+  performed_by_email: string | null
+  timestamp: string
+  ip_address: string | null
+}
+
+export interface StockHealthReport {
+  totals: { critical: number; low: number; normal: number; overstock: number; negative: number }
+  per_category: Array<{ category: string; critical: number; low: number; normal: number; overstock: number; negative: number }>
+  item_count: number
+}
+
+export interface MovementTimeline {
+  days: number
+  series: Array<{ date: string; in: string; out: string }>
+}
+
+export interface TopConsumed {
+  item_id: string
+  item_name: string
+  sku: string
+  unit: string
+  consumed: string
+}
+
+export interface AIQueryResult {
+  answer: string
+  confidence: number
+  data_points_used: string[]
+}
+
+// ──────────────────────────────────────────────────────────
 // Helpers
 // ──────────────────────────────────────────────────────────
 function unwrap<T>(data: unknown): T[] {
@@ -243,6 +455,204 @@ export const inventoryApi = {
 
   resolveAlert: async (id: string): Promise<StockAlert> => {
     const res = await api.post(`${BASE}/alerts/${id}/resolve/`)
+    return res.data
+  },
+
+  reverseMovement: async (id: string, reason: string): Promise<StockMovement> => {
+    const res = await api.post(`${BASE}/movements/${id}/reverse/`, { reason })
+    return res.data
+  },
+
+  // Purchase Orders
+  listPurchaseOrders: async (params: {
+    organization?: string
+    status?: POStatus
+    supplier?: string
+  } = {}): Promise<PurchaseOrder[]> => {
+    const res = await api.get(`${BASE}/purchase-orders/`, { params })
+    return unwrap<PurchaseOrder>(res.data)
+  },
+
+  getPurchaseOrder: async (id: string): Promise<PurchaseOrder> => {
+    const res = await api.get(`${BASE}/purchase-orders/${id}/`)
+    return res.data
+  },
+
+  createPurchaseOrder: async (
+    data: Omit<Partial<PurchaseOrder>, 'items'> & { items?: Partial<PurchaseOrderItem>[] },
+  ): Promise<PurchaseOrder> => {
+    const res = await api.post(`${BASE}/purchase-orders/`, data)
+    return res.data
+  },
+
+  updatePurchaseOrder: async (
+    id: string,
+    data: Omit<Partial<PurchaseOrder>, 'items'> & { items?: Partial<PurchaseOrderItem>[] },
+  ): Promise<PurchaseOrder> => {
+    const res = await api.patch(`${BASE}/purchase-orders/${id}/`, data)
+    return res.data
+  },
+
+  receivePurchaseOrder: async (
+    id: string,
+    body: { line_id: string; quantity_received: string; unit_cost?: string },
+  ): Promise<PurchaseOrder> => {
+    const res = await api.post(`${BASE}/purchase-orders/${id}/receive/`, body)
+    return res.data
+  },
+
+  cancelPurchaseOrder: async (id: string): Promise<PurchaseOrder> => {
+    const res = await api.post(`${BASE}/purchase-orders/${id}/cancel/`)
+    return res.data
+  },
+
+  // Recipes
+  listRecipes: async (params: {
+    organization?: string
+    is_active?: boolean
+  } = {}): Promise<Recipe[]> => {
+    const res = await api.get(`${BASE}/recipes/`, { params })
+    return unwrap<Recipe>(res.data)
+  },
+
+  getRecipe: async (id: string): Promise<Recipe> => {
+    const res = await api.get(`${BASE}/recipes/${id}/`)
+    return res.data
+  },
+
+  createRecipe: async (
+    data: Omit<Partial<Recipe>, 'ingredients'> & { ingredients?: Partial<RecipeIngredient>[] },
+  ): Promise<Recipe> => {
+    const res = await api.post(`${BASE}/recipes/`, data)
+    return res.data
+  },
+
+  updateRecipe: async (
+    id: string,
+    data: Omit<Partial<Recipe>, 'ingredients'> & { ingredients?: Partial<RecipeIngredient>[] },
+  ): Promise<Recipe> => {
+    const res = await api.patch(`${BASE}/recipes/${id}/`, data)
+    return res.data
+  },
+
+  deleteRecipe: async (id: string): Promise<void> => {
+    await api.delete(`${BASE}/recipes/${id}/`)
+  },
+
+  calculateRecipe: async (id: string, batches: string): Promise<RecipeCalculation> => {
+    const res = await api.post(`${BASE}/recipes/${id}/calculate/`, { batches })
+    return res.data
+  },
+
+  consumeRecipe: async (id: string, batches: string): Promise<{ movements_created: number; batches: string; recipe_id: string; recipe_version: number }> => {
+    const res = await api.post(`${BASE}/recipes/${id}/consume/`, { batches })
+    return res.data
+  },
+
+  suggestBatches: async (id: string): Promise<{ max_batches: string }> => {
+    const res = await api.get(`${BASE}/recipes/${id}/suggest_batches/`)
+    return res.data
+  },
+
+  recipeVersions: async (id: string): Promise<RecipeVersion[]> => {
+    const res = await api.get(`${BASE}/recipes/${id}/versions/`)
+    return res.data
+  },
+
+  recipeVersionDiff: async (id: string, v1: number, v2: number) => {
+    const res = await api.get(`${BASE}/recipes/${id}/version-diff/?v1=${v1}&v2=${v2}`)
+    return res.data
+  },
+
+  // Imports
+  uploadSalesImport: async (file: File, location?: string): Promise<ImportRecord> => {
+    const fd = new FormData()
+    fd.append('import_file', file)
+    if (location) fd.append('location', location)
+    const res = await api.post(`${BASE}/imports/sales/`, fd, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+    return res.data
+  },
+
+  uploadPurchaseImport: async (file: File, location?: string, supplier?: string): Promise<SupplierImportRecord> => {
+    const fd = new FormData()
+    fd.append('import_file', file)
+    if (location) fd.append('location', location)
+    if (supplier) fd.append('supplier', supplier)
+    const res = await api.post(`${BASE}/imports/purchases/`, fd, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+    return res.data
+  },
+
+  previewImport: async (
+    kind: 'sales' | 'purchases',
+    id: string,
+  ): Promise<ImportPreview> => {
+    const res = await api.get(`${BASE}/imports/${kind}/${id}/preview/`)
+    return res.data
+  },
+
+  commitImport: async (
+    kind: 'sales' | 'purchases',
+    id: string,
+    columnMap?: Record<string, number>,
+  ): Promise<ImportRecord> => {
+    const res = await api.post(`${BASE}/imports/${kind}/${id}/commit/`, {
+      column_map: columnMap,
+    })
+    return res.data
+  },
+
+  importStatus: async (
+    kind: 'sales' | 'purchases',
+    id: string,
+  ): Promise<ImportRecord> => {
+    const res = await api.get(`${BASE}/imports/${kind}/${id}/status/`)
+    return res.data
+  },
+
+  // Reports
+  stockHealth: async (params: { organization?: string } = {}): Promise<StockHealthReport> => {
+    const res = await api.get(`${BASE}/reports/stock-health/`, { params })
+    return res.data
+  },
+
+  movementTimeline: async (params: { organization?: string; days?: number } = {}): Promise<MovementTimeline> => {
+    const res = await api.get(`${BASE}/reports/movement-timeline/`, { params })
+    return res.data
+  },
+
+  topConsumed: async (params: { organization?: string; days?: number } = {}): Promise<TopConsumed[]> => {
+    const res = await api.get(`${BASE}/reports/top-consumed/`, { params })
+    return res.data
+  },
+
+  variance: async (params: { organization?: string } = {}): Promise<Array<{
+    item_id: string; item_name: string; sku: string; unit: string
+    reported: string; lower_bound: string; upper_bound: string
+    reorder_level: string; is_critical: boolean; is_negative: boolean
+  }>> => {
+    const res = await api.get(`${BASE}/reports/variance/`, { params })
+    return res.data
+  },
+
+  // Audit log
+  listAuditLog: async (params: {
+    organization?: string
+    action?: string
+    model_name?: string
+    start?: string
+    end?: string
+  } = {}): Promise<AuditLogEntry[]> => {
+    const res = await api.get(`${BASE}/audit-log/`, { params })
+    return unwrap<AuditLogEntry>(res.data)
+  },
+
+  // AI
+  aiQuery: async (question: string, organization?: string): Promise<AIQueryResult> => {
+    const res = await api.post(`${BASE}/ai/query/`, { question, organization })
     return res.data
   },
 }

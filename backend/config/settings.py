@@ -215,6 +215,14 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'coupons.downgrade_expired_plans',
         'schedule': crontab(hour=2, minute=15),
     },
+    'inventory-daily-summary': {
+        'task': 'apps.inventory.tasks.generate_daily_inventory_summary_task',
+        'schedule': crontab(hour=8, minute=0),
+    },
+    'inventory-expiry-check': {
+        'task': 'apps.inventory.tasks.check_expiry_task',
+        'schedule': crontab(hour=7, minute=0),
+    },
 }
 
 # Redis Cache
@@ -241,6 +249,21 @@ INSTAGRAM_DEFAULT_VERIFY_TOKEN = config('INSTAGRAM_DEFAULT_VERIFY_TOKEN', defaul
 # AI Engine Settings
 AI_CONFIDENCE_THRESHOLD = 0.7  # Below this, escalate to human
 AI_MAX_CONTEXT_MESSAGES = 10  # Max messages to include in context
+
+# Inventory (Plane B) Settings
+from decimal import Decimal as _Decimal  # noqa: E402
+
+INVENTORY_SETTINGS = {
+    'DEFAULT_TOLERANCE_PERCENT': _Decimal('0.5'),
+    'MAX_TOLERANCE_PERCENT': _Decimal('5.0'),
+    'EXCEL_MAX_FILE_SIZE_MB': 10,
+    'EXCEL_PREVIEW_ROWS': 10,
+    'IMPORT_ERROR_THRESHOLD_PERCENT': 30,
+    'LOW_STOCK_ALERT_COOLDOWN_HOURS': 24,
+    'AI_INVENTORY_ENABLED': True,
+    'AI_INVENTORY_MODEL': config('INVENTORY_AI_MODEL', default='gpt-4o-mini'),
+    'STOCK_ALERT_CHANNELS': ['whatsapp'],
+}
 
 # API Documentation
 SPECTACULAR_SETTINGS = {

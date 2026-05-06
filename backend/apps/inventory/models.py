@@ -378,3 +378,300 @@ class InventoryAuditLog(models.Model):
 
     def delete(self, *args, **kwargs):
         raise ValidationError("Audit log entries cannot be deleted.")
+
+
+# ──────────────────────────────────────────────────────────────────────
+# PurchaseOrder
+# ──────────────────────────────────────────────────────────────────────
+class PurchaseOrder(_InventoryTimestamps):
+    class Status(models.TextChoices):
+        DRAFT = 'draft', 'Draft'
+        SENT = 'sent', 'Sent'
+        PARTIAL = 'partial', 'Partially Received'
+        RECEIVED = 'received', 'Received'
+        CANCELLED = 'cancelled', 'Cancelled'
+
+    organization = models.ForeignKey(
+        Organization, on_delete=models.CASCADE, related_name='purchase_orders'
+    )
+    location = models.ForeignKey(
+        Location, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='purchase_orders',
+    )
+    supplier = models.ForeignKey(
+        Supplier, on_delete=models.PROTECT, related_name='purchase_orders',
+    )
+    order_number = models.CharField(max_length=50, blank=True)
+    status = models.CharField(
+        max_length=12, choices=Status.choices, default=Status.DRAFT,
+    )
+    order_date = models.DateField(default=date.today)
+    expected_date = models.DateField(null=True, blank=True)
+    received_date = models.DateField(null=True, blank=True)
+    notes = models.TextField(blank=True)
+    total_amount = models.DecimalField(
+        max_digits=12, decimal_places=2, default=Decimal('0'),
+    )
+    created_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='created_purchase_orders',
+    )
+
+    class Meta:
+        db_table = 'inv_purchase_order'
+        unique_together = [('organization', 'order_number')]
+        ordering = ['-order_date', '-created_at']
+        indexes = [models.Index(fields=['organization', 'status'])]
+
+    def __str__(self):
+        return self.order_number or f'PO {self.id}'
+
+    def save(self, *args, **kwargs):
+        if self._state.adding:
+            if not self.order_number:
+                self.order_number = self._generate_order_number()
+        else:
+            original = type(self).objects.get(pk=self.pk)
+            if original.order_number != self.order_number:
+                raise ValidationError(
+                    {'order_number': 'Order number is immutable.'}
+                )
+            if (
+                original.status != self.Status.DRAFT
+                and original.supplier_id != self.supplier_id
+            ):
+                raise ValidationError(
+                    {'supplier': 'Supplier cannot be changed once order leaves draft status.'}
+                )
+        super().save(*args, **kwargs)
+
+    def _generate_order_number(self):
+        prefix = ''.join(c for c in self.organization.name if c.isalnum())[:4].upper() or 'ORG'
+        date_str = date.today().strftime('%Y%m%d')
+        last = (
+            type(self).objects.filter(
+                organization=self.organization,
+                order_number__startswith=f'PO-{date_str}-{prefix}-',
+            )
+            .order_by('-order_number')
+            .first()
+        )
+        seq = 1
+        if last:
+            try:
+                seq = int(last.order_number.split('-')[-1]) + 1
+            except (ValueError, IndexError):
+                seq = 1
+        return f'PO-{date_str}-{prefix}-{seq:04d}'
+
+    def recompute_total(self):
+        total = sum(
+            (li.quantity_ordered * li.unit_cost for li in self.items.all()),
+            Decimal('0'),
+        )
+        type(self).objects.filter(pk=self.pk).update(total_amount=total)
+        return total
+
+
+class PurchaseOrderItem(_InventoryTimestamps):
+    purchase_order = models.ForeignKey(
+        PurchaseOrder, on_delete=models.CASCADE, related_name='items',
+    )
+    item = models.ForeignKey(
+        InventoryItem, on_delete=models.PROTECT, related_name='purchase_order_lines',
+    )
+    quantity_ordered = models.DecimalField(max_digits=10, decimal_places=4)
+    quantity_received = models.DecimalField(
+        max_digits=10, decimal_places=4, default=Decimal('0'),
+    )
+    unit_cost = models.DecimalField(max_digits=10, decimal_places=4)
+    notes = models.TextField(blank=True)
+
+    class Meta:
+        db_table = 'inv_purchase_order_item'
+        ordering = ['created_at']
+
+    def __str__(self):
+        return f"{self.item.name} × {self.quantity_ordered}"
+
+    @property
+    def line_total(self):
+        return self.quantity_ordered * self.unit_cost
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Recipe
+# ──────────────────────────────────────────────────────────────────────
+class Recipe(_InventoryTimestamps):
+    organization = models.ForeignKey(
+        Organization, on_delete=models.CASCADE, related_name='recipes'
+    )
+    location = models.ForeignKey(
+        Location, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='recipes',
+    )
+    name = models.CharField(max_length=200)
+    description = models.TextField(blank=True)
+    category = models.ForeignKey(
+        InventoryCategory, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='recipes',
+    )
+    output_item = models.ForeignKey(
+        InventoryItem, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='produced_by_recipes',
+    )
+    output_quantity = models.DecimalField(
+        max_digits=10, decimal_places=4, default=Decimal('1'),
+    )
+    output_unit = models.CharField(max_length=20, blank=True)
+    yield_percent = models.DecimalField(
+        max_digits=5, decimal_places=2, default=Decimal('100'),
+        validators=[MinValueValidator(Decimal('1')), MaxValueValidator(Decimal('100'))],
+    )
+    is_active = models.BooleanField(default=True)
+    version = models.PositiveIntegerField(default=1)
+    created_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='created_recipes',
+    )
+
+    class Meta:
+        db_table = 'inv_recipe'
+        ordering = ['name']
+        indexes = [models.Index(fields=['organization', 'is_active'])]
+
+    def __str__(self):
+        return self.name
+
+
+class RecipeIngredient(_InventoryTimestamps):
+    recipe = models.ForeignKey(
+        Recipe, on_delete=models.CASCADE, related_name='ingredients',
+    )
+    item = models.ForeignKey(
+        InventoryItem, on_delete=models.PROTECT, related_name='recipe_ingredients',
+    )
+    quantity = models.DecimalField(max_digits=10, decimal_places=4)
+    unit = models.CharField(max_length=20)
+    is_optional = models.BooleanField(default=False)
+    notes = models.CharField(max_length=200, blank=True)
+
+    class Meta:
+        db_table = 'inv_recipe_ingredient'
+        ordering = ['created_at']
+
+    def __str__(self):
+        return f"{self.recipe.name} :: {self.item.name}"
+
+    def clean(self):
+        super().clean()
+        if self.unit and self.item_id and self.unit != self.item.unit:
+            raise ValidationError(
+                {'unit': f'Unit must match the inventory item unit ({self.item.unit}).'}
+            )
+
+    def save(self, *args, **kwargs):
+        if self._state.adding:
+            if not self.unit and self.item_id:
+                self.unit = self.item.unit
+        else:
+            original = type(self).objects.get(pk=self.pk)
+            if original.item_id != self.item_id:
+                raise ValidationError(
+                    {'item': 'Ingredient item cannot be changed after creation.'}
+                )
+            if original.unit != self.unit:
+                raise ValidationError(
+                    {'unit': 'Ingredient unit cannot be changed after creation.'}
+                )
+        # Light validation; full_clean() called at view layer
+        if self.item_id and self.unit and self.unit != self.item.unit:
+            raise ValidationError(
+                {'unit': f'Unit must match the inventory item unit ({self.item.unit}).'}
+            )
+        super().save(*args, **kwargs)
+
+
+class RecipeVersion(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    recipe = models.ForeignKey(
+        Recipe, on_delete=models.CASCADE, related_name='versions',
+    )
+    version_number = models.PositiveIntegerField()
+    snapshot = models.JSONField()
+    changed_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='recipe_version_changes',
+    )
+    changed_at = models.DateTimeField(auto_now_add=True)
+    reason = models.CharField(max_length=500, blank=True)
+
+    class Meta:
+        db_table = 'inv_recipe_version'
+        ordering = ['-version_number']
+        unique_together = [('recipe', 'version_number')]
+
+    def __str__(self):
+        return f'{self.recipe.name} v{self.version_number}'
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Imports
+# ──────────────────────────────────────────────────────────────────────
+class _BaseImport(_InventoryTimestamps):
+    class Status(models.TextChoices):
+        PENDING = 'pending', 'Pending'
+        PROCESSING = 'processing', 'Processing'
+        COMPLETED = 'completed', 'Completed'
+        FAILED = 'failed', 'Failed'
+
+    organization = models.ForeignKey(
+        Organization, on_delete=models.CASCADE, related_name='+',
+    )
+    location = models.ForeignKey(
+        Location, on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+    )
+    file_name = models.CharField(max_length=255)
+    status = models.CharField(
+        max_length=12, choices=Status.choices, default=Status.PENDING,
+    )
+    row_count = models.PositiveIntegerField(default=0)
+    processed_count = models.PositiveIntegerField(default=0)
+    error_count = models.PositiveIntegerField(default=0)
+    error_log = models.JSONField(default=list, blank=True)
+    batch_id = models.UUIDField(default=uuid.uuid4)
+    imported_at = models.DateTimeField(null=True, blank=True)
+    summary = models.JSONField(default=dict, blank=True)
+    column_map = models.JSONField(default=dict, blank=True)
+    task_id = models.CharField(max_length=200, blank=True)
+    created_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+    )
+
+    class Meta:
+        abstract = True
+        ordering = ['-created_at']
+
+
+class SalesImport(_BaseImport):
+    import_file = models.FileField(upload_to='sales_imports/%Y/%m/')
+
+    class Meta(_BaseImport.Meta):
+        db_table = 'inv_sales_import'
+
+    def __str__(self):
+        return f'SalesImport {self.file_name} [{self.status}]'
+
+
+class SupplierImport(_BaseImport):
+    import_file = models.FileField(upload_to='supplier_imports/%Y/%m/')
+    supplier = models.ForeignKey(
+        Supplier, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='imports',
+    )
+
+    class Meta(_BaseImport.Meta):
+        db_table = 'inv_supplier_import'
+
+    def __str__(self):
+        return f'SupplierImport {self.file_name} [{self.status}]'

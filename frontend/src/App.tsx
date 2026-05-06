@@ -30,6 +30,13 @@ import { ItemsPage } from '@/pages/inventory/ItemsPage'
 import { SuppliersPage } from '@/pages/inventory/SuppliersPage'
 import { MovementsPage } from '@/pages/inventory/MovementsPage'
 import { InventoryAlertsPage } from '@/pages/inventory/InventoryAlertsPage'
+import { InventoryDashboardPage } from '@/pages/inventory/InventoryDashboardPage'
+import { PurchaseOrdersPage } from '@/pages/inventory/PurchaseOrdersPage'
+import { RecipesPage } from '@/pages/inventory/RecipesPage'
+import { SalesImportPage, PurchaseImportPage } from '@/pages/inventory/SalesImportPage'
+import { InventoryReportsPage } from '@/pages/inventory/InventoryReportsPage'
+import { AuditLogPage } from '@/pages/inventory/AuditLogPage'
+import { InventoryAIPage } from '@/pages/inventory/InventoryAIPage'
 
 // Public pages
 import { LandingPage } from '@/pages/LandingPage'
@@ -181,10 +188,18 @@ function App() {
           <Route path="/realestate/leads" element={<LeadsPage />} />
 
           {/* Inventory Routes (Plane B — admin only, enforced by backend) */}
-          <Route path="/inventory" element={<ItemsPage />} />
+          <Route path="/inventory" element={<InventoryDashboardPage />} />
+          <Route path="/inventory/items" element={<ItemsPage />} />
           <Route path="/inventory/suppliers" element={<SuppliersPage />} />
           <Route path="/inventory/movements" element={<MovementsPage />} />
           <Route path="/inventory/alerts" element={<InventoryAlertsPage />} />
+          <Route path="/inventory/purchase-orders" element={<PurchaseOrdersPage />} />
+          <Route path="/inventory/recipes" element={<RecipesPage />} />
+          <Route path="/inventory/imports/sales" element={<SalesImportPage />} />
+          <Route path="/inventory/imports/purchases" element={<PurchaseImportPage />} />
+          <Route path="/inventory/reports" element={<InventoryReportsPage />} />
+          <Route path="/inventory/audit-log" element={<AuditLogPage />} />
+          <Route path="/inventory/ai" element={<InventoryAIPage />} />
         </Route>
       </Routes>
       <Toaster />

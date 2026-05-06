@@ -8,11 +8,14 @@ guard on InventoryItem.save() that protects unit/sku.
 from decimal import Decimal
 
 from django.db.models import Sum
-from django.db.models.signals import post_save
+from django.db.models.signals import post_save, post_delete
 from django.dispatch import receiver
 from django.utils import timezone
 
-from .models import StockMovement, InventoryItem, StockAlert
+from .models import (
+    StockMovement, InventoryItem, StockAlert,
+    Recipe, RecipeIngredient, RecipeVersion,
+)
 
 
 @receiver(post_save, sender=StockMovement)
@@ -63,3 +66,55 @@ def recompute_item_stock(sender, instance, created, **kwargs):
                     "Investigate and adjust."
                 ),
             )
+
+    # Async low-stock follow-up (WhatsApp owner alert). Lazy import so
+    # tests that don't have Celery configured don't blow up.
+    try:
+        from .tasks import check_low_stock_task
+        check_low_stock_task.delay(str(item.pk))
+    except Exception:
+        pass
+
+
+def _snapshot_recipe(recipe):
+    ingredients = list(
+        recipe.ingredients.values(
+            'item_id', 'item__name', 'quantity', 'unit', 'is_optional',
+        )
+    )
+    # Stringify decimals/UUIDs so the JSON field is portable.
+    for ing in ingredients:
+        ing['item_id'] = str(ing['item_id'])
+        ing['quantity'] = str(ing['quantity'])
+    return {
+        'ingredients': ingredients,
+        'yield_percent': str(recipe.yield_percent),
+        'output_quantity': str(recipe.output_quantity),
+        'output_item_id': str(recipe.output_item_id) if recipe.output_item_id else None,
+    }
+
+
+@receiver(post_save, sender=RecipeIngredient)
+def on_ingredient_save(sender, instance, created, **kwargs):
+    _bump_recipe_version(instance.recipe)
+
+
+@receiver(post_delete, sender=RecipeIngredient)
+def on_ingredient_delete(sender, instance, **kwargs):
+    # During cascade-delete of a Recipe, instance.recipe may already be gone.
+    try:
+        recipe = Recipe.objects.get(pk=instance.recipe_id)
+    except Recipe.DoesNotExist:
+        return
+    _bump_recipe_version(recipe)
+
+
+def _bump_recipe_version(recipe):
+    new_version = (recipe.version or 0) + 1
+    Recipe.objects.filter(pk=recipe.pk).update(version=new_version)
+    recipe.refresh_from_db(fields=['version'])
+    RecipeVersion.objects.create(
+        recipe=recipe,
+        version_number=new_version,
+        snapshot=_snapshot_recipe(recipe),
+    )
