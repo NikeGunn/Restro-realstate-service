@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/store/auth'
@@ -159,26 +159,30 @@ export function DashboardLayout() {
   // Group expand/collapse state, persisted across reloads.
   const [groupState, setGroupState] = useState<Record<string, boolean>>(loadGroupState)
 
-  // Auto-expand any group whose pathPrefix matches the current route.
-  // Runs after navigation so deep-linking to /inventory/recipes opens the group.
+  // Auto-expand a group ONCE per pathname change — never on every render.
+  //
+  // Why a ref instead of putting `groupState` in deps: if we depend on
+  // groupState, the effect re-runs after the user manually collapses a
+  // group, sees the path is still under /inventory/*, and re-opens it
+  // immediately. The user can then never close the group while browsing
+  // inventory pages. Tracking the last-auto-expanded path lets us run
+  // exactly once per real navigation and respect manual collapses.
+  const lastAutoExpandedPath = useRef<string | null>(null)
   useEffect(() => {
-    const updates: Record<string, boolean> = {}
-    let changed = false
+    if (lastAutoExpandedPath.current === location.pathname) return
+    lastAutoExpandedPath.current = location.pathname
+
     for (const item of navItems) {
       if (item.kind !== 'group') continue
-      if (location.pathname.startsWith(item.pathPrefix) && !groupState[item.id]) {
-        updates[item.id] = true
-        changed = true
-      }
-    }
-    if (changed) {
+      if (!location.pathname.startsWith(item.pathPrefix)) continue
       setGroupState(prev => {
-        const next = { ...prev, ...updates }
+        if (prev[item.id]) return prev
+        const next = { ...prev, [item.id]: true }
         saveGroupState(next)
         return next
       })
     }
-  }, [location.pathname, navItems, groupState])
+  }, [location.pathname, navItems])
 
   function toggleGroup(id: string) {
     setGroupState(prev => {
@@ -199,7 +203,15 @@ export function DashboardLayout() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Sidebar */}
+      {/* Sidebar.
+         z-index ladder (kept in sync with components/ui/*):
+           z-30  page Cards / sticky headers
+           z-40  sidebar (this)                  ← below all overlays
+           z-90  Dialog overlay (backdrop)
+           z-91  Dialog content
+           z-100 toasts                          ← above dialogs
+           z-110 Select / DropdownMenu / Popover ← always on top
+      */}
       <aside
         className={cn(
           'fixed left-0 top-0 z-40 h-screen transition-transform',

@@ -13,8 +13,18 @@ spec:
     apiVersion: apps/v1
     kind: Deployment
     name: backend
-  minReplicas: 2    # Minimum for zero-downtime
-  maxReplicas: 10   # Maximum during high load
+  # Pinned to 1/1 because the media-pvc PersistentVolumeClaim is
+  # ReadWriteOnce (local-path on K3s). Multiple replicas cannot mount
+  # the same RWO volume, so scaling > 1 leaves N-1 pods with empty
+  # /app/media — uploads land on one pod, the celery worker reads from
+  # the PVC, and any pod that didn't write the upload fails the parse
+  # with "No such file or directory".
+  #
+  # Permanent capacity solution when this stack outgrows 1 backend:
+  # migrate /app/media to S3/MinIO via django-storages, then bump
+  # min/max back up.
+  minReplicas: 1
+  maxReplicas: 1
   metrics:
     # Scale based on CPU usage
     - type: Resource

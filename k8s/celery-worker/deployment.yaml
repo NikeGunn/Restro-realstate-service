@@ -9,15 +9,19 @@ metadata:
     app.kubernetes.io/name: chatplatform
     app.kubernetes.io/component: celery-worker
 spec:
-  replicas: 2  # Scale based on queue depth
+  # Pinned to 1 replica because celery-worker shares the media-pvc
+  # PersistentVolumeClaim with the backend deployment so it can read
+  # uploaded import files. The PVC is ReadWriteOnce (K3s local-path),
+  # so only one celery-worker pod can attach the volume — N>1 leaves
+  # N-1 pods empty and breaks imports.
+  replicas: 1
   selector:
     matchLabels:
       app: celery-worker
+  # Recreate (not RollingUpdate) — same reason as backend: an RWO PVC
+  # can't be attached to a new pod while the old pod still holds it.
   strategy:
-    type: RollingUpdate
-    rollingUpdate:
-      maxSurge: 1
-      maxUnavailable: 0
+    type: Recreate
   template:
     metadata:
       labels:
@@ -25,6 +29,12 @@ spec:
         app.kubernetes.io/name: chatplatform
         app.kubernetes.io/component: celery-worker
     spec:
+      # Mount the same media-pvc the backend writes to, so the import
+      # task can read the .xlsx file the user uploaded.
+      volumes:
+        - name: media-files
+          persistentVolumeClaim:
+            claimName: media-pvc
       containers:
         - name: celery-worker
           image: nemo2092/chatplatform-backend:731a971
@@ -45,6 +55,11 @@ spec:
           env:
             - name: DATABASE_URL
               value: "postgres://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@postgres:5432/$(POSTGRES_DB)"
+          # Mount the shared media volume so this worker can read
+          # uploaded import files written by the backend pod.
+          volumeMounts:
+            - name: media-files
+              mountPath: /app/media
           resources:
             requests:
               memory: "256Mi"

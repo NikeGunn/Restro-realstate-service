@@ -9,16 +9,20 @@ metadata:
     app.kubernetes.io/name: chatplatform
     app.kubernetes.io/component: backend
 spec:
-  replicas: 2  # Minimum 2 replicas for zero-downtime
+  # Pinned to 1 replica because media-pvc is ReadWriteOnce.
+  # See k8s/backend/hpa.yaml for the long-form explanation.
+  replicas: 1
   selector:
     matchLabels:
       app: backend
-  # Rolling update strategy - zero downtime
+  # Recreate (not RollingUpdate) is required when the deployment mounts
+  # an RWO PVC. RollingUpdate would try to start the new pod before
+  # killing the old, but the old pod still has the PVC attached, so the
+  # new pod hangs in ContainerCreating with "Multi-Attach error".
+  # Tradeoff: ~5–10 seconds of downtime per deploy. Acceptable until we
+  # migrate /app/media to S3/MinIO.
   strategy:
-    type: RollingUpdate
-    rollingUpdate:
-      maxSurge: 1        # Allow 1 extra pod during update
-      maxUnavailable: 0  # Never have fewer than desired replicas
+    type: Recreate
   template:
     metadata:
       labels:
