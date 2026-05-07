@@ -33,6 +33,9 @@
     "info": "信息",
     "noData": "暂无数据",
     "actions": "操作",
+    "commit": "提交",
+    "item": "物品",
+    "location": "门店",
     "status": "状态",
     "date": "日期",
     "time": "时间",
@@ -106,7 +109,10 @@
     "inventoryReports": "报表",
     "inventoryAlerts": "库存预警",
     "inventoryAudit": "审计日志",
-    "inventoryAI": "库存 AI"
+    "inventoryAI": "库存 AI",
+    "inventoryStockTake": "库存盘点",
+    "inventoryAnalytics": "分析",
+    "inventoryLocationPricing": "门店定价"
   },
   "inventory": {
     "title": "库存",
@@ -210,6 +216,8 @@
         "received": "已收货",
         "cancelled": "已取消"
       },
+      "send": "发送",
+      "sent": "采购单已发送。",
       "empty": "暂无采购单。",
       "created": "采购单已创建。",
       "receive": "收货",
@@ -336,6 +344,48 @@
       "disclaimer": "回答基于实时库存数据。置信度低于 70% 时 AI 不会臆测。",
       "upgradeRequired": "需升级到 Power 套餐",
       "powerOnly": "库存 AI 仅在 Power 套餐可用。"
+    },
+    "stockTake": {
+      "title": "库存盘点",
+      "new": "新建盘点",
+      "lines": "条目",
+      "system": "系统",
+      "counted": "实盘",
+      "addAllItems": "添加所有启用物品",
+      "noLines": "请至少添加一条。",
+      "created": "盘点已创建。",
+      "committed": "盘点已提交。",
+      "committedAt": "提交时间",
+      "empty": "暂无盘点。"
+    },
+    "analytics": {
+      "title": "分析",
+      "weeklyInsight": "本周洞察",
+      "forecast": "补货预测",
+      "suppliers": "供应商",
+      "profit": "菜品毛利",
+      "waste": "损耗",
+      "currentStock": "库存",
+      "avgPerDay": "日均",
+      "daysCover": "可用天数",
+      "reorder": "需补货？",
+      "reorderNow": "补货",
+      "leadTime": "交期",
+      "accuracy": "准确率",
+      "spend": "支出",
+      "cost": "单位成本",
+      "sellingPrice": "单位售价",
+      "margin": "毛利",
+      "topWastedItems": "损耗最多",
+      "byWeek": "按周",
+      "wasted": "损耗",
+      "events": "次数",
+      "week": "周次"
+    },
+    "pricing": {
+      "title": "门店定价",
+      "add": "新增覆盖",
+      "empty": "暂无门店定价。"
     }
   },
   "dashboard": {

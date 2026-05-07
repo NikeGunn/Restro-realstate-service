@@ -33,6 +33,9 @@
     "info": "Info",
     "noData": "No data available",
     "actions": "Actions",
+    "commit": "Commit",
+    "item": "Item",
+    "location": "Location",
     "status": "Status",
     "date": "Date",
     "time": "Time",
@@ -106,7 +109,10 @@
     "inventoryReports": "Reports",
     "inventoryAlerts": "Stock alerts",
     "inventoryAudit": "Audit log",
-    "inventoryAI": "Inventory AI"
+    "inventoryAI": "Inventory AI",
+    "inventoryStockTake": "Stock-take",
+    "inventoryAnalytics": "Analytics",
+    "inventoryLocationPricing": "Location pricing"
   },
   "inventory": {
     "title": "Inventory",
@@ -210,6 +216,8 @@
         "received": "Received",
         "cancelled": "Cancelled"
       },
+      "send": "Send",
+      "sent": "Purchase order sent.",
       "empty": "No purchase orders yet.",
       "created": "Purchase order created.",
       "receive": "Receive",
@@ -336,6 +344,48 @@
       "disclaimer": "Answers are grounded in your live inventory data. Below 70% confidence the AI declines to guess.",
       "upgradeRequired": "Power plan required",
       "powerOnly": "Inventory AI is available on the Power plan."
+    },
+    "stockTake": {
+      "title": "Stock-take",
+      "new": "New stock-take",
+      "lines": "Lines",
+      "system": "System",
+      "counted": "Counted",
+      "addAllItems": "Add all active items",
+      "noLines": "Add at least one line.",
+      "created": "Stock-take created.",
+      "committed": "Stock-take committed.",
+      "committedAt": "Committed at",
+      "empty": "No stock-takes yet."
+    },
+    "analytics": {
+      "title": "Analytics",
+      "weeklyInsight": "Weekly insight",
+      "forecast": "Reorder forecast",
+      "suppliers": "Suppliers",
+      "profit": "Recipe margins",
+      "waste": "Waste",
+      "currentStock": "Stock",
+      "avgPerDay": "Avg / day",
+      "daysCover": "Days cover",
+      "reorder": "Reorder?",
+      "reorderNow": "Reorder",
+      "leadTime": "Lead time",
+      "accuracy": "Accuracy",
+      "spend": "Spend",
+      "cost": "Cost / unit",
+      "sellingPrice": "Sell / unit",
+      "margin": "Margin",
+      "topWastedItems": "Top wasted items",
+      "byWeek": "By week",
+      "wasted": "Wasted",
+      "events": "Events",
+      "week": "Week"
+    },
+    "pricing": {
+      "title": "Per-location pricing",
+      "add": "Add pricing override",
+      "empty": "No pricing overrides yet."
     }
   },
   "dashboard": {

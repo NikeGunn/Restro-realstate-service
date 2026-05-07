@@ -11,6 +11,8 @@ from .models import (
     PurchaseOrder, PurchaseOrderItem,
     Recipe, RecipeIngredient, RecipeVersion,
     SalesImport, SupplierImport,
+    LocationStock, LocationItemPricing, StockTake, StockTakeLine,
+    PurchaseOrderEmail,
 )
 
 
@@ -217,12 +219,13 @@ class PurchaseOrderSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'organization', 'location', 'supplier', 'supplier_name',
             'order_number', 'status', 'order_date', 'expected_date', 'received_date',
-            'notes', 'total_amount',
+            'notes', 'total_amount', 'sent_at', 'sent_to_email',
             'items', 'locked_fields',
             'created_at', 'updated_at',
         ]
         read_only_fields = [
             'id', 'order_number', 'received_date', 'total_amount',
+            'sent_at', 'sent_to_email',
             'created_at', 'updated_at', 'supplier_name', 'locked_fields',
         ]
 
@@ -418,3 +421,148 @@ class InventoryAIQuerySerializer(serializers.Serializer):
     question = serializers.CharField(min_length=2, max_length=500)
     organization = serializers.UUIDField(required=False)
     location = serializers.UUIDField(required=False, allow_null=True)
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Phase 4 — LocationStock, StockTake, LocationItemPricing
+# ──────────────────────────────────────────────────────────────────────
+class LocationStockSerializer(serializers.ModelSerializer):
+    item_name = serializers.CharField(source='item.name', read_only=True)
+    item_sku = serializers.CharField(source='item.sku', read_only=True)
+    item_unit = serializers.CharField(source='item.unit', read_only=True)
+    location_name = serializers.CharField(source='location.name', read_only=True, default=None)
+    effective_reorder = serializers.SerializerMethodField()
+
+    class Meta:
+        model = LocationStock
+        fields = [
+            'id', 'item', 'item_name', 'item_sku', 'item_unit',
+            'location', 'location_name',
+            'current_stock', 'reorder_level_override', 'effective_reorder',
+            'created_at', 'updated_at',
+        ]
+        read_only_fields = [
+            'id', 'item_name', 'item_sku', 'item_unit', 'location_name',
+            'current_stock', 'effective_reorder', 'created_at', 'updated_at',
+        ]
+
+    def get_effective_reorder(self, obj):
+        return str(obj.effective_reorder_level)
+
+
+class StockTakeLineSerializer(serializers.ModelSerializer):
+    item_name = serializers.CharField(source='item.name', read_only=True)
+    item_sku = serializers.CharField(source='item.sku', read_only=True)
+    item_unit = serializers.CharField(source='item.unit', read_only=True)
+    variance = serializers.SerializerMethodField()
+
+    class Meta:
+        model = StockTakeLine
+        fields = [
+            'id', 'stock_take', 'item', 'item_name', 'item_sku', 'item_unit',
+            'system_count', 'counted', 'variance', 'notes',
+            'created_at', 'updated_at',
+        ]
+        read_only_fields = [
+            'id', 'stock_take', 'item_name', 'item_sku', 'item_unit',
+            'variance', 'created_at', 'updated_at',
+        ]
+
+    def get_variance(self, obj):
+        return str(obj.variance)
+
+
+class StockTakeSerializer(serializers.ModelSerializer):
+    lines = StockTakeLineSerializer(many=True, required=False)
+    location_name = serializers.CharField(source='location.name', read_only=True, default=None)
+
+    class Meta:
+        model = StockTake
+        fields = [
+            'id', 'organization', 'location', 'location_name',
+            'name', 'notes', 'status',
+            'started_at', 'committed_at', 'created_by',
+            'lines', 'created_at', 'updated_at',
+        ]
+        read_only_fields = [
+            'id', 'status', 'committed_at', 'started_at',
+            'location_name', 'created_at', 'updated_at',
+        ]
+
+    def create(self, validated_data):
+        lines_data = validated_data.pop('lines', [])
+        st = StockTake.objects.create(**validated_data)
+        for ln in lines_data:
+            StockTakeLine.objects.create(stock_take=st, **ln)
+        return st
+
+    def update(self, instance, validated_data):
+        if instance.status != StockTake.Status.IN_PROGRESS:
+            raise serializers.ValidationError(
+                'Cannot edit a stock-take that is not in progress.'
+            )
+        lines_data = validated_data.pop('lines', None)
+        for k, v in validated_data.items():
+            setattr(instance, k, v)
+        instance.save()
+        if lines_data is not None:
+            instance.lines.all().delete()
+            for ln in lines_data:
+                StockTakeLine.objects.create(stock_take=instance, **ln)
+        return instance
+
+
+class LocationItemPricingSerializer(serializers.ModelSerializer):
+    item_name = serializers.CharField(source='item.name', read_only=True)
+    location_name = serializers.CharField(source='location.name', read_only=True)
+
+    class Meta:
+        model = LocationItemPricing
+        fields = [
+            'id', 'item', 'item_name', 'location', 'location_name',
+            'unit_cost', 'selling_price', 'created_at', 'updated_at',
+        ]
+        read_only_fields = ['id', 'item_name', 'location_name', 'created_at', 'updated_at']
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Phase 4 — PurchaseOrder send
+# ──────────────────────────────────────────────────────────────────────
+class PurchaseOrderSendSerializer(serializers.Serializer):
+    to_email = serializers.EmailField(required=False, allow_blank=True)
+
+
+class PurchaseOrderEmailSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PurchaseOrderEmail
+        fields = [
+            'id', 'purchase_order', 'to_email', 'subject', 'sent_at',
+            'error', 'sent_by', 'created_at',
+        ]
+        read_only_fields = fields
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Phase 4 — Bulk item edit
+# ──────────────────────────────────────────────────────────────────────
+class BulkItemEditSerializer(serializers.Serializer):
+    """
+    Whitelisted bulk patch: only safe fields. unit/sku/current_stock are
+    NEVER bulk-editable (immutable / signal-managed).
+    """
+    ALLOWED = {'reorder_level', 'reorder_quantity', 'category', 'supplier', 'is_active'}
+
+    ids = serializers.ListField(
+        child=serializers.UUIDField(), min_length=1, max_length=500,
+    )
+    patch = serializers.DictField()
+
+    def validate_patch(self, value):
+        bad = set(value.keys()) - self.ALLOWED
+        if bad:
+            raise serializers.ValidationError(
+                f'Fields not permitted in bulk edit: {sorted(bad)}'
+            )
+        if not value:
+            raise serializers.ValidationError('patch is empty.')
+        return value

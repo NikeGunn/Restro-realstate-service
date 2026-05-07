@@ -214,6 +214,63 @@ class InventoryItem(_InventoryTimestamps):
 
 
 # ──────────────────────────────────────────────────────────────────────
+# LocationStock — per-location projection of the StockMovement ledger.
+#
+# One row per (item, location). location=NULL is a valid bucket for
+# movements/items that have no location FK. InventoryItem.current_stock
+# remains the org-wide aggregate (sum of all LocationStock rows for the
+# item) and is signal-maintained for backward compatibility with every
+# existing query, report, and serializer.
+# ──────────────────────────────────────────────────────────────────────
+class LocationStock(_InventoryTimestamps):
+    item = models.ForeignKey(
+        InventoryItem, on_delete=models.CASCADE, related_name='location_stocks',
+    )
+    location = models.ForeignKey(
+        Location, on_delete=models.CASCADE,
+        null=True, blank=True, related_name='item_stocks',
+    )
+    current_stock = models.DecimalField(
+        max_digits=12, decimal_places=4, default=Decimal('0'),
+        help_text="Per-location stock projection. Maintained by the StockMovement signal.",
+    )
+    reorder_level_override = models.DecimalField(
+        max_digits=10, decimal_places=4, null=True, blank=True,
+        help_text="Optional per-location reorder level. Falls back to item.reorder_level when null.",
+    )
+
+    class Meta:
+        db_table = 'inv_location_stock'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['item', 'location'],
+                name='uniq_location_stock_item_location',
+                condition=models.Q(location__isnull=False),
+            ),
+            models.UniqueConstraint(
+                fields=['item'],
+                name='uniq_location_stock_item_null_location',
+                condition=models.Q(location__isnull=True),
+            ),
+        ]
+        indexes = [models.Index(fields=['item', 'location'])]
+        verbose_name = 'Location Stock'
+        verbose_name_plural = 'Location Stocks'
+
+    def __str__(self):
+        loc = self.location.name if self.location_id else 'no-location'
+        return f'{self.item.name} @ {loc}: {self.current_stock}'
+
+    @property
+    def effective_reorder_level(self):
+        return (
+            self.reorder_level_override
+            if self.reorder_level_override is not None
+            else self.item.reorder_level
+        )
+
+
+# ──────────────────────────────────────────────────────────────────────
 # StockMovement (append-only ledger)
 # ──────────────────────────────────────────────────────────────────────
 class StockMovement(_InventoryTimestamps):
@@ -412,6 +469,8 @@ class PurchaseOrder(_InventoryTimestamps):
     total_amount = models.DecimalField(
         max_digits=12, decimal_places=2, default=Decimal('0'),
     )
+    sent_at = models.DateTimeField(null=True, blank=True)
+    sent_to_email = models.EmailField(blank=True)
     created_by = models.ForeignKey(
         User, on_delete=models.SET_NULL, null=True, blank=True,
         related_name='created_purchase_orders',
@@ -675,3 +734,105 @@ class SupplierImport(_BaseImport):
 
     def __str__(self):
         return f'SupplierImport {self.file_name} [{self.status}]'
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Phase 4 — Stock-take / cycle count
+# ──────────────────────────────────────────────────────────────────────
+class StockTake(_InventoryTimestamps):
+    class Status(models.TextChoices):
+        IN_PROGRESS = 'in_progress', 'In Progress'
+        COMMITTED = 'committed', 'Committed'
+        CANCELLED = 'cancelled', 'Cancelled'
+
+    organization = models.ForeignKey(
+        Organization, on_delete=models.CASCADE, related_name='stock_takes',
+    )
+    location = models.ForeignKey(
+        Location, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='stock_takes',
+    )
+    name = models.CharField(max_length=200, blank=True)
+    notes = models.TextField(blank=True)
+    status = models.CharField(
+        max_length=12, choices=Status.choices, default=Status.IN_PROGRESS,
+    )
+    started_at = models.DateTimeField(auto_now_add=True)
+    committed_at = models.DateTimeField(null=True, blank=True)
+    created_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='created_stock_takes',
+    )
+
+    class Meta:
+        db_table = 'inv_stock_take'
+        ordering = ['-started_at']
+        indexes = [models.Index(fields=['organization', 'status'])]
+
+
+class StockTakeLine(_InventoryTimestamps):
+    stock_take = models.ForeignKey(
+        StockTake, on_delete=models.CASCADE, related_name='lines',
+    )
+    item = models.ForeignKey(
+        InventoryItem, on_delete=models.PROTECT, related_name='stock_take_lines',
+    )
+    system_count = models.DecimalField(max_digits=12, decimal_places=4)
+    counted = models.DecimalField(max_digits=12, decimal_places=4)
+    notes = models.CharField(max_length=200, blank=True)
+
+    class Meta:
+        db_table = 'inv_stock_take_line'
+        ordering = ['created_at']
+        unique_together = [('stock_take', 'item')]
+
+    @property
+    def variance(self):
+        return self.counted - self.system_count
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Phase 4 — Per-location item pricing override
+# ──────────────────────────────────────────────────────────────────────
+class LocationItemPricing(_InventoryTimestamps):
+    item = models.ForeignKey(
+        InventoryItem, on_delete=models.CASCADE, related_name='location_pricing',
+    )
+    location = models.ForeignKey(
+        Location, on_delete=models.CASCADE, related_name='item_pricing',
+    )
+    unit_cost = models.DecimalField(
+        max_digits=10, decimal_places=4, null=True, blank=True,
+    )
+    selling_price = models.DecimalField(
+        max_digits=10, decimal_places=4, null=True, blank=True,
+    )
+
+    class Meta:
+        db_table = 'inv_location_item_pricing'
+        unique_together = [('item', 'location')]
+        ordering = ['item__name']
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Phase 4 — PurchaseOrder send + email tracking
+# Add fields by extending PurchaseOrder lazily via a separate "PurchaseOrderEmail"
+# tracking model so we don't break the existing PO migration.
+# ──────────────────────────────────────────────────────────────────────
+class PurchaseOrderEmail(_InventoryTimestamps):
+    purchase_order = models.ForeignKey(
+        PurchaseOrder, on_delete=models.CASCADE, related_name='emails',
+    )
+    to_email = models.EmailField()
+    subject = models.CharField(max_length=300)
+    body = models.TextField()
+    sent_at = models.DateTimeField(null=True, blank=True)
+    error = models.TextField(blank=True)
+    sent_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='sent_po_emails',
+    )
+
+    class Meta:
+        db_table = 'inv_po_email'
+        ordering = ['-created_at']

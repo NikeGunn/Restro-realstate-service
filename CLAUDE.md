@@ -195,7 +195,54 @@ The inventory module is the "sealed vault" admin counterpart to the public chatb
 - The InventoryAI endpoint requires `org.plan == 'power'` AND a valid `OPENAI_API_KEY`. With an empty org (no items) the engine short-circuits before calling OpenAI and returns a clear "inventory is empty" message — confidence 0% in that case is correct, not a bug.
 - Pyright shows many warnings (`Cannot access attribute "objects"` etc.); this matches the rest of the codebase (no Django stubs). Don't chase them.
 
-### Future phases (4, 5, 6) — PROPOSALS ONLY, NOT SPEC
+### Phases 4 & 5 — DONE (2026-05-07, 153/153 backend tests pass, frontend production build clean)
+
+**New models** (migrations `0003`, `0004`, `0005`):
+- `LocationStock(item, location, current_stock, reorder_level_override)` — per-location ledger projection. Postgres-friendly partial unique constraints split null vs non-null location buckets (`uniq_location_stock_item_location` + `uniq_location_stock_item_null_location`). `InventoryItem.current_stock` stays as the **org-wide aggregate** (sum of all `LocationStock` rows) for back-compat with every existing reader. Migration `0003` includes an idempotent backfill that replays historical movements.
+- `StockTake` + `StockTakeLine` — guided cycle-count workflow. Commit emits one ADJUSTMENT movement per variance via StockEngine.
+- `LocationItemPricing(item, location, unit_cost, selling_price)` — per-location override.
+- `PurchaseOrderEmail` — audit trail for PO sends.
+- `PurchaseOrder.sent_at` + `sent_to_email` fields.
+
+**Signal rewrite** (`signals.py`): `recompute_item_stock` now (1) updates the per-location `LocationStock` row, (2) recomputes the org-wide aggregate, (3) emits per-location LOW_STOCK / NEGATIVE_STOCK alerts.
+
+**New services**:
+- `services/stock_take_engine.py` — `StockTakeEngine.commit()` routes variances through StockEngine.
+- `services/po_send.py` — `render_po_pdf()` (ReportLab; falls back to plain text if missing) + `send_po()` (DRAFT → SENT, attaches PDF, dispatches via Django's `EmailMessage`, records `PurchaseOrderEmail`).
+- `services/analytics.py` — Phase 5 reads: `reorder_forecast`, `supplier_scorecards`, `recipe_profitability`, `waste_analysis`. All read-only, no mutations.
+- `InventoryAIEngine.insights()` — weekly Plane B summary; falls back to deterministic digest when `OPENAI_API_KEY` is empty.
+- New prompt: `prompts/weekly_insights.txt`.
+
+**Celery**:
+- `generate_weekly_insights_task` — Monday 08:00 UTC beat schedule, per org. Uses existing WhatsApp owner channel.
+
+**API** (`views.py`, `serializers.py`, `urls.py`):
+- New ViewSets: `StockTakeViewSet` (+`commit`, +`cancel`), `LocationStockViewSet` (read-only), `LocationItemPricingViewSet`.
+- New actions: `InventoryItemViewSet.bulk_update` (whitelisted patch, owner-only, one audit row per item), `InventoryItemViewSet.location_stocks`, `StockMovementViewSet.export` (CSV streaming), `PurchaseOrderViewSet.send` + `pdf`.
+- New report endpoints under `InventoryReportViewSet`: `reorder-forecast`, `supplier-scorecards`, `recipe-profitability`, `waste-analysis`, `weekly-insights`.
+- `AuditLoggedMixin._audit` now resolves `instance.organization` via fallback chain (item.organization, stock_take.organization) so it works for models that aren't directly org-scoped.
+- Serializer for `PurchaseOrder` now exposes `sent_at`, `sent_to_email`.
+
+**Frontend**:
+- New pages under `pages/inventory/`: `StockTakePage` (create with all-active-items helper, in-place counted edit, commit/cancel), `Phase5ReportsPage` (tabbed: forecast / suppliers / margin / waste, plus weekly-insight banner at top), `LocationPricingPage` (CRUD).
+- New component: `components/inventory/BarcodeScanner.tsx` — uses native `BarcodeDetector` API (Chromium); falls back to manual entry if unavailable. Wired into `ItemsPage` barcode field.
+- `MovementsPage` gains an Export CSV button that downloads via the new endpoint.
+- `PurchaseOrdersPage` gains a Send (draft only) button that emails the supplier with a PDF attachment, plus a per-row PDF download icon.
+- `services/inventory.ts` extended with all new endpoints + Phase 5 typed wrappers.
+- Sidebar (`DashboardLayout.tsx`): three new `NavLeaf` entries inside the existing inventory group — `inventoryStockTake`, `inventoryAnalytics`, `inventoryLocationPricing`. (No new top-level entries — keeps the sidebar compact per the existing convention.)
+- i18n: full coverage in en/zh-CN/zh-TW under `inventory.stockTake.*`, `inventory.analytics.*`, `inventory.pricing.*`, `nav.inventoryStockTake|Analytics|LocationPricing`, plus `common.commit|item|location` and `inventory.po.send|sent`.
+
+**Tests** (`apps/inventory/tests/`):
+- New: `test_location_stock.py` (7 cases — single-location, multi-location split, NULL bucket, reversal, alert tagging, backfill invariant), `test_phase4_5.py` (13 cases — movement export, bulk edit (allowed + rejected fields), stock-take commit, location pricing CRUD, PO send + PDF, all 5 Phase-5 reports including weekly insights graceful degradation).
+- **153 total backend tests, all green in Docker** (`docker compose exec backend pytest`).
+- `npm run build:check` shows zero new TS errors in inventory files; `npm run build` produces a clean production bundle.
+
+### Phase 4/5 known limitations / debt
+- PO send uses Django's default email backend. In dev with `console` backend it just logs; production should configure `EMAIL_BACKEND` + SMTP. Failure to send does NOT roll back the DRAFT → SENT transition (so the user can retry from the SENT state without flipping back to DRAFT), but the error is recorded on `PurchaseOrderEmail.error`.
+- Barcode scanner uses the native `BarcodeDetector` API. Safari and Firefox don't ship it; users on those browsers will see the manual-entry fallback. Adding `@zxing/browser` would be a future polish.
+- Multi-location split keeps `InventoryItem.current_stock` as the org-wide aggregate. If a future requirement is "show only this location's stock", the frontend should query `/items/{id}/location-stocks/` rather than refactoring the field.
+
+### Future phases (6) — PROPOSALS ONLY, NOT SPEC
 
 > **STOP. Read this before writing any code for Phase 4+.**
 >
@@ -207,28 +254,6 @@ The inventory module is the "sealed vault" admin counterpart to the public chatb
 > 3. A new entry in `agent.md` if the proposed feature crosses into POS / CRM / payments / delivery territory (which is currently scope-locked).
 >
 > **DO NOT**: read this section and start implementing. **DO**: when the user says "start Phase 4", first ask which sub-items they actually want, in what order, and whether anything that smells like POS/CRM/payments/delivery is in or out.
-
-#### Phase 4 candidates — Operations polish (low risk, in current scope)
-
-These extend existing Phase 1-3 surfaces; no new domain concepts.
-
-- **Multi-location stock split.** Today, `InventoryItem.location` is a single optional FK and `current_stock` aggregates across all movements regardless of location. Real chains need per-location stock per item. Proposal: introduce `LocationStock(item, location, current_stock, reorder_level_override)` as the per-location ledger projection, change the signal to `update_or_create` per `(item, location)`, surface a location selector on every Inventory page. Touches: models, signals, all serializers, all reports, frontend filters.
-- **Barcode scanning UI.** Use the device camera (`navigator.mediaDevices` + a scanner library like `@zxing/browser`) to scan into the adjustment dialog and PO receive dialog. Frontend-only.
-- **Stock-take / cycle-count workflow.** New `StockTake` model (org, location, started_at, completed_at, owner) with `StockTakeLine(item, system_count, counted, variance, notes)`. On commit → emit `adjustment` movements via StockEngine for each variance. Adds a guided "physical count" page.
-- **Movement export.** Server-side CSV/XLSX export of `StockMovement` filtered by item / type / date range. Pair with the existing audit-log CSV download pattern.
-- **Bulk item edit.** Multi-select in the Items list → bulk update reorder_level / supplier / category / is_active. Backend: a `bulk-update` action on `InventoryItemViewSet` that accepts `{ids: [], patch: {}}` and writes one audit-log row per item.
-- **Tighter PO lifecycle.** `draft → sent` action that emails the supplier (PDF attached). PO PDF generation (server-side via `weasyprint` or similar). Currently POs are created and immediately receivable; many shops want to "send" first.
-- **Per-location pricing.** Allow `unit_cost` and `selling_price` to vary by location. Either via a `LocationItemPricing` table or a JSON field on `InventoryItem`.
-
-#### Phase 5 candidates — Forecasting & cost analytics (mid risk)
-
-Read-only analytics on top of the existing ledger. No new mutating surfaces.
-
-- **Reorder forecast.** For each item, compute average daily consumption over the last N days (excluding reversed movements), project days-of-cover, surface a "Items to reorder this week" page. Recharts area chart per item.
-- **Supplier scorecards.** Per-supplier stats: average lead time (PO created → received), receive accuracy (% of PO lines where `quantity_received == quantity_ordered`), price-trend volatility. Powers a Supplier detail page.
-- **Recipe profitability.** For recipes whose `output_item.selling_price` is set, compute margin = selling_price − cost_of_batch (per output unit). Rank recipes by margin and by volume. Surfaces the "drop these dishes / push these dishes" insight.
-- **Waste analysis.** Slice `StockMovement.movement_type='waste'` by item, time bucket, location. Highlight outlier weeks.
-- **AI-powered weekly insights.** New Plane B prompt + Celery task that runs every Monday and produces a one-paragraph "what to pay attention to this week" summary delivered via the existing WhatsApp owner channel. Extends `InventoryAIEngine` with an `insights()` method; no new external dependencies.
 
 #### Phase 6 candidates — Plane A integration & multi-tenant ops (higher risk, must check scope-lock)
 

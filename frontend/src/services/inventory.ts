@@ -655,4 +655,153 @@ export const inventoryApi = {
     const res = await api.post(`${BASE}/ai/query/`, { question, organization })
     return res.data
   },
+
+  // ──────────────────────────────────────────────────────────
+  // Phase 4 — bulk edit, movement export, location stock,
+  // stock-take, location pricing, PO send/PDF
+  // ──────────────────────────────────────────────────────────
+  bulkUpdateItems: async (
+    ids: string[],
+    patch: Partial<{
+      reorder_level: string
+      reorder_quantity: string
+      category: string | null
+      supplier: string | null
+      is_active: boolean
+    }>,
+  ): Promise<{ updated: number; requested: number }> => {
+    const res = await api.post(`${BASE}/items/bulk-update/`, { ids, patch })
+    return res.data
+  },
+
+  exportMovements: async (params: {
+    item?: string; movement_type?: string
+    start_date?: string; end_date?: string
+    organization?: string; location?: string
+  } = {}): Promise<Blob> => {
+    const res = await api.get(`${BASE}/movements/export/`, {
+      params, responseType: 'blob',
+    })
+    return res.data as Blob
+  },
+
+  itemLocationStocks: async (itemId: string): Promise<Array<{
+    id: string; item: string; item_name: string; item_sku: string; item_unit: string
+    location: string | null; location_name: string | null
+    current_stock: string; reorder_level_override: string | null
+    effective_reorder: string
+  }>> => {
+    const res = await api.get(`${BASE}/items/${itemId}/location-stocks/`)
+    return res.data
+  },
+
+  // Stock-takes
+  listStockTakes: async (params: { organization?: string; status?: string } = {}) => {
+    const res = await api.get(`${BASE}/stock-takes/`, { params })
+    return res.data
+  },
+  getStockTake: async (id: string) => {
+    const res = await api.get(`${BASE}/stock-takes/${id}/`)
+    return res.data
+  },
+  createStockTake: async (payload: {
+    organization: string; location?: string | null
+    name?: string; notes?: string
+    lines: Array<{ item: string; system_count: string; counted: string; notes?: string }>
+  }) => {
+    const res = await api.post(`${BASE}/stock-takes/`, payload)
+    return res.data
+  },
+  commitStockTake: async (id: string) => {
+    const res = await api.post(`${BASE}/stock-takes/${id}/commit/`, {})
+    return res.data
+  },
+  cancelStockTake: async (id: string) => {
+    const res = await api.post(`${BASE}/stock-takes/${id}/cancel/`, {})
+    return res.data
+  },
+
+  // Location pricing
+  listLocationPricing: async (params: { item?: string; location?: string } = {}) => {
+    const res = await api.get(`${BASE}/location-pricing/`, { params })
+    return res.data
+  },
+  createLocationPricing: async (payload: {
+    item: string; location: string
+    unit_cost?: string; selling_price?: string
+  }) => {
+    const res = await api.post(`${BASE}/location-pricing/`, payload)
+    return res.data
+  },
+  updateLocationPricing: async (id: string, payload: { unit_cost?: string; selling_price?: string }) => {
+    const res = await api.patch(`${BASE}/location-pricing/${id}/`, payload)
+    return res.data
+  },
+  deleteLocationPricing: async (id: string) => {
+    await api.delete(`${BASE}/location-pricing/${id}/`)
+  },
+
+  // PO send / PDF
+  sendPurchaseOrder: async (id: string, to_email?: string) => {
+    const res = await api.post(`${BASE}/purchase-orders/${id}/send/`,
+      to_email ? { to_email } : {})
+    return res.data
+  },
+  poPdfUrl: (id: string) => `${BASE}/purchase-orders/${id}/pdf/`,
+  downloadPoPdf: async (id: string): Promise<Blob> => {
+    const res = await api.get(`${BASE}/purchase-orders/${id}/pdf/`, { responseType: 'blob' })
+    return res.data as Blob
+  },
+
+  // ──────────────────────────────────────────────────────────
+  // Phase 5 — analytics
+  // ──────────────────────────────────────────────────────────
+  reorderForecast: async (params: { days?: number; organization?: string } = {}) => {
+    const res = await api.get(`${BASE}/reports/reorder-forecast/`, { params })
+    return res.data as {
+      days: number
+      rows: Array<{
+        item_id: string; item_name: string; sku: string; unit: string
+        current_stock: string; avg_daily_consumption: string
+        days_of_cover: string | null
+        reorder_level: string; reorder_quantity: string
+        recommended_to_reorder: boolean
+      }>
+    }
+  },
+
+  supplierScorecards: async (params: { organization?: string } = {}) => {
+    const res = await api.get(`${BASE}/reports/supplier-scorecards/`, { params })
+    return res.data as Array<{
+      supplier_id: string; supplier_name: string
+      po_count: number
+      avg_lead_time_days: number | null
+      receive_accuracy_percent: number | null
+      total_spend: string
+    }>
+  },
+
+  recipeProfitability: async (params: { organization?: string } = {}) => {
+    const res = await api.get(`${BASE}/reports/recipe-profitability/`, { params })
+    return res.data as Array<{
+      recipe_id: string; recipe_name: string
+      output_item: string; output_unit: string
+      selling_price: string; cost_per_unit: string
+      margin_per_unit: string; margin_percent: number | null
+    }>
+  },
+
+  wasteAnalysis: async (params: { days?: number; organization?: string } = {}) => {
+    const res = await api.get(`${BASE}/reports/waste-analysis/`, { params })
+    return res.data as {
+      days: number
+      top_items: Array<{ item_id: string; item_name: string; sku: string; unit: string; wasted: string; event_count: number }>
+      by_week: Array<{ week: string; wasted: string }>
+    }
+  },
+
+  weeklyInsights: async (params: { organization?: string } = {}) => {
+    const res = await api.get(`${BASE}/reports/weekly-insights/`, { params })
+    return res.data as { answer: string; confidence: number; data_points_used: string[] }
+  },
 }

@@ -36,6 +36,15 @@ data:
   OPENAI_MAX_TOKENS: "500"
   OPENAI_TEMPERATURE: "0.7"
 
+  # SMTP — non-secret pieces. Credentials live in chatplatform-secrets
+  # as EMAIL_HOST_USER + EMAIL_HOST_PASSWORD. If those are empty Django
+  # auto-falls-back to the console backend (see settings.EMAIL_BACKEND).
+  EMAIL_HOST: "smtp.gmail.com"
+  EMAIL_PORT: "587"
+  EMAIL_USE_TLS: "true"
+  EMAIL_USE_SSL: "false"
+  EMAIL_TIMEOUT: "15"
+
   # Gunicorn settings
   GUNICORN_WORKERS: "3"
   GUNICORN_THREADS: "2"

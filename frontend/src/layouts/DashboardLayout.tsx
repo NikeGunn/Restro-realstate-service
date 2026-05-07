@@ -34,6 +34,8 @@ import {
   Sparkles,
   Boxes,
   ChevronRight,
+  TrendingUp,
+  MapPin,
 } from 'lucide-react'
 
 type NavLeaf = {
@@ -97,6 +99,9 @@ const inventoryGroup: NavGroup = {
     { kind: 'leaf', path: '/inventory/alerts', labelKey: 'nav.inventoryAlerts', icon: Bell },
     { kind: 'leaf', path: '/inventory/audit-log', labelKey: 'nav.inventoryAudit', icon: ScrollText },
     { kind: 'leaf', path: '/inventory/ai', labelKey: 'nav.inventoryAI', icon: Sparkles },
+    { kind: 'leaf', path: '/inventory/stock-take', labelKey: 'nav.inventoryStockTake', icon: ClipboardList },
+    { kind: 'leaf', path: '/inventory/analytics', labelKey: 'nav.inventoryAnalytics', icon: TrendingUp },
+    { kind: 'leaf', path: '/inventory/location-pricing', labelKey: 'nav.inventoryLocationPricing', icon: MapPin },
   ],
 }
 

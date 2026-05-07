@@ -2,8 +2,10 @@ import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   Plus, Search, AlertTriangle, TrendingDown, Boxes, DollarSign,
-  Edit, Trash2, Wrench,
+  Edit, Trash2, Wrench, Camera,
 } from 'lucide-react'
+
+import { BarcodeScanner } from '@/components/inventory/BarcodeScanner'
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -70,6 +72,7 @@ export function ItemsPage() {
   const [editing, setEditing] = useState<InventoryItem | null>(null)
   const [form, setForm] = useState(emptyForm)
   const [saving, setSaving] = useState(false)
+  const [scannerOpen, setScannerOpen] = useState(false)
 
   const [adjustOpen, setAdjustOpen] = useState(false)
   const [adjustItem, setAdjustItem] = useState<InventoryItem | null>(null)
@@ -442,7 +445,25 @@ export function ItemsPage() {
             </div>
             <div>
               <Label>{t('inventory.fields.barcode')}</Label>
-              <Input value={form.barcode} onChange={(e) => setForm({ ...form, barcode: e.target.value })} />
+              <div className="flex gap-2">
+                <Input value={form.barcode} onChange={(e) => setForm({ ...form, barcode: e.target.value })} />
+                <Button type="button" variant="outline" size="icon"
+                  onClick={() => setScannerOpen(true)}
+                  aria-label="Scan barcode">
+                  <Camera className="h-4 w-4" />
+                </Button>
+              </div>
+              {scannerOpen && (
+                <div className="mt-2 border rounded p-2">
+                  <BarcodeScanner
+                    onScan={code => {
+                      setForm(f => ({ ...f, barcode: code }))
+                      setScannerOpen(false)
+                    }}
+                    onClose={() => setScannerOpen(false)}
+                  />
+                </div>
+              )}
             </div>
             <div className="flex items-center gap-2 pt-6">
               <Switch checked={form.is_perishable} onCheckedChange={(v) => setForm({ ...form, is_perishable: v })} />

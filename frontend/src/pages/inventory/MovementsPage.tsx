@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ArrowLeftRight, ArrowDown, ArrowUp } from 'lucide-react'
+import { ArrowLeftRight, ArrowDown, ArrowUp, Download } from 'lucide-react'
 
+import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -49,18 +50,38 @@ export function MovementsPage() {
         </p>
       </div>
 
-      <Select value={filter} onValueChange={(v) => setFilter(v as 'all' | MovementType)}>
-        <SelectTrigger className="w-[260px]">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {TYPES.map((tp) => (
-            <SelectItem key={tp} value={tp}>
-              {tp === 'all' ? t('common.all') : t(`inventory.movementTypes.${tp}`)}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      <div className="flex items-center gap-3">
+        <Select value={filter} onValueChange={(v) => setFilter(v as 'all' | MovementType)}>
+          <SelectTrigger className="w-[260px]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {TYPES.map((tp) => (
+              <SelectItem key={tp} value={tp}>
+                {tp === 'all' ? t('common.all') : t(`inventory.movementTypes.${tp}`)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Button
+          variant="outline"
+          onClick={async () => {
+            if (!orgId) return
+            const blob = await inventoryApi.exportMovements({
+              organization: orgId,
+              movement_type: filter === 'all' ? undefined : filter,
+            })
+            const url = URL.createObjectURL(blob)
+            const a = document.createElement('a')
+            a.href = url
+            a.download = `movements-${new Date().toISOString().slice(0, 10)}.csv`
+            a.click()
+            URL.revokeObjectURL(url)
+          }}
+        >
+          <Download className="h-4 w-4 mr-1" />{t('common.export')}
+        </Button>
+      </div>
 
       {loading ? (
         <p className="text-muted-foreground">{t('common.loading')}</p>

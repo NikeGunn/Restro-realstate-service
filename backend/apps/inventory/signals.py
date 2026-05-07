@@ -1,9 +1,16 @@
 """
 Inventory signals.
 
-Recomputes InventoryItem.current_stock from the StockMovement ledger
-whenever a movement is created. Uses .update() to bypass the immutability
-guard on InventoryItem.save() that protects unit/sku.
+On each StockMovement insert:
+  1. Update the per-location LocationStock row (sum of non-reversed
+     movements for that item+location).
+  2. Recompute InventoryItem.current_stock as the sum of all
+     LocationStock rows for the item, so existing queries/serializers
+     that read item.current_stock keep working.
+  3. Evaluate low-stock / negative-stock alerts at the per-location level.
+
+Uses .update() to bypass the immutability guard on InventoryItem.save()
+that protects unit/sku.
 """
 from decimal import Decimal
 
@@ -13,62 +20,110 @@ from django.dispatch import receiver
 from django.utils import timezone
 
 from .models import (
-    StockMovement, InventoryItem, StockAlert,
+    StockMovement, InventoryItem, LocationStock, StockAlert,
     Recipe, RecipeIngredient, RecipeVersion,
 )
+
+
+def _project_location_stock(item, location_id):
+    """Recompute LocationStock.current_stock for a single (item, location) bucket."""
+    total = (
+        StockMovement.objects.filter(
+            item=item, location_id=location_id, is_reversed=False,
+        )
+        .aggregate(total=Sum('quantity'))['total']
+        or Decimal('0')
+    )
+    obj, _ = LocationStock.objects.update_or_create(
+        item=item,
+        location_id=location_id,
+        defaults={'current_stock': total},
+    )
+    return obj
+
+
+def _recompute_item_aggregate(item):
+    """Sum every LocationStock row for the item → InventoryItem.current_stock."""
+    total = (
+        LocationStock.objects.filter(item=item)
+        .aggregate(total=Sum('current_stock'))['total']
+        or Decimal('0')
+    )
+    InventoryItem.objects.filter(pk=item.pk).update(current_stock=total)
+    return total
+
+
+def _emit_alerts_for_bucket(item, location_obj, bucket_stock):
+    """
+    Emit per-location LOW_STOCK / NEGATIVE_STOCK alerts. Cooldown is
+    "one open alert of each type per (item, location)" — same anti-spam
+    rule as before, scoped to the location.
+    """
+    if not item.is_active:
+        return
+    reorder = item.reorder_level  # per-location override is read by the engine; alerts use item-level for now
+    location_id = location_obj.pk if location_obj is not None else None
+
+    if reorder > 0 and bucket_stock <= reorder:
+        already_open = StockAlert.objects.filter(
+            item=item, location_id=location_id,
+            alert_type=StockAlert.AlertType.LOW_STOCK, is_resolved=False,
+        ).exists()
+        if not already_open:
+            StockAlert.objects.create(
+                organization=item.organization,
+                location=location_obj,
+                item=item,
+                alert_type=StockAlert.AlertType.LOW_STOCK,
+                message=(
+                    f"{item.name} is at {bucket_stock} {item.unit} "
+                    f"(reorder level: {reorder} {item.unit})"
+                    + (f" at {location_obj.name}" if location_obj else "")
+                    + "."
+                ),
+                triggered_at=timezone.now(),
+            )
+
+    if bucket_stock < 0:
+        already_open = StockAlert.objects.filter(
+            item=item, location_id=location_id,
+            alert_type=StockAlert.AlertType.NEGATIVE_STOCK, is_resolved=False,
+        ).exists()
+        if not already_open:
+            StockAlert.objects.create(
+                organization=item.organization,
+                location=location_obj,
+                item=item,
+                alert_type=StockAlert.AlertType.NEGATIVE_STOCK,
+                message=(
+                    f"{item.name} stock has gone negative "
+                    f"({bucket_stock} {item.unit})"
+                    + (f" at {location_obj.name}" if location_obj else "")
+                    + ". Investigate and adjust."
+                ),
+            )
 
 
 @receiver(post_save, sender=StockMovement)
 def recompute_item_stock(sender, instance, created, **kwargs):
     if not created:
-        return  # immutable; should never happen, but be safe.
+        return  # ledger is append-only.
+
     item = instance.item
-    total = (
-        StockMovement.objects.filter(item=item, is_reversed=False)
-        .aggregate(total=Sum('quantity'))['total']
-        or Decimal('0')
-    )
-    InventoryItem.objects.filter(pk=item.pk).update(current_stock=total)
+    location_id = instance.location_id
 
-    # Inline low-stock check (no Celery dependency for phase 1).
-    item.refresh_from_db(fields=['current_stock', 'reorder_level', 'is_active'])
-    if not item.is_active:
-        return
-    if item.reorder_level > 0 and item.current_stock <= item.reorder_level:
-        # Don't spam — only one open low_stock alert per item at a time.
-        already_open = StockAlert.objects.filter(
-            item=item, alert_type=StockAlert.AlertType.LOW_STOCK, is_resolved=False,
-        ).exists()
-        if not already_open:
-            StockAlert.objects.create(
-                organization=item.organization,
-                location=item.location,
-                item=item,
-                alert_type=StockAlert.AlertType.LOW_STOCK,
-                message=(
-                    f"{item.name} is at {item.current_stock} {item.unit} "
-                    f"(reorder level: {item.reorder_level} {item.unit})."
-                ),
-                triggered_at=timezone.now(),
-            )
-    if item.current_stock < 0:
-        already_open = StockAlert.objects.filter(
-            item=item, alert_type=StockAlert.AlertType.NEGATIVE_STOCK, is_resolved=False,
-        ).exists()
-        if not already_open:
-            StockAlert.objects.create(
-                organization=item.organization,
-                location=item.location,
-                item=item,
-                alert_type=StockAlert.AlertType.NEGATIVE_STOCK,
-                message=(
-                    f"{item.name} stock has gone negative ({item.current_stock} {item.unit}). "
-                    "Investigate and adjust."
-                ),
-            )
+    # 1. Per-location projection.
+    bucket = _project_location_stock(item, location_id)
 
-    # Async low-stock follow-up (WhatsApp owner alert). Lazy import so
-    # tests that don't have Celery configured don't blow up.
+    # 2. Org-wide aggregate (back-compat for every existing reader).
+    _recompute_item_aggregate(item)
+
+    # 3. Per-location alerts.
+    item.refresh_from_db(fields=['current_stock', 'reorder_level', 'is_active', 'unit', 'name'])
+    location_obj = instance.location  # Location FK on the movement, may be None
+    _emit_alerts_for_bucket(item, location_obj, bucket.current_stock)
+
+    # 4. Async low-stock follow-up (WhatsApp owner alert).
     try:
         from .tasks import check_low_stock_task
         check_low_stock_task.delay(str(item.pk))
@@ -82,7 +137,6 @@ def _snapshot_recipe(recipe):
             'item_id', 'item__name', 'quantity', 'unit', 'is_optional',
         )
     )
-    # Stringify decimals/UUIDs so the JSON field is portable.
     for ing in ingredients:
         ing['item_id'] = str(ing['item_id'])
         ing['quantity'] = str(ing['quantity'])
@@ -101,7 +155,6 @@ def on_ingredient_save(sender, instance, created, **kwargs):
 
 @receiver(post_delete, sender=RecipeIngredient)
 def on_ingredient_delete(sender, instance, **kwargs):
-    # During cascade-delete of a Recipe, instance.recipe may already be gone.
     try:
         recipe = Recipe.objects.get(pk=instance.recipe_id)
     except Recipe.DoesNotExist:

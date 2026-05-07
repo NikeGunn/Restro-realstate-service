@@ -223,6 +223,10 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'apps.inventory.tasks.check_expiry_task',
         'schedule': crontab(hour=7, minute=0),
     },
+    'inventory-weekly-insights': {
+        'task': 'apps.inventory.tasks.generate_weekly_insights_task',
+        'schedule': crontab(hour=8, minute=0, day_of_week='monday'),
+    },
 }
 
 # Redis Cache
@@ -232,6 +236,43 @@ CACHES = {
         'LOCATION': config('REDIS_URL', default='redis://localhost:6379/0'),
     }
 }
+
+# ──────────────────────────────────────────────────────────────────────
+# Email (SMTP) — used by inventory PO send + future transactional mail.
+#
+# Defaults are dev-friendly: with no env vars set we use the console
+# backend so emails just print to the container log. In production the
+# CI pipeline injects EMAIL_HOST_USER + EMAIL_HOST_PASSWORD and we flip
+# to the real SMTP backend automatically.
+#
+# Gmail SMTP is the easiest provider:
+#   EMAIL_HOST = smtp.gmail.com
+#   EMAIL_PORT = 587
+#   EMAIL_USE_TLS = true
+#   EMAIL_HOST_USER = your-gmail-address@gmail.com
+#   EMAIL_HOST_PASSWORD = <16-char Gmail App Password>
+# ──────────────────────────────────────────────────────────────────────
+EMAIL_HOST = config('EMAIL_HOST', default='smtp.gmail.com')
+EMAIL_PORT = config('EMAIL_PORT', default=587, cast=int)
+EMAIL_USE_TLS = config('EMAIL_USE_TLS', default=True, cast=bool)
+EMAIL_USE_SSL = config('EMAIL_USE_SSL', default=False, cast=bool)
+EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='')
+EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
+EMAIL_TIMEOUT = config('EMAIL_TIMEOUT', default=15, cast=int)
+DEFAULT_FROM_EMAIL = config(
+    'DEFAULT_FROM_EMAIL',
+    default=EMAIL_HOST_USER or 'noreply@kribaat.com',
+)
+SERVER_EMAIL = DEFAULT_FROM_EMAIL
+# Auto-pick the backend: real SMTP only if creds are present, else console.
+EMAIL_BACKEND = config(
+    'EMAIL_BACKEND',
+    default=(
+        'django.core.mail.backends.smtp.EmailBackend'
+        if EMAIL_HOST_USER and EMAIL_HOST_PASSWORD
+        else 'django.core.mail.backends.console.EmailBackend'
+    ),
+)
 
 # OpenAI Configuration
 OPENAI_API_KEY = config('OPENAI_API_KEY', default='')

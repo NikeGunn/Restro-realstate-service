@@ -304,6 +304,9 @@ jobs:
           META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
           WHATSAPP_VERIFY_TOKEN: ${{ secrets.WHATSAPP_VERIFY_TOKEN }}
           INSTAGRAM_VERIFY_TOKEN: ${{ secrets.INSTAGRAM_VERIFY_TOKEN }}
+          EMAIL_HOST_USER: ${{ secrets.EMAIL_HOST_USER }}
+          EMAIL_HOST_PASSWORD: ${{ secrets.EMAIL_HOST_PASSWORD }}
+          DEFAULT_FROM_EMAIL: ${{ secrets.DEFAULT_FROM_EMAIL }}
         run: |
           echo "📝 Creating/updating Kubernetes secrets..."
 
@@ -311,7 +314,10 @@ jobs:
           ssh -i ~/.ssh/k8s_key -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_IP \
             "kubectl delete secret chatplatform-secrets -n chatplatform --ignore-not-found=true"
 
-          # Create secret with values from GitHub Secrets
+          # Create secret with values from GitHub Secrets.
+          # SMTP creds default to empty if you haven't set the GitHub
+          # secrets yet — Django then falls back to the console backend
+          # automatically (see settings.EMAIL_BACKEND).
           ssh -i ~/.ssh/k8s_key -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_IP \
             "kubectl create secret generic chatplatform-secrets -n chatplatform \
               --from-literal=SECRET_KEY='$SECRET_KEY' \
@@ -319,7 +325,10 @@ jobs:
               --from-literal=OPENAI_API_KEY='$OPENAI_API_KEY' \
               --from-literal=META_APP_SECRET='$META_APP_SECRET' \
               --from-literal=WHATSAPP_DEFAULT_VERIFY_TOKEN='$WHATSAPP_VERIFY_TOKEN' \
-              --from-literal=INSTAGRAM_DEFAULT_VERIFY_TOKEN='$INSTAGRAM_VERIFY_TOKEN'"
+              --from-literal=INSTAGRAM_DEFAULT_VERIFY_TOKEN='$INSTAGRAM_VERIFY_TOKEN' \
+              --from-literal=EMAIL_HOST_USER='$EMAIL_HOST_USER' \
+              --from-literal=EMAIL_HOST_PASSWORD='$EMAIL_HOST_PASSWORD' \
+              --from-literal=DEFAULT_FROM_EMAIL='$DEFAULT_FROM_EMAIL'"
 
           echo "✅ Secrets deployed successfully"
 

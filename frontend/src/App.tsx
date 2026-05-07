@@ -37,6 +37,9 @@ import { SalesImportPage, PurchaseImportPage } from '@/pages/inventory/SalesImpo
 import { InventoryReportsPage } from '@/pages/inventory/InventoryReportsPage'
 import { AuditLogPage } from '@/pages/inventory/AuditLogPage'
 import { InventoryAIPage } from '@/pages/inventory/InventoryAIPage'
+import { StockTakePage } from '@/pages/inventory/StockTakePage'
+import { Phase5ReportsPage } from '@/pages/inventory/Phase5ReportsPage'
+import { LocationPricingPage } from '@/pages/inventory/LocationPricingPage'
 
 // Public pages
 import { LandingPage } from '@/pages/LandingPage'
@@ -200,6 +203,9 @@ function App() {
           <Route path="/inventory/reports" element={<InventoryReportsPage />} />
           <Route path="/inventory/audit-log" element={<AuditLogPage />} />
           <Route path="/inventory/ai" element={<InventoryAIPage />} />
+          <Route path="/inventory/stock-take" element={<StockTakePage />} />
+          <Route path="/inventory/analytics" element={<Phase5ReportsPage />} />
+          <Route path="/inventory/location-pricing" element={<LocationPricingPage />} />
         </Route>
       </Routes>
       <Toaster />

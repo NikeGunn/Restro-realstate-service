@@ -281,6 +281,48 @@ def generate_daily_inventory_summary_task(organization_id: str = None):
 
 
 # ──────────────────────────────────────────────────────────────────────
+# Phase 5 — Weekly insights
+# ──────────────────────────────────────────────────────────────────────
+@shared_task
+def generate_weekly_insights_task(organization_id: str = None):
+    """Run InventoryAIEngine.insights() per org and WhatsApp the owner."""
+    from apps.accounts.models import Organization, OrganizationMembership
+    from .services.ai_engine import InventoryAIEngine
+
+    qs = Organization.objects.all()
+    if organization_id:
+        qs = qs.filter(pk=organization_id)
+    engine = InventoryAIEngine()
+    for org in qs:
+        try:
+            result = engine.insights(org)
+        except Exception:
+            logger.exception('Weekly insights generation failed for org %s', org.id)
+            continue
+        message = result.get('answer') or '(no insights this week)'
+        owner = OrganizationMembership.objects.filter(
+            organization=org, role=OrganizationMembership.Role.OWNER,
+        ).select_related('user').first()
+        if not owner:
+            continue
+        phone = (
+            getattr(owner.user, 'phone', None)
+            or getattr(owner.user, 'whatsapp_number', None)
+            or getattr(org, 'phone', None)
+        )
+        if not phone:
+            continue
+        try:
+            from apps.channels.whatsapp_service import WhatsAppService
+            service = WhatsAppService.get_for_organization(org)
+            if service is None:
+                continue
+            service.send_message(to=phone, text=f'Weekly inventory insight:\n\n{message}')
+        except Exception:
+            logger.exception('Weekly insight send failed for org %s', org.id)
+
+
+# ──────────────────────────────────────────────────────────────────────
 # Expiry sweep
 # ──────────────────────────────────────────────────────────────────────
 @shared_task

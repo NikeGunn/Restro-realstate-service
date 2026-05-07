@@ -178,6 +178,51 @@ class InventoryAIEngine:
             summary_lines='\n'.join(summary_lines) if summary_lines else 'No notable activity.',
         )
 
+    def insights(self, organization) -> dict:
+        """
+        Weekly Plane B insights: pulls reorder forecast, waste, and recent
+        movements, asks the model for a tight paragraph. Falls back to a
+        deterministic digest when OPENAI_API_KEY is not configured.
+        """
+        from .analytics import reorder_forecast, waste_analysis
+        org_ids = [organization.id]
+        forecast = reorder_forecast(org_ids, days=7)[:5]
+        waste = waste_analysis(org_ids, days=7)
+
+        digest_lines = ['Reorder candidates (top 5):']
+        if forecast:
+            for r in forecast:
+                digest_lines.append(
+                    f"  - {r['item_name']} stock={r['current_stock']} "
+                    f"avg/day={r['avg_daily_consumption']} cover={r['days_of_cover']}d"
+                )
+        else:
+            digest_lines.append('  (none)')
+        digest_lines.append('Top wasted items this week:')
+        if waste['top_items']:
+            for w in waste['top_items'][:5]:
+                digest_lines.append(
+                    f"  - {w['item_name']}: {w['wasted']} {w['unit']} "
+                    f"({w['event_count']} events)"
+                )
+        else:
+            digest_lines.append('  (none)')
+
+        digest = '\n'.join(digest_lines)
+
+        api_key = getattr(settings, 'OPENAI_API_KEY', '')
+        if not api_key:
+            return {
+                'answer': digest,
+                'confidence': 1.0,
+                'data_points_used': ['reorder_forecast', 'waste_analysis'],
+            }
+        prompt = self._load_prompt('weekly_insights.txt').format(
+            organization_name=organization.name,
+            digest=digest,
+        )
+        return self._call_openai(prompt)
+
     # ──────────────────────────────────────────────────────────────
     # OpenAI call (defensive — degrades gracefully without API key)
     # ──────────────────────────────────────────────────────────────

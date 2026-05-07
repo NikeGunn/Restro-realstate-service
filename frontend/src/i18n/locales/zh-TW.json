@@ -33,6 +33,9 @@
     "info": "資訊",
     "noData": "暫無資料",
     "actions": "操作",
+    "commit": "提交",
+    "item": "物品",
+    "location": "分店",
     "status": "狀態",
     "date": "日期",
     "time": "時間",
@@ -106,7 +109,10 @@
     "inventoryReports": "報表",
     "inventoryAlerts": "庫存警示",
     "inventoryAudit": "稽核日誌",
-    "inventoryAI": "庫存 AI"
+    "inventoryAI": "庫存 AI",
+    "inventoryStockTake": "庫存盤點",
+    "inventoryAnalytics": "分析",
+    "inventoryLocationPricing": "分店定價"
   },
   "inventory": {
     "title": "庫存",
@@ -210,6 +216,8 @@
         "received": "已收貨",
         "cancelled": "已取消"
       },
+      "send": "發送",
+      "sent": "採購單已發送。",
       "empty": "暫無採購單。",
       "created": "採購單已建立。",
       "receive": "收貨",
@@ -336,6 +344,48 @@
       "disclaimer": "回答基於即時庫存資料。置信度低於 70% 時 AI 不會臆測。",
       "upgradeRequired": "需升級至 Power 方案",
       "powerOnly": "庫存 AI 僅在 Power 方案可用。"
+    },
+    "stockTake": {
+      "title": "庫存盤點",
+      "new": "新建盤點",
+      "lines": "條目",
+      "system": "系統",
+      "counted": "實盤",
+      "addAllItems": "加入所有啟用物品",
+      "noLines": "請至少加入一條。",
+      "created": "盤點已建立。",
+      "committed": "盤點已提交。",
+      "committedAt": "提交時間",
+      "empty": "暫無盤點。"
+    },
+    "analytics": {
+      "title": "分析",
+      "weeklyInsight": "本週洞察",
+      "forecast": "補貨預測",
+      "suppliers": "供應商",
+      "profit": "菜品毛利",
+      "waste": "損耗",
+      "currentStock": "庫存",
+      "avgPerDay": "日均",
+      "daysCover": "可用天數",
+      "reorder": "需補貨？",
+      "reorderNow": "補貨",
+      "leadTime": "交期",
+      "accuracy": "準確率",
+      "spend": "支出",
+      "cost": "單位成本",
+      "sellingPrice": "單位售價",
+      "margin": "毛利",
+      "topWastedItems": "損耗最多",
+      "byWeek": "按週",
+      "wasted": "損耗",
+      "events": "次數",
+      "week": "週次"
+    },
+    "pricing": {
+      "title": "分店定價",
+      "add": "新增覆蓋",
+      "empty": "暫無分店定價。"
     }
   },
   "dashboard": {

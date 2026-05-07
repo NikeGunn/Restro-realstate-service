@@ -4,12 +4,15 @@ Inventory views — Plane B.
 ALL routes in this module require IsInventoryAdmin (owner) for writes
 and authenticated org membership for reads. There is NO public surface here.
 """
+import csv
+import io
 import os
 from decimal import Decimal
 
 from django.conf import settings
 from django.core.files.storage import default_storage
 from django.db.models import Q, Sum, Count, F
+from django.http import HttpResponse
 from django.utils import timezone
 
 from rest_framework import viewsets, status
@@ -27,6 +30,8 @@ from .models import (
     PurchaseOrder, PurchaseOrderItem,
     Recipe, RecipeIngredient, RecipeVersion,
     SalesImport, SupplierImport,
+    LocationStock, LocationItemPricing, StockTake, StockTakeLine,
+    PurchaseOrderEmail,
 )
 from .permissions import IsInventoryAdmin
 from .serializers import (
@@ -39,6 +44,10 @@ from .serializers import (
     RecipeBatchSerializer,
     SalesImportSerializer, SupplierImportSerializer, ImportColumnMapSerializer,
     InventoryAIQuerySerializer,
+    LocationStockSerializer, StockTakeSerializer,
+    LocationItemPricingSerializer,
+    PurchaseOrderSendSerializer, PurchaseOrderEmailSerializer,
+    BulkItemEditSerializer,
 )
 
 
@@ -89,8 +98,15 @@ class AuditLoggedMixin:
 
     def _audit(self, action: str, instance, before=None, after=None):
         try:
+            org = getattr(instance, 'organization', None)
+            if org is None:
+                # Fallback for models scoped via item or stock_take.
+                org = (
+                    getattr(getattr(instance, 'item', None), 'organization', None)
+                    or getattr(getattr(instance, 'stock_take', None), 'organization', None)
+                )
             InventoryAuditLog.objects.create(
-                organization=instance.organization,
+                organization=org,
                 location=getattr(instance, 'location', None),
                 action=action,
                 model_name=self.audit_model_name or type(instance).__name__,
@@ -242,6 +258,63 @@ class InventoryItemViewSet(AuditLoggedMixin, InventoryOrgScopeMixin, viewsets.Mo
         qs = item.movements.all().order_by('-movement_date', '-created_at')[:200]
         return Response(StockMovementSerializer(qs, many=True).data)
 
+    @action(detail=False, methods=['post'], url_path='bulk-update')
+    def bulk_update(self, request):
+        """
+        Bulk-update reorder/category/supplier/is_active across many items.
+        One audit-log row per item changed. Owner-only.
+        """
+        ser = BulkItemEditSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        ids = ser.validated_data['ids']
+        patch = ser.validated_data['patch']
+
+        qs = self.get_queryset().filter(pk__in=ids)
+        # Ownership: every targeted item must belong to an org the user owns.
+        owned_org_ids = set(OrganizationMembership.objects.filter(
+            user=request.user, role=OrganizationMembership.Role.OWNER,
+        ).values_list('organization_id', flat=True))
+        forbidden = [
+            str(it.pk) for it in qs if it.organization_id not in owned_org_ids
+        ]
+        if forbidden:
+            return Response(
+                {'detail': 'You are not the owner of every targeted item.',
+                 'forbidden_ids': forbidden},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        updated_count = 0
+        for it in qs:
+            before = _model_to_dict(it)
+            for field, value in patch.items():
+                # Use the FK id form for category/supplier so we don't need to fetch.
+                if field in ('category', 'supplier'):
+                    setattr(it, f'{field}_id', value)
+                else:
+                    setattr(it, field, value)
+            it.save()
+            after = _model_to_dict(it)
+            InventoryAuditLog.objects.create(
+                organization=it.organization,
+                location=it.location,
+                action='bulk_update',
+                model_name='InventoryItem',
+                object_id=it.id,
+                object_repr=str(it),
+                before=before, after=after, diff=_diff(before, after),
+                performed_by=request.user,
+                ip_address=_client_ip(request),
+            )
+            updated_count += 1
+        return Response({'updated': updated_count, 'requested': len(ids)})
+
+    @action(detail=True, methods=['get'], url_path='location-stocks')
+    def location_stocks(self, request, pk=None):
+        item = self.get_object()
+        rows = item.location_stocks.select_related('location').all()
+        return Response(LocationStockSerializer(rows, many=True).data)
+
     @action(detail=False, methods=['get'], url_path='dashboard')
     def dashboard(self, request):
         qs = self.get_queryset()
@@ -290,6 +363,39 @@ class StockMovementViewSet(InventoryOrgScopeMixin, viewsets.ReadOnlyModelViewSet
         if params.get('end_date'):
             qs = qs.filter(movement_date__lte=params['end_date'])
         return qs
+
+    @action(detail=False, methods=['get'], url_path='export')
+    def export(self, request):
+        """
+        CSV export of the filtered movement list. Same filters as list().
+        Mirrors the audit-log CSV pattern.
+        """
+        qs = self.get_queryset().select_related('item', 'created_by')[:50000]
+        buf = io.StringIO()
+        writer = csv.writer(buf)
+        writer.writerow([
+            'movement_date', 'item_sku', 'item_name', 'item_unit',
+            'movement_type', 'quantity', 'unit_cost',
+            'location', 'reference_id', 'reference_type', 'notes',
+            'is_reversed', 'created_by', 'created_at',
+        ])
+        for m in qs:
+            writer.writerow([
+                m.movement_date.isoformat() if m.movement_date else '',
+                m.item.sku, m.item.name, m.item.unit,
+                m.movement_type, str(m.quantity),
+                str(m.unit_cost) if m.unit_cost is not None else '',
+                str(m.location_id) if m.location_id else '',
+                m.reference_id, m.reference_type,
+                (m.notes or '').replace('\n', ' ').replace('\r', ' '),
+                m.is_reversed,
+                getattr(m.created_by, 'email', '') if m.created_by_id else '',
+                m.created_at.isoformat() if m.created_at else '',
+            ])
+        resp = HttpResponse(buf.getvalue(), content_type='text/csv')
+        ts = timezone.now().strftime('%Y%m%d-%H%M%S')
+        resp['Content-Disposition'] = f'attachment; filename="movements-{ts}.csv"'
+        return resp
 
     @action(detail=True, methods=['post'])
     def reverse(self, request, pk=None):
@@ -449,6 +555,49 @@ class PurchaseOrderViewSet(AuditLoggedMixin, InventoryOrgScopeMixin, viewsets.Mo
         po.save(update_fields=['status', 'updated_at'])
         self._audit('cancel', po, after={'status': po.status})
         return Response(PurchaseOrderSerializer(po).data)
+
+    @action(detail=True, methods=['post'])
+    def send(self, request, pk=None):
+        from django.core.exceptions import ValidationError as DjangoValidationError
+        po = self.get_object()
+        ser = PurchaseOrderSendSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        from .services.po_send import send_po
+        try:
+            email = send_po(
+                po,
+                to_email=ser.validated_data.get('to_email') or None,
+                performed_by=request.user,
+            )
+        except DjangoValidationError as e:
+            return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        po.refresh_from_db()
+        self._audit('send', po, after={
+            'sent_at': po.sent_at.isoformat() if po.sent_at else None,
+            'sent_to_email': po.sent_to_email,
+            'email_id': str(email.id),
+        })
+        return Response({
+            'po': PurchaseOrderSerializer(po).data,
+            'email': PurchaseOrderEmailSerializer(email).data,
+        })
+
+    @action(detail=True, methods=['get'])
+    def pdf(self, request, pk=None):
+        po = self.get_object()
+        from .services.po_send import render_po_pdf
+        pdf_bytes = render_po_pdf(po)
+        # If reportlab is missing it falls back to text — still serve as PDF
+        # if it starts with %PDF, else as text/plain.
+        if pdf_bytes[:4] == b'%PDF':
+            content_type = 'application/pdf'
+            ext = 'pdf'
+        else:
+            content_type = 'text/plain'
+            ext = 'txt'
+        resp = HttpResponse(pdf_bytes, content_type=content_type)
+        resp['Content-Disposition'] = f'attachment; filename="{po.order_number}.{ext}"'
+        return resp
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -846,3 +995,153 @@ class InventoryReportViewSet(InventoryOrgScopeMixin, viewsets.GenericViewSet):
                     'is_negative': es.is_negative,
                 })
         return Response(rows)
+
+    # ──────────────────────────────────────────────────────────────
+    # Phase 5 reports
+    # ──────────────────────────────────────────────────────────────
+    @action(detail=False, methods=['get'], url_path='reorder-forecast')
+    def reorder_forecast(self, request):
+        from .services.analytics import reorder_forecast
+        days = int(request.query_params.get('days', 30))
+        return Response({'days': days,
+                         'rows': reorder_forecast(self._user_org_ids(), days=days)})
+
+    @action(detail=False, methods=['get'], url_path='supplier-scorecards')
+    def supplier_scorecards(self, request):
+        from .services.analytics import supplier_scorecards
+        return Response(supplier_scorecards(self._user_org_ids()))
+
+    @action(detail=False, methods=['get'], url_path='recipe-profitability')
+    def recipe_profitability(self, request):
+        from .services.analytics import recipe_profitability
+        return Response(recipe_profitability(self._user_org_ids()))
+
+    @action(detail=False, methods=['get'], url_path='waste-analysis')
+    def waste_analysis(self, request):
+        from .services.analytics import waste_analysis
+        days = int(request.query_params.get('days', 30))
+        return Response(waste_analysis(self._user_org_ids(), days=days))
+
+    @action(detail=False, methods=['get'], url_path='weekly-insights')
+    def weekly_insights(self, request):
+        """On-demand version of the Monday Celery task — owner-only."""
+        from .services.ai_engine import InventoryAIEngine
+        org_id = request.query_params.get('organization')
+        org_ids = self._user_org_ids()
+        if not org_ids:
+            return Response({'detail': 'No organizations.'},
+                            status=status.HTTP_403_FORBIDDEN)
+        from apps.accounts.models import Organization
+        org = (
+            Organization.objects.filter(pk=org_id, id__in=org_ids).first()
+            if org_id else
+            Organization.objects.filter(id__in=org_ids).first()
+        )
+        if not org:
+            return Response({'detail': 'Org not found.'}, status=status.HTTP_404_NOT_FOUND)
+        return Response(InventoryAIEngine().insights(org))
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Phase 4 — StockTake
+# ──────────────────────────────────────────────────────────────────────
+class StockTakeViewSet(AuditLoggedMixin, InventoryOrgScopeMixin, viewsets.ModelViewSet):
+    queryset = StockTake.objects.prefetch_related('lines__item').all()
+    serializer_class = StockTakeSerializer
+    permission_classes = [IsAuthenticated, IsInventoryAdmin]
+    audit_model_name = 'StockTake'
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        if self.request.query_params.get('status'):
+            qs = qs.filter(status=self.request.query_params['status'])
+        return qs
+
+    @action(detail=True, methods=['post'])
+    def commit(self, request, pk=None):
+        st = self.get_object()
+        membership = OrganizationMembership.objects.filter(
+            user=request.user, organization=st.organization,
+            role=OrganizationMembership.Role.OWNER,
+        ).first()
+        if not membership:
+            return Response({'detail': 'Only owners can commit a stock-take.'},
+                            status=status.HTTP_403_FORBIDDEN)
+        from .services.stock_take_engine import StockTakeEngine
+        from django.core.exceptions import ValidationError as DjangoValidationError
+        try:
+            result = StockTakeEngine.commit(st, performed_by=request.user)
+        except DjangoValidationError as e:
+            return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        st.refresh_from_db()
+        self._audit('commit', st, after=result)
+        return Response({
+            'stock_take': StockTakeSerializer(st).data,
+            'result': result,
+        })
+
+    @action(detail=True, methods=['post'])
+    def cancel(self, request, pk=None):
+        st = self.get_object()
+        if st.status != StockTake.Status.IN_PROGRESS:
+            return Response({'detail': f'Cannot cancel a stock-take in status {st.status}.'},
+                            status=status.HTTP_400_BAD_REQUEST)
+        st.status = StockTake.Status.CANCELLED
+        st.save(update_fields=['status', 'updated_at'])
+        self._audit('cancel', st, after={'status': st.status})
+        return Response(StockTakeSerializer(st).data)
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Phase 4 — LocationStock (read-only) + LocationItemPricing
+# ──────────────────────────────────────────────────────────────────────
+class LocationStockViewSet(InventoryOrgScopeMixin, viewsets.ReadOnlyModelViewSet):
+    queryset = LocationStock.objects.select_related('item', 'location').all()
+    serializer_class = LocationStockSerializer
+    permission_classes = [IsAuthenticated, IsInventoryAdmin]
+
+    def get_queryset(self):
+        # The mixin scopes by `organization`, but LocationStock has none —
+        # filter by item.organization instead.
+        user = self.request.user
+        if not user.is_authenticated:
+            return self.queryset.none()
+        org_ids = list(
+            OrganizationMembership.objects.filter(user=user)
+            .values_list('organization_id', flat=True)
+        )
+        qs = self.queryset.filter(item__organization_id__in=org_ids)
+        params = self.request.query_params
+        if params.get('item'):
+            qs = qs.filter(item_id=params['item'])
+        if params.get('location'):
+            qs = qs.filter(location_id=params['location'])
+        return qs
+
+
+class LocationItemPricingViewSet(AuditLoggedMixin, InventoryOrgScopeMixin, viewsets.ModelViewSet):
+    queryset = LocationItemPricing.objects.select_related('item', 'location').all()
+    serializer_class = LocationItemPricingSerializer
+    permission_classes = [IsAuthenticated, IsInventoryAdmin]
+    audit_model_name = 'LocationItemPricing'
+
+    def get_queryset(self):
+        user = self.request.user
+        if not user.is_authenticated:
+            return self.queryset.none()
+        org_ids = list(
+            OrganizationMembership.objects.filter(user=user)
+            .values_list('organization_id', flat=True)
+        )
+        qs = self.queryset.filter(item__organization_id__in=org_ids)
+        if self.request.query_params.get('item'):
+            qs = qs.filter(item_id=self.request.query_params['item'])
+        if self.request.query_params.get('location'):
+            qs = qs.filter(location_id=self.request.query_params['location'])
+        return qs
+
+    def perform_create(self, serializer):
+        # Bypass the parent mixin's perform_create which expects organization
+        # in the payload — pricing is scoped via item.
+        instance = serializer.save()
+        self._audit('create', instance, after=_model_to_dict(instance))

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Plus, Trash2, X, Check } from 'lucide-react'
+import { Plus, Trash2, X, Check, Send, Download } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -212,6 +212,35 @@ export function PurchaseOrdersPage() {
                           {t('inventory.po.receive')}
                         </Button>
                       )}
+                      {po.status === 'draft' && (
+                        <Button size="sm" variant="outline" onClick={async () => {
+                          try {
+                            await inventoryApi.sendPurchaseOrder(po.id)
+                            toast({ title: t('inventory.po.sent') })
+                            await load()
+                          } catch (e: any) {
+                            toast({
+                              title: t('common.error'),
+                              description: e?.response?.data?.detail || String(e),
+                              variant: 'destructive',
+                            })
+                          }
+                        }}>
+                          <Send className="h-3 w-3 mr-1" />
+                          {t('inventory.po.send')}
+                        </Button>
+                      )}
+                      <Button size="sm" variant="ghost" onClick={async () => {
+                        const blob = await inventoryApi.downloadPoPdf(po.id)
+                        const url = URL.createObjectURL(blob)
+                        const a = document.createElement('a')
+                        a.href = url
+                        a.download = `${po.order_number}.pdf`
+                        a.click()
+                        URL.revokeObjectURL(url)
+                      }}>
+                        <Download className="h-3 w-3" />
+                      </Button>
                       {(po.status === 'draft' || po.status === 'sent' || po.status === 'partial') && (
                         <Button size="sm" variant="ghost" onClick={() => handleCancel(po)}>
                           <X className="h-3 w-3 mr-1" />

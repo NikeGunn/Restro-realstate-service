@@ -13,6 +13,7 @@ from .views import (
     PurchaseOrderViewSet, RecipeViewSet,
     SalesImportViewSet, SupplierImportViewSet,
     InventoryAIViewSet, InventoryReportViewSet,
+    StockTakeViewSet, LocationStockViewSet, LocationItemPricingViewSet,
 )
 
 app_name = 'inventory'
@@ -30,6 +31,9 @@ router.register(r'imports/sales', SalesImportViewSet, basename='inventory-sales-
 router.register(r'imports/purchases', SupplierImportViewSet, basename='inventory-purchase-import')
 router.register(r'ai', InventoryAIViewSet, basename='inventory-ai')
 router.register(r'reports', InventoryReportViewSet, basename='inventory-report')
+router.register(r'stock-takes', StockTakeViewSet, basename='inventory-stock-take')
+router.register(r'location-stocks', LocationStockViewSet, basename='inventory-location-stock')
+router.register(r'location-pricing', LocationItemPricingViewSet, basename='inventory-location-pricing')
 
 urlpatterns = [
     path('', include(router.urls)),
