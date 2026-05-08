@@ -13,6 +13,9 @@ import { useAuthStore } from '@/store/auth'
 import {
   inventoryApi, type StockMovement, type MovementType,
 } from '@/services/inventory'
+import {
+  InventoryEmpty, InventoryError, InventoryLoading,
+} from '@/components/inventory/InventoryStates'
 
 const TYPES: ('all' | MovementType)[] = [
   'all', 'purchase', 'sale', 'waste', 'adjustment',
@@ -28,25 +31,30 @@ export function MovementsPage() {
   const [movements, setMovements] = useState<StockMovement[]>([])
   const [filter, setFilter] = useState<'all' | MovementType>('all')
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
+  const load = () => {
     if (!orgId) return
     setLoading(true)
+    setError(null)
     inventoryApi
       .listMovements({
         organization: orgId,
         movement_type: filter === 'all' ? undefined : filter,
       })
       .then(setMovements)
+      .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)))
       .finally(() => setLoading(false))
-  }, [orgId, filter])
+  }
+
+  useEffect(() => { load() /* eslint-disable-line */ }, [orgId, filter])
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold">{t('inventory.movements')}</h1>
         <p className="text-muted-foreground">
-          Append-only ledger. Every change to stock is recorded here.
+          {t('inventory.movementsTable.appendOnly')}
         </p>
       </div>
 
@@ -83,15 +91,12 @@ export function MovementsPage() {
         </Button>
       </div>
 
-      {loading ? (
-        <p className="text-muted-foreground">{t('common.loading')}</p>
+      {error ? (
+        <InventoryError message={error} onRetry={load} />
+      ) : loading ? (
+        <InventoryLoading variant="rows" />
       ) : movements.length === 0 ? (
-        <Card>
-          <CardContent className="py-12 text-center text-muted-foreground">
-            <ArrowLeftRight className="mx-auto h-8 w-8 mb-2" />
-            {t('common.noData')}
-          </CardContent>
-        </Card>
+        <InventoryEmpty icon={ArrowLeftRight} />
       ) : (
         <Card>
           <CardContent className="p-0">
@@ -99,12 +104,12 @@ export function MovementsPage() {
               <table className="w-full text-sm">
                 <thead className="bg-muted/30 border-b">
                   <tr className="text-left">
-                    <th className="px-4 py-3">Date</th>
-                    <th className="px-4 py-3">Item</th>
-                    <th className="px-4 py-3">Type</th>
-                    <th className="px-4 py-3 text-right">Quantity</th>
-                    <th className="px-4 py-3">Notes</th>
-                    <th className="px-4 py-3">By</th>
+                    <th className="px-4 py-3">{t('inventory.movementsTable.date')}</th>
+                    <th className="px-4 py-3">{t('inventory.movementsTable.item')}</th>
+                    <th className="px-4 py-3">{t('inventory.movementsTable.type')}</th>
+                    <th className="px-4 py-3 text-right">{t('inventory.movementsTable.quantity')}</th>
+                    <th className="px-4 py-3">{t('inventory.movementsTable.notes')}</th>
+                    <th className="px-4 py-3">{t('inventory.movementsTable.by')}</th>
                   </tr>
                 </thead>
                 <tbody>

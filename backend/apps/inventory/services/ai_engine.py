@@ -120,6 +120,16 @@ class InventoryAIEngine:
             }
 
         context = self._build_stock_context(organization, location)
+        # Phase 6 — prepend the cached per-org profile so prompts stay
+        # informative without re-querying everything every time.
+        try:
+            from .ai_profile import get_or_build_profile, render_profile_block
+            profile_block = render_profile_block(get_or_build_profile(organization))
+            if profile_block:
+                context = profile_block + '\n\n' + context
+        except Exception:
+            logger.exception('Failed to inject AI profile (continuing without it)')
+
         template = self._load_prompt('inventory_query.txt')
         prompt = template.format(
             organization_name=organization.name,

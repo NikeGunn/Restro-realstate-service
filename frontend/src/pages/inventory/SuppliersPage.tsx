@@ -18,6 +18,9 @@ import { useToast } from '@/hooks/use-toast'
 
 import { useAuthStore } from '@/store/auth'
 import { inventoryApi, type Supplier } from '@/services/inventory'
+import {
+  InventoryEmpty, InventoryError, InventoryLoading,
+} from '@/components/inventory/InventoryStates'
 
 const TERMS: Supplier['payment_terms'][] = ['cod', 'net7', 'net15', 'net30', 'net60']
 
@@ -35,6 +38,7 @@ export function SuppliersPage() {
 
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<Supplier | null>(null)
   const [form, setForm] = useState(empty)
@@ -42,8 +46,11 @@ export function SuppliersPage() {
   const refresh = async () => {
     if (!orgId) return
     setLoading(true)
+    setError(null)
     try {
       setSuppliers(await inventoryApi.listSuppliers({ organization: orgId }))
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
     } finally {
       setLoading(false)
     }
@@ -81,7 +88,7 @@ export function SuppliersPage() {
   }
 
   const remove = async (s: Supplier) => {
-    if (!confirm(`Delete ${s.name}?`)) return
+    if (!confirm(t('inventory.supplierForm.deleteConfirm', { name: s.name }))) return
     try {
       await inventoryApi.deleteSupplier(s.id)
       await refresh()
@@ -103,15 +110,12 @@ export function SuppliersPage() {
         </Button>
       </div>
 
-      {loading ? (
-        <p className="text-muted-foreground">{t('common.loading')}</p>
+      {error ? (
+        <InventoryError message={error} onRetry={refresh} />
+      ) : loading ? (
+        <InventoryLoading variant="cards" />
       ) : suppliers.length === 0 ? (
-        <Card>
-          <CardContent className="py-12 text-center text-muted-foreground">
-            <Truck className="mx-auto h-8 w-8 mb-2" />
-            {t('common.noData')}
-          </CardContent>
-        </Card>
+        <InventoryEmpty icon={Truck} />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
           {suppliers.map((s) => (
@@ -136,8 +140,8 @@ export function SuppliersPage() {
                 <div className="mt-3 space-y-1 text-sm text-muted-foreground">
                   {s.phone && <div>📞 {s.phone}</div>}
                   {s.email && <div>✉️ {s.email}</div>}
-                  <div>Terms: <span className="font-mono">{s.payment_terms}</span></div>
-                  <div>Items: {s.item_count}</div>
+                  <div>{t('inventory.supplierForm.terms')}: <span className="font-mono">{s.payment_terms}</span></div>
+                  <div>{t('inventory.supplierForm.items')}: {s.item_count}</div>
                 </div>
               </CardContent>
             </Card>
@@ -158,27 +162,27 @@ export function SuppliersPage() {
               <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
             </div>
             <div>
-              <Label>Contact</Label>
+              <Label>{t('inventory.supplierForm.contact')}</Label>
               <Input value={form.contact_name} onChange={(e) => setForm({ ...form, contact_name: e.target.value })} />
             </div>
             <div>
-              <Label>Email</Label>
+              <Label>{t('inventory.supplierForm.email')}</Label>
               <Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
             </div>
             <div>
-              <Label>Phone</Label>
+              <Label>{t('inventory.supplierForm.phone')}</Label>
               <Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
             </div>
             <div>
-              <Label>Tax ID</Label>
+              <Label>{t('inventory.supplierForm.taxId')}</Label>
               <Input value={form.tax_id} onChange={(e) => setForm({ ...form, tax_id: e.target.value })} />
             </div>
             <div className="sm:col-span-2">
-              <Label>Address</Label>
+              <Label>{t('inventory.supplierForm.address')}</Label>
               <Textarea rows={2} value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} />
             </div>
             <div>
-              <Label>Payment terms</Label>
+              <Label>{t('inventory.supplierForm.paymentTerms')}</Label>
               <Select value={form.payment_terms} onValueChange={(v) => setForm({ ...form, payment_terms: v as Supplier['payment_terms'] })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -191,7 +195,7 @@ export function SuppliersPage() {
               <Label>{t('inventory.fields.isActive')}</Label>
             </div>
             <div className="sm:col-span-2">
-              <Label>Notes</Label>
+              <Label>{t('inventory.supplierForm.notes')}</Label>
               <Textarea rows={2} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
             </div>
           </div>

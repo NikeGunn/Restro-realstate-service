@@ -836,3 +836,64 @@ class PurchaseOrderEmail(_InventoryTimestamps):
     class Meta:
         db_table = 'inv_po_email'
         ordering = ['-created_at']
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Phase 6 — Plane A integration: link a Booking to one or more recipes
+# whose ingredients should be consumed when the booking is fulfilled.
+#
+# This is the ONLY model that names a Plane A entity (`restaurant.Booking`).
+# The relationship is one-directional: Plane A has no awareness of Plane B.
+# A signal in apps.inventory.signals watches Booking.status flips to
+# COMPLETED and consumes the recipes via StockEngine. Auto-consumption is
+# gated by INVENTORY_SETTINGS['AUTO_CONSUME_ON_BOOKING_COMPLETE'] (default
+# False), so production behavior is unchanged until explicitly enabled.
+# ──────────────────────────────────────────────────────────────────────
+class RecipeBookingLink(_InventoryTimestamps):
+    organization = models.ForeignKey(
+        Organization, on_delete=models.CASCADE,
+        related_name='recipe_booking_links',
+    )
+    booking = models.ForeignKey(
+        'restaurant.Booking', on_delete=models.CASCADE,
+        related_name='recipe_links',
+    )
+    recipe = models.ForeignKey(
+        Recipe, on_delete=models.PROTECT, related_name='booking_links',
+    )
+    batches = models.DecimalField(
+        max_digits=10, decimal_places=4, default=Decimal('1'),
+        validators=[MinValueValidator(Decimal('0.0001'))],
+    )
+    consumed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = 'inv_recipe_booking_link'
+        unique_together = [('booking', 'recipe')]
+        ordering = ['created_at']
+        indexes = [models.Index(fields=['organization', 'consumed_at'])]
+
+    def __str__(self):
+        return f'{self.recipe.name} × {self.batches} → booking {self.booking_id}'
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Phase 6 — Plane B AI inventory profile (per-org, refreshed daily).
+#
+# A compact JSON snapshot of an org's inventory shape (top items, suppliers,
+# recipes, recent issues) that InventoryAIEngine injects into the prompt
+# instead of recomputing context on every query. One row per organization.
+# ──────────────────────────────────────────────────────────────────────
+class InventoryAIProfile(_InventoryTimestamps):
+    organization = models.OneToOneField(
+        Organization, on_delete=models.CASCADE,
+        related_name='inventory_ai_profile',
+    )
+    profile = models.JSONField(default=dict, blank=True)
+    generated_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = 'inv_ai_profile'
+
+    def __str__(self):
+        return f'AIProfile({self.organization.name})'

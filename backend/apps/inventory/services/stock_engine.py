@@ -152,8 +152,13 @@ class StockEngine:
 
         yield_factor = recipe.yield_percent / Decimal('100')
         movements = []
+        # StockMovement.quantity is Decimal(max_digits=10, decimal_places=4).
+        # Recipe math (ing.quantity × batches / yield_factor) can produce
+        # values with more than 4 decimal places when both operands carry
+        # trailing zeros from DB Decimal storage. Quantize to 4 decimals.
+        _Q4 = Decimal('0.0001')
         for ing in recipe.ingredients.filter(is_optional=False).select_related('item'):
-            required = (ing.quantity * batches) / yield_factor
+            required = ((ing.quantity * batches) / yield_factor).quantize(_Q4)
             mv = self._create_movement(
                 item=ing.item,
                 movement_type=StockMovement.MovementType.RECIPE_CONSUMPTION,
@@ -165,7 +170,7 @@ class StockEngine:
             movements.append(mv)
 
         if recipe.output_item:
-            output_qty = recipe.output_quantity * batches
+            output_qty = (recipe.output_quantity * batches).quantize(_Q4)
             self._create_movement(
                 item=recipe.output_item,
                 movement_type=StockMovement.MovementType.PURCHASE,

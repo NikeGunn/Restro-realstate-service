@@ -13,6 +13,7 @@
     "export": "匯出",
     "import": "匯入",
     "refresh": "重新整理",
+    "retry": "重試",
     "back": "返回",
     "next": "下一步",
     "previous": "上一步",
@@ -386,6 +387,27 @@
       "title": "分店定價",
       "add": "新增覆蓋",
       "empty": "暫無分店定價。"
+    },
+    "supplierForm": {
+      "contact": "聯絡人",
+      "email": "電郵",
+      "phone": "電話",
+      "taxId": "稅號",
+      "address": "地址",
+      "paymentTerms": "付款條款",
+      "notes": "備註",
+      "deleteConfirm": "刪除 {{name}} 嗎？",
+      "terms": "條款",
+      "items": "品項數"
+    },
+    "movementsTable": {
+      "appendOnly": "僅追加帳本。每一次庫存變動都會被記錄。",
+      "date": "日期",
+      "item": "品項",
+      "type": "類型",
+      "quantity": "數量",
+      "notes": "備註",
+      "by": "操作者"
     }
   },
   "dashboard": {

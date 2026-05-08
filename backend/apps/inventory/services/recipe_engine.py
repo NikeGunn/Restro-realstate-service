@@ -14,9 +14,13 @@ class RecipeEngine:
     def calculate_batch(recipe, batches: Decimal) -> dict:
         batches = Decimal(batches)
         yield_factor = recipe.yield_percent / Decimal('100')
+        # Movements persisted by StockEngine.consume_recipe are constrained
+        # to 4 decimal places, so we quantize calculated quantities the
+        # same way for both display and feasibility math.
+        _Q4 = Decimal('0.0001')
         ingredients_data = []
         for ing in recipe.ingredients.select_related('item').filter(is_optional=False):
-            required = (ing.quantity * batches) / yield_factor
+            required = ((ing.quantity * batches) / yield_factor).quantize(_Q4)
             item = ing.item
             item.refresh_from_db(fields=['current_stock', 'tolerance_percent', 'reorder_level', 'unit_cost'])
             es = ToleranceEngine.effective_stock(
@@ -40,7 +44,10 @@ class RecipeEngine:
                 'unit_cost': item.unit_cost,
             })
         feasibility = ToleranceEngine.check_recipe_feasibility(ingredients_data)
-        output_qty = recipe.output_quantity * batches if recipe.output_item else None
+        output_qty = (
+            (recipe.output_quantity * batches).quantize(_Q4)
+            if recipe.output_item else None
+        )
 
         # Strip raw Decimals from the response payload
         for ing in ingredients_data:

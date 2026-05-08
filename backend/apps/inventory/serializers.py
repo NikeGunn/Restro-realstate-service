@@ -13,6 +13,7 @@ from .models import (
     SalesImport, SupplierImport,
     LocationStock, LocationItemPricing, StockTake, StockTakeLine,
     PurchaseOrderEmail,
+    RecipeBookingLink,
 )
 
 
@@ -566,3 +567,18 @@ class BulkItemEditSerializer(serializers.Serializer):
         if not value:
             raise serializers.ValidationError('patch is empty.')
         return value
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Phase 6 — RecipeBookingLink (Plane A bridge)
+# ──────────────────────────────────────────────────────────────────────
+class RecipeBookingLinkSerializer(serializers.ModelSerializer):
+    recipe_name = serializers.CharField(source='recipe.name', read_only=True)
+
+    class Meta:
+        model = RecipeBookingLink
+        fields = [
+            'id', 'organization', 'booking', 'recipe', 'recipe_name',
+            'batches', 'consumed_at', 'created_at', 'updated_at',
+        ]
+        read_only_fields = ['id', 'consumed_at', 'created_at', 'updated_at', 'recipe_name']

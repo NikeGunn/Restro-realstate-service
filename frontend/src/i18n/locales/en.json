@@ -13,6 +13,7 @@
     "export": "Export",
     "import": "Import",
     "refresh": "Refresh",
+    "retry": "Retry",
     "back": "Back",
     "next": "Next",
     "previous": "Previous",
@@ -386,6 +387,27 @@
       "title": "Per-location pricing",
       "add": "Add pricing override",
       "empty": "No pricing overrides yet."
+    },
+    "supplierForm": {
+      "contact": "Contact",
+      "email": "Email",
+      "phone": "Phone",
+      "taxId": "Tax ID",
+      "address": "Address",
+      "paymentTerms": "Payment terms",
+      "notes": "Notes",
+      "deleteConfirm": "Delete {{name}}?",
+      "terms": "Terms",
+      "items": "Items"
+    },
+    "movementsTable": {
+      "appendOnly": "Append-only ledger. Every change to stock is recorded here.",
+      "date": "Date",
+      "item": "Item",
+      "type": "Type",
+      "quantity": "Quantity",
+      "notes": "Notes",
+      "by": "By"
     }
   },
   "dashboard": {

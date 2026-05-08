@@ -32,6 +32,7 @@ from .models import (
     SalesImport, SupplierImport,
     LocationStock, LocationItemPricing, StockTake, StockTakeLine,
     PurchaseOrderEmail,
+    RecipeBookingLink,
 )
 from .permissions import IsInventoryAdmin
 from .serializers import (
@@ -48,6 +49,7 @@ from .serializers import (
     LocationItemPricingSerializer,
     PurchaseOrderSendSerializer, PurchaseOrderEmailSerializer,
     BulkItemEditSerializer,
+    RecipeBookingLinkSerializer,
 )
 
 
@@ -1143,5 +1145,47 @@ class LocationItemPricingViewSet(AuditLoggedMixin, InventoryOrgScopeMixin, views
     def perform_create(self, serializer):
         # Bypass the parent mixin's perform_create which expects organization
         # in the payload — pricing is scoped via item.
+        instance = serializer.save()
+        self._audit('create', instance, after=_model_to_dict(instance))
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Phase 6 — RecipeBookingLink (Plane A bridge)
+# ──────────────────────────────────────────────────────────────────────
+class RecipeBookingLinkViewSet(
+    AuditLoggedMixin, InventoryOrgScopeMixin, viewsets.ModelViewSet,
+):
+    queryset = RecipeBookingLink.objects.select_related(
+        'recipe', 'booking', 'organization',
+    ).all()
+    serializer_class = RecipeBookingLinkSerializer
+    permission_classes = [IsAuthenticated, IsInventoryAdmin]
+    audit_model_name = 'RecipeBookingLink'
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        booking_id = self.request.query_params.get('booking')
+        if booking_id:
+            qs = qs.filter(booking_id=booking_id)
+        return qs
+
+    def perform_create(self, serializer):
+        # The parent mixin enforces owner-of-org check, then injects
+        # created_by. RecipeBookingLink has no created_by field, so we
+        # do the owner check manually and save without it.
+        from rest_framework.exceptions import PermissionDenied, ValidationError
+        org_id = serializer.validated_data.get('organization')
+        org_id = getattr(org_id, 'id', org_id)
+        if not org_id:
+            raise ValidationError({'organization': 'organization is required.'})
+        membership = OrganizationMembership.objects.filter(
+            user=self.request.user,
+            organization_id=org_id,
+            role=OrganizationMembership.Role.OWNER,
+        ).first()
+        if not membership:
+            raise PermissionDenied(
+                'Only the organization owner can create inventory records.'
+            )
         instance = serializer.save()
         self._audit('create', instance, after=_model_to_dict(instance))

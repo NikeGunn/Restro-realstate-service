@@ -227,6 +227,10 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'apps.inventory.tasks.generate_weekly_insights_task',
         'schedule': crontab(hour=8, minute=0, day_of_week='monday'),
     },
+    'inventory-ai-profile-refresh': {
+        'task': 'apps.inventory.tasks.refresh_inventory_ai_profiles_task',
+        'schedule': crontab(hour=3, minute=0),
+    },
 }
 
 # Redis Cache
@@ -304,6 +308,15 @@ INVENTORY_SETTINGS = {
     'AI_INVENTORY_ENABLED': True,
     'AI_INVENTORY_MODEL': config('INVENTORY_AI_MODEL', default='gpt-4o-mini'),
     'STOCK_ALERT_CHANNELS': ['whatsapp'],
+    # Phase 6 — Plane A integration. When True, completing a Booking that
+    # has RecipeBookingLink rows auto-consumes those recipes via StockEngine.
+    # Default False so production is unchanged until explicitly enabled.
+    'AUTO_CONSUME_ON_BOOKING_COMPLETE': config(
+        'INVENTORY_AUTO_CONSUME_ON_BOOKING', default=False, cast=bool,
+    ),
+    # Phase 6 — per-org AI profile freshness. Profiles older than this are
+    # regenerated on next AI query; a daily Celery task also refreshes.
+    'AI_PROFILE_TTL_HOURS': 36,
 }
 
 # API Documentation

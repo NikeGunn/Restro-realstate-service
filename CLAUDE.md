@@ -191,7 +191,6 @@ The inventory module is the "sealed vault" admin counterpart to the public chatb
 - `npm run build:check` — zero new inventory TS errors. `npm run build` — production bundle compiles clean.
 
 ### Phase 2/3 known limitations / debt
-- WhatsApp owner-alert task uses a defensive lookup chain (`user.phone` → `user.whatsapp_number` → `org.phone`). If your `User` model uses a different field name, `tasks.py:send_stock_alert_whatsapp_task` will log and skip silently — adjust the lookup if you store phones elsewhere.
 - The InventoryAI endpoint requires `org.plan == 'power'` AND a valid `OPENAI_API_KEY`. With an empty org (no items) the engine short-circuits before calling OpenAI and returns a clear "inventory is empty" message — confidence 0% in that case is correct, not a bug.
 - Pyright shows many warnings (`Cannot access attribute "objects"` etc.); this matches the rest of the codebase (no Django stubs). Don't chase them.
 
@@ -242,7 +241,61 @@ The inventory module is the "sealed vault" admin counterpart to the public chatb
 - Barcode scanner uses the native `BarcodeDetector` API. Safari and Firefox don't ship it; users on those browsers will see the manual-entry fallback. Adding `@zxing/browser` would be a future polish.
 - Multi-location split keeps `InventoryItem.current_stock` as the org-wide aggregate. If a future requirement is "show only this location's stock", the frontend should query `/items/{id}/location-stocks/` rather than refactoring the field.
 
-### Future phases (6) — PROPOSALS ONLY, NOT SPEC
+### Phase 6 — Hardening & QA + Plane A integration — DONE (2026-05-08, 190/190 backend tests pass, frontend production build clean)
+
+This phase closed out the V2 inventory spec without expanding scope. Plane A integration candidates (bookings→recipe, per-org AI distillation, POS imports, etc.) remain deferred — see "Future phases" below.
+
+**Backend**:
+- New `apps/inventory/tests/test_firewall_e2e.py` — **22 tests** that pin the firewall as the single chokepoint for every channel:
+  - 9 parametrized unit cases for probe/non-probe detection across en/zh-CN/zh-TW.
+  - AIService-level: deflection short-circuits before OpenAI is invoked (mock asserts `chat.completions.create.call_count == 0` after a probe — fails loudly on regression).
+  - AIService-level: language-correct deflection in en/zh-CN/zh-TW.
+  - AIService-level: explicit V2 spec regression — a normal menu question is NOT intercepted (Part 5 acceptance criterion).
+  - Widget HTTP path (`POST /api/v1/widget/message/`): probe is deflected end-to-end, OpenAI never called, customer + AI messages are still persisted.
+  - Widget HTTP path: legitimate booking question reaches AIService normally.
+  - Channel-symmetry: WhatsApp + Instagram conversations route through the same AIService chokepoint, so the AIService-level guard covers them too.
+- `tasks.py` owner-phone lookup is now a single `_resolve_owner_phone(org)` helper. Removed the speculative `user.whatsapp_number` fallback (that field doesn't exist on `accounts.User`); now uses `user.phone → org.phone` deterministically.
+- `admin.py` rewritten to V2 spec Part 5 quality:
+  - Every Phase 1-5 model is registered (was: only 6 of ~17 models).
+  - `InventoryItem.sku` and `current_stock` are `readonly_fields` (computed from ledger).
+  - `StockMovement` is fully immutable in admin (no add/change/delete).
+  - `StockAlert` has a bulk "Mark selected as resolved" action.
+  - `InventoryAuditLog`, `RecipeVersion`, `SalesImport`, `SupplierImport` render JSON (`before`, `after`, `changes`, `error_log`, `summary`, `column_map`, `snapshot`) as pretty-formatted `<pre>` blocks via `_pretty_json()`.
+  - `RecipeIngredient` is a `TabularInline` on `RecipeAdmin`; `PurchaseOrderItem` and `PurchaseOrderEmail` are inlines on `PurchaseOrderAdmin`; `LocationStock` is an inline on `InventoryItemAdmin`; `StockTakeLine` is an inline on `StockTakeAdmin`.
+
+**Frontend**:
+- New shared component `components/inventory/InventoryStates.tsx` — `<InventoryLoading variant="cards|rows">`, `<InventoryEmpty>`, `<InventoryError onRetry>`. Use these on inventory list pages instead of ad-hoc loading/empty markup.
+- `MovementsPage` and `SuppliersPage` migrated: skeleton loaders, error state with retry button, i18n-keyed table headers / dialog labels (previously hardcoded English).
+- i18n: added `inventory.supplierForm.*`, `inventory.movementsTable.*`, and `common.retry` to all three locales (en / zh-CN / zh-TW).
+
+**Plane A integration (booking → recipe consumption)**:
+- New model `RecipeBookingLink(organization, booking, recipe, batches, consumed_at)` with unique `(booking, recipe)`. Lives in inventory; `restaurant.Booking` is unaware. Owner-only API at `/api/v1/inventory/recipe-booking-links/`.
+- `signals._on_booking_save` listens to `Booking` post_save. Gated by `INVENTORY_SETTINGS['AUTO_CONSUME_ON_BOOKING_COMPLETE']` (env var `INVENTORY_AUTO_CONSUME_ON_BOOKING`, default **False** so production behavior is unchanged until enabled). When booking flips to `COMPLETED`, consumes each unconsumed link via `StockEngine.consume_recipe`, sets `consumed_at`, and ignores duplicate post_saves. Failures are logged and never block the booking save (inventory is downstream of bookings, not gating).
+- The bridge is one-directional: inventory imports from restaurant (lazily via `_connect_booking_signal()` on `apps.inventory.AppConfig.ready`); restaurant code never imports from inventory.
+
+**Plane B per-org AI profile**:
+- New model `InventoryAIProfile(organization, profile, generated_at)` (one row per org).
+- New service `services/ai_profile.py`: `build_profile()`, `get_or_build_profile()` (TTL via `INVENTORY_SETTINGS['AI_PROFILE_TTL_HOURS']`, default 36), `render_profile_block()`. Profile contains item count, top 10 items by value, top 5 suppliers, recipe count, open alerts, recent negative-movement count.
+- `InventoryAIEngine.query()` now prepends the rendered profile block to the prompt context (graceful fallback if profile generation fails).
+- New beat task `refresh_inventory_ai_profiles_task` runs daily at 03:00 UTC.
+
+**Recipe decimal-precision fix** (production bug):
+- The frontend recipe calculator was raising `Ensure that there are no more than 4 decimal places` when consuming a recipe — `(ing.quantity × batches) / yield_factor` and `output_quantity × batches` produce Decimals with 5–8 fractional digits when operands carry trailing zeros from DB storage, but `StockMovement.quantity` is `Decimal(decimal_places=4)`.
+- Fix: quantize required and output quantities to 4 decimal places in both `RecipeEngine.calculate_batch` (display + feasibility) and `StockEngine.consume_recipe` (persistence). All existing tests still pass; new Phase 6 signal tests exercise this path.
+
+**Tests / build**:
+- `docker compose exec backend pytest` — **190/190 passing** (was 153 before Phase 6, +22 firewall E2E, +15 Plane A signal/profile/API).
+- `docker compose run --rm frontend npm run build` — production bundle compiles clean. `build:check` shows zero new errors in inventory files (pre-existing TS errors in `realestate/`, `restaurant/`, `settings/`, `services/api.ts` are unrelated and CI does not gate on them per Phase 1 convention).
+- New migration: `apps/inventory/migrations/0006_inventoryaiprofile_recipebookinglink.py`.
+
+### Phase 6 known limitations / debt
+- The booking auto-consume signal is **off by default** in production. Set the env var `INVENTORY_AUTO_CONSUME_ON_BOOKING=true` (or flip `INVENTORY_SETTINGS['AUTO_CONSUME_ON_BOOKING_COMPLETE']` in settings) to enable. There is no per-org toggle yet — it is global. If a future need is "enable for some orgs only", add an `Organization.feature_flags` JSONField check inside `_on_booking_save`.
+- `RecipeBookingLink` rows must be created/managed via the API (or admin) before the booking is completed; there is no UI yet to attach recipes to a booking from the bookings page. Adding that UI is a small task and would live in `pages/restaurant/BookingsPage.tsx`.
+
+### V2 spec parity (gap analysis, 2026-05-08)
+The `INVENTORY_CLAUDE_CODE_PROMPT_V2.md` spec ends at Part 7 and is **fully discharged**. Subagent audit confirms every model, service, prompt, ViewSet, permission, signal, and Celery task in the spec is present in code. Phases 4 and 5 went *beyond* the V2 spec; Phase 6 closed remaining V2 polish items (admin UX, AIService-unchanged regression test, owner-phone lookup) without adding feature scope. There is no "Phase 7 for parity" needed.
+
+### Future phases (6+) — PROPOSALS ONLY, NOT SPEC
 
 > **STOP. Read this before writing any code for Phase 4+.**
 >

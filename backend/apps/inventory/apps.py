@@ -8,3 +8,4 @@ class InventoryConfig(AppConfig):
 
     def ready(self):
         from . import signals  # noqa: F401
+        signals._connect_booking_signal()

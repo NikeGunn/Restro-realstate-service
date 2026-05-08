@@ -171,3 +171,83 @@ def _bump_recipe_version(recipe):
         version_number=new_version,
         snapshot=_snapshot_recipe(recipe),
     )
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Phase 6 — Plane A bridge: consume linked recipes when a booking is
+# fulfilled. The bridge is one-directional (Plane A code never imports
+# from Plane B); inventory listens to restaurant.Booking saves and reacts.
+#
+# Behavior:
+#   - Listener is gated by INVENTORY_SETTINGS['AUTO_CONSUME_ON_BOOKING_COMPLETE'].
+#   - Only fires on the *transition* into COMPLETED (status changed).
+#   - Only consumes RecipeBookingLink rows that haven't been consumed yet,
+#     so duplicate post_saves don't double-deduct stock.
+#   - Failures (insufficient stock, etc.) are logged and do NOT block the
+#     booking save — inventory is downstream of bookings, not gating.
+# ──────────────────────────────────────────────────────────────────────
+import logging  # noqa: E402
+
+from django.conf import settings  # noqa: E402
+
+_logger = logging.getLogger(__name__)
+
+
+def _booking_signal_enabled() -> bool:
+    return bool(
+        getattr(settings, 'INVENTORY_SETTINGS', {}).get(
+            'AUTO_CONSUME_ON_BOOKING_COMPLETE', False,
+        )
+    )
+
+
+def _connect_booking_signal():
+    """
+    Wire the booking post_save listener lazily — restaurant app may not be
+    importable at module load time during certain test runs. Called from
+    InventoryConfig.ready().
+    """
+    try:
+        from apps.restaurant.models import Booking
+    except Exception:
+        _logger.info('apps.restaurant not installed; skipping booking signal.')
+        return
+
+    @receiver(post_save, sender=Booking, dispatch_uid='inv_booking_consume')
+    def _on_booking_save(sender, instance, created, **kwargs):
+        if not _booking_signal_enabled():
+            return
+        # Only react on transitions into COMPLETED.
+        if instance.status != Booking.Status.COMPLETED:
+            return
+        # Avoid double-firing: only consume links not yet consumed.
+        from .models import RecipeBookingLink
+        from .services.stock_engine import StockEngine
+
+        links = list(
+            RecipeBookingLink.objects.filter(
+                booking=instance, consumed_at__isnull=True,
+            ).select_related('recipe', 'organization')
+        )
+        if not links:
+            return
+
+        engine = StockEngine(
+            organization=instance.organization,
+            location=instance.location,
+            performed_by=None,
+        )
+        for link in links:
+            try:
+                engine.consume_recipe(link.recipe, link.batches)
+                RecipeBookingLink.objects.filter(pk=link.pk).update(
+                    consumed_at=timezone.now(),
+                )
+            except Exception:
+                # Don't propagate — booking save must not be blocked by
+                # downstream inventory issues. Operators see this in logs
+                # and can manually reconcile via stock-take.
+                _logger.exception(
+                    'Failed to auto-consume recipe %s for booking %s',
+                    link.recipe_id, instance.pk,
+                )

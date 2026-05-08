@@ -14,6 +14,32 @@ from django.utils import timezone
 logger = logging.getLogger(__name__)
 
 
+def _resolve_owner_phone(org):
+    """
+    Look up the WhatsApp destination for an owner-directed alert.
+
+    Per `apps/accounts/models.py`, `User.phone` and `Organization.phone` are
+    the only phone fields in the data model. We prefer the owner's personal
+    phone (so the alert lands with a specific person), falling back to the
+    organization's phone (if the owner hasn't set theirs).
+
+    Returns (phone, owner_user) or (None, None) when no usable destination
+    exists. The caller logs and skips when phone is None.
+    """
+    from apps.accounts.models import OrganizationMembership
+
+    membership = (
+        OrganizationMembership.objects
+        .filter(organization=org, role=OrganizationMembership.Role.OWNER)
+        .select_related('user')
+        .first()
+    )
+    if not membership:
+        return None, None
+    phone = (membership.user.phone or '').strip() or (org.phone or '').strip()
+    return (phone or None), membership.user
+
+
 # ──────────────────────────────────────────────────────────────────────
 # Excel imports (sales / purchase)
 # ──────────────────────────────────────────────────────────────────────
@@ -173,7 +199,6 @@ def send_stock_alert_whatsapp_task(alert_id: str):
     """Sends an alert to the OWNER's WhatsApp number, not a customer conv."""
     from .models import StockAlert
     from .services.ai_engine import InventoryAIEngine
-    from apps.accounts.models import OrganizationMembership
 
     try:
         alert = StockAlert.objects.select_related('item', 'item__organization').get(pk=alert_id)
@@ -183,18 +208,10 @@ def send_stock_alert_whatsapp_task(alert_id: str):
         return
 
     org = alert.item.organization
-    owner_membership = OrganizationMembership.objects.filter(
-        organization=org, role=OrganizationMembership.Role.OWNER,
-    ).select_related('user').first()
-    if not owner_membership:
+    phone, owner = _resolve_owner_phone(org)
+    if not owner:
         logger.info('No owner found for org %s — skipping WhatsApp alert.', org.id)
         return
-    owner = owner_membership.user
-    phone = (
-        getattr(owner, 'phone', None)
-        or getattr(owner, 'whatsapp_number', None)
-        or getattr(org, 'phone', None)
-    )
     if not phone:
         logger.info('Owner phone not set for org %s — skipping WhatsApp alert.', org.id)
         return
@@ -222,7 +239,7 @@ def send_stock_alert_whatsapp_task(alert_id: str):
 @shared_task
 def generate_daily_inventory_summary_task(organization_id: str = None):
     """Sends a daily digest to each org's owner via WhatsApp."""
-    from apps.accounts.models import Organization, OrganizationMembership
+    from apps.accounts.models import Organization
     from .models import InventoryItem, StockMovement, StockAlert
     from .services.ai_engine import InventoryAIEngine
 
@@ -258,17 +275,8 @@ def generate_daily_inventory_summary_task(organization_id: str = None):
         ]
         message = InventoryAIEngine().generate_daily_summary(org, summary_lines)
 
-        owner = OrganizationMembership.objects.filter(
-            organization=org, role=OrganizationMembership.Role.OWNER,
-        ).select_related('user').first()
-        if not owner:
-            continue
-        phone = (
-            getattr(owner.user, 'phone', None)
-            or getattr(owner.user, 'whatsapp_number', None)
-            or getattr(org, 'phone', None)
-        )
-        if not phone:
+        phone, owner = _resolve_owner_phone(org)
+        if not owner or not phone:
             continue
         try:
             from apps.channels.whatsapp_service import WhatsAppService
@@ -286,7 +294,7 @@ def generate_daily_inventory_summary_task(organization_id: str = None):
 @shared_task
 def generate_weekly_insights_task(organization_id: str = None):
     """Run InventoryAIEngine.insights() per org and WhatsApp the owner."""
-    from apps.accounts.models import Organization, OrganizationMembership
+    from apps.accounts.models import Organization
     from .services.ai_engine import InventoryAIEngine
 
     qs = Organization.objects.all()
@@ -300,17 +308,8 @@ def generate_weekly_insights_task(organization_id: str = None):
             logger.exception('Weekly insights generation failed for org %s', org.id)
             continue
         message = result.get('answer') or '(no insights this week)'
-        owner = OrganizationMembership.objects.filter(
-            organization=org, role=OrganizationMembership.Role.OWNER,
-        ).select_related('user').first()
-        if not owner:
-            continue
-        phone = (
-            getattr(owner.user, 'phone', None)
-            or getattr(owner.user, 'whatsapp_number', None)
-            or getattr(org, 'phone', None)
-        )
-        if not phone:
+        phone, owner = _resolve_owner_phone(org)
+        if not owner or not phone:
             continue
         try:
             from apps.channels.whatsapp_service import WhatsAppService
@@ -325,6 +324,30 @@ def generate_weekly_insights_task(organization_id: str = None):
 # ──────────────────────────────────────────────────────────────────────
 # Expiry sweep
 # ──────────────────────────────────────────────────────────────────────
+@shared_task
+def refresh_inventory_ai_profiles_task(organization_id: str = None):
+    """
+    Daily refresh of per-org InventoryAIProfile rows. Called by Celery beat
+    once a day. Idempotent — running it twice in a row just rebuilds twice.
+    """
+    from apps.accounts.models import Organization
+    from .services.ai_profile import build_profile
+    from .models import InventoryAIProfile
+
+    qs = Organization.objects.all()
+    if organization_id:
+        qs = qs.filter(pk=organization_id)
+    for org in qs:
+        try:
+            profile = build_profile(org)
+            row, _ = InventoryAIProfile.objects.get_or_create(organization=org)
+            row.profile = profile
+            row.generated_at = timezone.now()
+            row.save(update_fields=['profile', 'generated_at', 'updated_at'])
+        except Exception:
+            logger.exception('AI profile refresh failed for org %s', org.id)
+
+
 @shared_task
 def check_expiry_task():
     """Create alerts for perishables nearing/past expiry threshold."""
