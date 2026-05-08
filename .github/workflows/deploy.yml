@@ -398,7 +398,7 @@ jobs:
           password: ${{ secrets.DOCKER_PASSWORD }}
 
       - name: Run Trivy vulnerability scanner (Backend)
-        uses: aquasecurity/trivy-action@0.36.0
+        uses: aquasecurity/trivy-action@v0.36.0
         continue-on-error: true
         with:
           image-ref: '${{ env.BACKEND_IMAGE }}:${{ needs.build.outputs.image_tag }}'
@@ -408,7 +408,7 @@ jobs:
           timeout: '10m'
 
       - name: Run Trivy vulnerability scanner (Frontend)
-        uses: aquasecurity/trivy-action@0.36.0
+        uses: aquasecurity/trivy-action@v0.36.0
         continue-on-error: true
         with:
           image-ref: '${{ env.FRONTEND_IMAGE }}:${{ needs.build.outputs.image_tag }}'
