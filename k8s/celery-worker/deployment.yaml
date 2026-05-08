@@ -37,7 +37,7 @@ spec:
             claimName: media-pvc
       containers:
         - name: celery-worker
-          image: nemo2092/chatplatform-backend:b4a455d
+          image: nemo2092/chatplatform-backend:5336bce
           imagePullPolicy: IfNotPresent
           command:
             - celery
