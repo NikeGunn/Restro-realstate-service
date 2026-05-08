@@ -342,6 +342,41 @@ jobs:
             "kubectl rollout restart deployment backend celery-worker celery-beat -n chatplatform"
           echo "✅ Deployments restarted"
 
+      # ──────────────────────────────────────────────────────────────
+      # Re-assert the ArgoCD Application spec from Git on every deploy.
+      #
+      # WHY: ArgoCD's own Application object lives in the `argocd`
+      # namespace and is excluded from its own sync (k8s/argocd/* is in
+      # the `exclude` list of application.yaml itself, to prevent
+      # self-management loops). That means if anyone toggles auto-sync
+      # off in the ArgoCD UI, the live Application drifts away from
+      # what's in Git and stays drifted forever — incoming pushes show
+      # OutOfSync but never deploy.
+      #
+      # This step applies application.yaml back to the cluster on every
+      # successful deploy, so auto-sync, retries, ignoreDifferences,
+      # and all other policy fields are guaranteed to match Git. It's
+      # idempotent: when nothing has changed, kubectl reports
+      # "unchanged" and the step is a no-op.
+      # ──────────────────────────────────────────────────────────────
+      - name: Re-apply ArgoCD Application spec (drift protection)
+        env:
+          SERVER_IP: ${{ secrets.K8S_SERVER_IP }}
+          SERVER_USER: ${{ secrets.K8S_SERVER_USER }}
+        run: |
+          echo "🛡️  Re-applying ArgoCD Application spec to prevent drift..."
+          # Copy the manifest to the server, then apply it. We do this
+          # over SSH because the GitHub runner has no kubeconfig for
+          # this cluster — only the bastion does.
+          scp -i ~/.ssh/k8s_key -o StrictHostKeyChecking=no \
+            k8s/argocd/application.yaml \
+            $SERVER_USER@$SERVER_IP:/tmp/argocd-application.yaml
+
+          ssh -i ~/.ssh/k8s_key -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_IP \
+            "kubectl apply -f /tmp/argocd-application.yaml && rm /tmp/argocd-application.yaml"
+
+          echo "✅ ArgoCD Application spec re-asserted from Git"
+
   # ============================================
   # Job 5: Security Scan (Optional but Recommended)
   # ============================================
