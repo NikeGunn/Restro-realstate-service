@@ -49,7 +49,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node -e \"const i=JSON.parse(require('fs').readFileSync(0,'utf8'));const c=(i.tool_input&&i.tool_input.command)||'';if(/git\\s+commit\\b/.test(c)&&/(\\.env(\\s|$|\\.)|Kribaat\\.pem|k8s\\/secrets\\.yaml)/.test(c)){console.error('Blocked: commit appears to include a secret file (.env / *.pem / k8s/secrets.yaml). These are gitignored — do not force-add them.');process.exit(2)}if(/git\\s+add\\s+(-A|-a|--all|\\.)/.test(c)){console.error('Avoid \\\"git add -A/.\\\" in this repo — it can sweep in local debug scripts (check_*.py, *.ps1, agent.md) that are gitignored only by pattern. Stage files explicitly by name.');process.exit(2)}\""
+            "command": "node -e \"const i=JSON.parse(require('fs').readFileSync(0,'utf8'));const c=(i.tool_input&&i.tool_input.command)||'';if(/git\\s+add\\s+(-A|-a|--all|\\.)(?:\\s|$)/.test(c)){console.error('Avoid git add -A/. — stage files by name to avoid sweeping in gitignored secrets or debug scripts.');process.exit(2)}\""
           }
         ]
       }

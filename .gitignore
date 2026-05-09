@@ -103,9 +103,10 @@ deploy/*.ps1
 **/check_*.py
 **/*_diagnostic*.py
 **/*_debug*.py
-# But DO ship real test suites under apps/*/tests/
+# But DO ship real test suites under apps/*/tests/ and k8s/tests/
 !backend/apps/*/tests/test_*.py
 !backend/apps/*/tests/**/test_*.py
+!k8s/tests/test_*.py
 debug-*.ps1
 fix-*.ps1
 *-diagnostic.ps1
