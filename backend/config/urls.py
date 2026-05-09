@@ -21,7 +21,8 @@ def health_check(request):
         'service': 'chatplatform-backend',
         'version': os.getenv('GIT_COMMIT', 'dev')[:7],
         'gitops': 'argocd',
-        'deployment': 'kubernetes'
+        'deployment': 'kubernetes',
+        'timestamp': __import__('datetime').datetime.utcnow().isoformat() + 'Z'
     })
 
 
