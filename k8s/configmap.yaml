@@ -12,9 +12,8 @@ data:
   # Django settings
   DEBUG: "False"
   DJANGO_SETTINGS_MODULE: "config.settings"
-  # Use * to allow health probes from internal K8s IPs
-  ALLOWED_HOSTS: "*"
-  CORS_ALLOWED_ORIGINS: "https://kribaat.com,https://www.kribaat.com,http://43.152.233.234"
+  ALLOWED_HOSTS: "kribaat.com,www.kribaat.com,backend,backend.chatplatform.svc.cluster.local"
+  CORS_ALLOWED_ORIGINS: "https://kribaat.com,https://www.kribaat.com"
   CSRF_TRUSTED_ORIGINS: "https://kribaat.com,https://www.kribaat.com"
 
   # Database connection (password comes from secret)

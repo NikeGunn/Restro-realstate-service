@@ -17,11 +17,8 @@ metadata:
     traefik.ingress.kubernetes.io/router.entrypoints: websecure
     traefik.ingress.kubernetes.io/router.tls: "true"
 
-    # CRITICAL: Tell ArgoCD that TLS is terminated at ingress level
-    # This prevents redirect loops
-    nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
-    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
-    nginx.ingress.kubernetes.io/ssl-passthrough: "false"
+    # ArgoCD backend speaks plain HTTP; TLS is terminated at Traefik.
+    # The nginx annotations below had no effect on Traefik and are removed.
 spec:
   ingressClassName: traefik
   tls:

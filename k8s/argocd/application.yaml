@@ -23,7 +23,7 @@ spec:
     # Directory configuration
     directory:
       recurse: true
-      exclude: '{argocd/*,README.md,kustomization.yaml}'
+      exclude: '{argocd/*,README.md}'
 
   # Destination cluster and namespace
   destination:
@@ -67,19 +67,27 @@ spec:
     - group: apps
       kind: Deployment
       jsonPointers:
-        - /spec/replicas  # HPA manages replicas
-        - /spec/template/metadata/annotations/kubectl.kubernetes.io~1restartedAt  # Ignore restart annotations
+        - /spec/replicas
+        - /spec/template/metadata/annotations/kubectl.kubernetes.io~1restartedAt
     - group: apps
       kind: StatefulSet
       jsonPointers:
-        - /spec/template/metadata/annotations/kubectl.kubernetes.io~1restartedAt  # Ignore restart annotations
-        - /spec/volumeClaimTemplates/0/status  # Ignore PVC status
-        - /spec/volumeClaimTemplates/0/apiVersion  # Ignore auto-added apiVersion
-        - /spec/volumeClaimTemplates/0/kind  # Ignore auto-added kind
+        - /spec/template/metadata/annotations/kubectl.kubernetes.io~1restartedAt
+        - /spec/volumeClaimTemplates/0/status
+        - /spec/volumeClaimTemplates/0/apiVersion
+        - /spec/volumeClaimTemplates/0/kind
     - group: ""
       kind: Secret
       jsonPointers:
-        - /data  # Don't track secret values
+        - /data
+    # Ignore Job completion status — PreSync Jobs are one-shot and will
+    # always show as completed/different after running
+    - group: batch
+      kind: Job
+      jsonPointers:
+        - /spec/selector
+        - /spec/template/metadata/labels
+        - /status
 
   # Health check configuration
   # Defines how ArgoCD determines if resources are healthy

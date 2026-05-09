@@ -56,6 +56,23 @@ spec:
             limits:
               memory: "1Gi"
               cpu: "500m"
+          # Flush WAL before pod terminates to prevent data loss
+          lifecycle:
+            preStop:
+              exec:
+                command: ["/bin/sh", "-c", "pg_ctl stop -m fast -D $PGDATA"]
+          # Startup probe — postgres init can be slow on cold start
+          startupProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - $(POSTGRES_USER)
+                - -d
+                - $(POSTGRES_DB)
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 30
           # Readiness probe - checks if PostgreSQL is ready to accept connections
           readinessProbe:
             exec:

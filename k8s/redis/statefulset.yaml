@@ -35,7 +35,13 @@ spec:
             - --maxmemory
             - "256mb"
             - --maxmemory-policy
-            - "allkeys-lru"
+            - "volatile-lru"
+            - --save
+            - "60 1"
+          lifecycle:
+            preStop:
+              exec:
+                command: ["/bin/sh", "-c", "redis-cli BGSAVE && sleep 5"]
           volumeMounts:
             - name: redis-data
               mountPath: /data

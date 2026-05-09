@@ -1,5 +1,7 @@
-# Horizontal Pod Autoscaler for Backend
-# Automatically scales pods based on CPU/memory usage
+# Backend HPA — pinned 1/1 until media-pvc migrates to S3/MinIO.
+# Keeping this file so ArgoCD tracks it; behavior/scaleUp policies removed
+# since they never fire at 1/1. Bump minReplicas+maxReplicas when storage
+# is migrated.
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
@@ -40,23 +42,3 @@ spec:
         target:
           type: Utilization
           averageUtilization: 80
-  behavior:
-    # Scale up quickly
-    scaleUp:
-      stabilizationWindowSeconds: 60
-      policies:
-        - type: Pods
-          value: 2
-          periodSeconds: 60
-        - type: Percent
-          value: 100
-          periodSeconds: 60
-      selectPolicy: Max
-    # Scale down slowly
-    scaleDown:
-      stabilizationWindowSeconds: 300
-      policies:
-        - type: Pods
-          value: 1
-          periodSeconds: 120
-      selectPolicy: Min

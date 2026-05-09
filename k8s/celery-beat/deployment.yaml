@@ -50,5 +50,15 @@ spec:
             limits:
               memory: "512Mi"
               cpu: "200m"
+          livenessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - "celery -A config inspect ping --timeout 10 2>/dev/null | grep -q pong"
+            initialDelaySeconds: 60
+            periodSeconds: 60
+            timeoutSeconds: 20
+            failureThreshold: 3
 
       terminationGracePeriodSeconds: 60

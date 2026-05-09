@@ -69,12 +69,13 @@ spec:
             timeoutSeconds: 5
             failureThreshold: 3
 
+          # Drain Traefik connections before nginx gets SIGTERM
           lifecycle:
             preStop:
               exec:
-                command: ["/bin/sh", "-c", "sleep 5"]
+                command: ["/bin/sh", "-c", "sleep 10 && nginx -s quit"]
 
-      terminationGracePeriodSeconds: 30
+      terminationGracePeriodSeconds: 45
 
       affinity:
         podAntiAffinity:
