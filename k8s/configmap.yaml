@@ -12,7 +12,12 @@ data:
   # Django settings
   DEBUG: "False"
   DJANGO_SETTINGS_MODULE: "config.settings"
-  ALLOWED_HOSTS: "kribaat.com,www.kribaat.com,backend,backend.chatplatform.svc.cluster.local"
+  # ALLOWED_HOSTS must include * for K8s pod IPs (10.42.x.x).
+  # K8s liveness/readiness/startup probes hit the pod IP directly —
+  # Django returns 400 without it, causing the pod to crash-loop.
+  # Django's ALLOWED_HOSTS doesn't support CIDR or IP wildcards.
+  # Security boundary is Traefik ingress + K8s NetworkPolicy, not this.
+  ALLOWED_HOSTS: "*"
   CORS_ALLOWED_ORIGINS: "https://kribaat.com,https://www.kribaat.com"
   CSRF_TRUSTED_ORIGINS: "https://kribaat.com,https://www.kribaat.com"
 
