@@ -87,14 +87,16 @@ spec:
             timeoutSeconds: 30
             failureThreshold: 3
 
-          # Graceful shutdown - allow tasks to complete
+          # Graceful shutdown: tell celery to finish current tasks then exit.
+          # The || true prevents FailedPreStopHook warnings if the broker
+          # is momentarily unreachable during the rolling transition.
           lifecycle:
             preStop:
               exec:
                 command:
                   - /bin/sh
                   - -c
-                  - "celery -A config control shutdown"
+                  - "celery -A config control shutdown 2>/dev/null || true; sleep 5"
 
       # Allow 5 minutes for graceful shutdown (long-running tasks)
       terminationGracePeriodSeconds: 300
