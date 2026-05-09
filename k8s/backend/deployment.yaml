@@ -39,7 +39,7 @@ spec:
       # this Deployment is updated � no migration initContainer needed.
       initContainers:
         - name: collect-static
-          image: nemo2092/chatplatform-backend:38fff6b
+          image: nemo2092/chatplatform-backend:7b4fac6
           imagePullPolicy: IfNotPresent
           command:
             - python
@@ -57,7 +57,7 @@ spec:
 
       containers:
         - name: backend
-          image: nemo2092/chatplatform-backend:38fff6b
+          image: nemo2092/chatplatform-backend:7b4fac6
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8000
