@@ -23,7 +23,7 @@ spec:
     # Directory configuration
     directory:
       recurse: true
-      exclude: '{argocd/*,README.md}'
+      exclude: '{argocd/*,README.md,kustomization.yaml}'
 
   # Destination cluster and namespace
   destination:
