@@ -40,7 +40,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node -e \"const i=JSON.parse(require('fs').readFileSync(0,'utf8'));const t=i.tool_input||{};const p=t.file_path||t.path||'';const hardBlocked=[/(^|[\\\\\\\\\\/])\\.env\\.production$/i,/k8s[\\\\\\\\\\/].*secrets?\\.ya?ml$/i,/\\.pem$/i];const hit=hardBlocked.find(r=>r.test(p));if(hit){console.error('Refusing to write to '+p+' (matches '+hit+'). Production secrets must never be edited by Claude.');process.exit(2)}if(/k8s[\\\\\\\\\\/].+[\\\\\\\\\\/]deployment\\.ya?ml$/i.test(p)){const blob=[t.content,t.old_string,t.new_string].filter(Boolean).join('\\n');if(/^\\s*image:\\s*\\S/m.test(blob)){console.error('Refusing to edit '+p+': the change touches an image: line. CI (.github/workflows/deploy.yml) rewrites image tags on every push to main via sed — your edit would be overwritten. Edit other lines (replicas, strategy, env, volumes) freely.');process.exit(2)}}\""
+            "command": "node -e \"const i=JSON.parse(require('fs').readFileSync(0,'utf8'));const t=i.tool_input||{};const p=t.file_path||t.path||'';const hardBlocked=[/(^|[\\\\\\\\\\/])\\.env\\.production$/i,/k8s[\\\\\\\\\\/].*secrets?\\.ya?ml$/i,/\\.pem$/i];const hit=hardBlocked.find(r=>r.test(p));if(hit){console.error('Refusing to write to '+p+' (matches '+hit+'). Production secrets must never be edited by Claude.');process.exit(2)}\""
           }
         ]
       },

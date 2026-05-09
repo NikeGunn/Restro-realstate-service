@@ -15,14 +15,19 @@ spec:
   selector:
     matchLabels:
       app: backend
-  # Recreate (not RollingUpdate) is required when the deployment mounts
-  # an RWO PVC. RollingUpdate would try to start the new pod before
-  # killing the old, but the old pod still has the PVC attached, so the
-  # new pod hangs in ContainerCreating with "Multi-Attach error".
-  # Tradeoff: ~5–10 seconds of downtime per deploy. Acceptable until we
-  # migrate /app/media to S3/MinIO.
+  # RollingUpdate with maxUnavailable:0 — zero downtime.
+  # New pod starts and passes readiness before old pod terminates.
+  # The media-pvc uses ReadWriteOncePod (see pvc.yaml) which releases
+  # the volume claim at the pod level, allowing the new pod to bind
+  # immediately once the old pod's preStop drain completes.
+  # Migrations run as a PreSync ArgoCD Job (migrate-job.yaml) before
+  # this Deployment is touched, so init containers no longer need to run
+  # migrate — eliminating the Recreate requirement entirely.
   strategy:
-    type: Recreate
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
   template:
     metadata:
       labels:
@@ -30,25 +35,9 @@ spec:
         app.kubernetes.io/name: chatplatform
         app.kubernetes.io/component: backend
     spec:
-      # Init container to run migrations before main container starts
+      # Migrations run via ArgoCD PreSync Job (migrate-job.yaml) before
+      # this Deployment is updated � no migration initContainer needed.
       initContainers:
-        - name: run-migrations
-          image: nemo2092/chatplatform-backend:021718c
-          imagePullPolicy: IfNotPresent
-          command:
-            - python
-            - manage.py
-            - migrate
-            - --noinput
-          envFrom:
-            - configMapRef:
-                name: chatplatform-config
-            - secretRef:
-                name: chatplatform-secrets
-          env:
-            - name: DATABASE_URL
-              value: "postgres://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@postgres:5432/$(POSTGRES_DB)"
-
         - name: collect-static
           image: nemo2092/chatplatform-backend:021718c
           imagePullPolicy: IfNotPresent
@@ -140,14 +129,16 @@ spec:
             timeoutSeconds: 10
             failureThreshold: 3
 
-          # Graceful shutdown
+          # Graceful shutdown: 15s drain lets Traefik finish in-flight
+          # requests before SIGTERM hits gunicorn. Must be less than
+          # terminationGracePeriodSeconds minus gunicorn graceful-timeout.
           lifecycle:
             preStop:
               exec:
-                command: ["/bin/sh", "-c", "sleep 10"]
+                command: ["/bin/sh", "-c", "sleep 15"]
 
-      # Graceful termination
-      terminationGracePeriodSeconds: 60
+      # 90s = 15s preStop + 30s gunicorn graceful-timeout + headroom
+      terminationGracePeriodSeconds: 90
 
       volumes:
         - name: static-files

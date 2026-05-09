@@ -18,10 +18,13 @@ spec:
   selector:
     matchLabels:
       app: celery-worker
-  # Recreate (not RollingUpdate) — same reason as backend: an RWO PVC
-  # can't be attached to a new pod while the old pod still holds it.
+  # RollingUpdate — safe now that media-pvc uses ReadWriteOncePod.
+  # maxUnavailable:0 ensures at least one worker is always running.
   strategy:
-    type: Recreate
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
   template:
     metadata:
       labels:

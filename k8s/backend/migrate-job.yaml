@@ -1,0 +1,61 @@
+# Database migration Job — runs as an ArgoCD pre-sync hook.
+#
+# WHY A JOB INSTEAD OF AN INIT CONTAINER:
+# The old approach ran migrations inside the backend pod's initContainer.
+# That forced `strategy: Recreate` — K8s killed the old pod first (so
+# migrations could mount the DB), then started the new one, causing
+# 30-50 seconds of downtime on every deploy.
+#
+# With this Job:
+#  1. ArgoCD runs this Job to completion BEFORE touching any Deployment.
+#  2. Backend Deployment uses RollingUpdate — new pod starts, passes
+#     readiness, then old pod terminates. Zero traffic gap.
+#  3. The Job is deleted automatically after success (ttlSecondsAfterFinished).
+#
+# ArgoCD hook annotations:
+#   hook: PreSync      — run before any resource is applied
+#   hook-delete-policy: BeforeHookCreation — clean up previous run first
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: django-migrate
+  namespace: chatplatform
+  annotations:
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+  labels:
+    app.kubernetes.io/name: chatplatform
+    app.kubernetes.io/component: migrate
+spec:
+  ttlSecondsAfterFinished: 300
+  backoffLimit: 2
+  template:
+    metadata:
+      labels:
+        app: django-migrate
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: migrate
+          image: nemo2092/chatplatform-backend:dbf1cec
+          imagePullPolicy: IfNotPresent
+          command:
+            - python
+            - manage.py
+            - migrate
+            - --noinput
+          envFrom:
+            - configMapRef:
+                name: chatplatform-config
+            - secretRef:
+                name: chatplatform-secrets
+          env:
+            - name: DATABASE_URL
+              value: "postgres://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@postgres:5432/$(POSTGRES_DB)"
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"

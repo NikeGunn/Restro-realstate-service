@@ -213,6 +213,9 @@ jobs:
           # Update backend deployment
           sed -i "s|image: ${DOCKER_USER}/chatplatform-backend:.*|image: ${DOCKER_USER}/chatplatform-backend:${IMAGE_TAG}|g" k8s/backend/deployment.yaml
 
+          # Update migrate job (PreSync hook — must use same image as backend)
+          sed -i "s|image: ${DOCKER_USER}/chatplatform-backend:.*|image: ${DOCKER_USER}/chatplatform-backend:${IMAGE_TAG}|g" k8s/backend/migrate-job.yaml
+
           # Update frontend deployment
           sed -i "s|image: ${DOCKER_USER}/chatplatform-frontend:.*|image: ${DOCKER_USER}/chatplatform-frontend:${IMAGE_TAG}|g" k8s/frontend/deployment.yaml
 
