@@ -39,6 +39,7 @@ import {
   Contact,
   Tag,
   Filter,
+  Gift,
 } from 'lucide-react'
 
 type NavLeaf = {
@@ -123,6 +124,18 @@ const crmGroup: NavGroup = {
   ],
 }
 
+// Engage (Phase 2) — viral growth tools. Lucky Draw now; WiFi Sign-In joins later.
+const engageGroup: NavGroup = {
+  kind: 'group',
+  id: 'engage',
+  labelKey: 'nav.engage',
+  icon: Gift,
+  pathPrefix: '/lucky-draw',
+  children: [
+    { kind: 'leaf', path: '/lucky-draw', labelKey: 'nav.luckyDraw', icon: Gift },
+  ],
+}
+
 const settingsNavKey: NavLeaf = { kind: 'leaf', path: '/settings', labelKey: 'nav.settings', icon: Settings }
 const channelsNavKey: NavLeaf = { kind: 'leaf', path: '/settings/channels', labelKey: 'nav.channels', icon: Phone }
 
@@ -171,6 +184,9 @@ export function DashboardLayout() {
 
     // CRM Lite — shared across verticals.
     items.push(crmGroup)
+
+    // Engage (Lucky Draw) — shared across verticals.
+    items.push(engageGroup)
 
     items.push(settingsNavKey)
     items.push(channelsNavKey)

@@ -118,7 +118,9 @@
     "crmDashboard": "客户概览",
     "crmCustomers": "客户",
     "crmTags": "标签",
-    "crmSegments": "客户分群"
+    "crmSegments": "客户分群",
+    "engage": "互动增长",
+    "luckyDraw": "幸运抽奖"
   },
   "inventory": {
     "title": "库存",
@@ -1111,6 +1113,109 @@
       "lte": "≤",
       "exists": "存在",
       "not_exists": "不存在"
+    }
+  },
+  "luckyDraw": {
+    "title": "幸运抽奖",
+    "create": "新建活动",
+    "empty": "还没有活动。创建你的第一个幸运抽奖。",
+    "upTo": "赢取高达 {{pct}}% 折扣",
+    "entries": "参与",
+    "qrCodes": "二维码",
+    "referral": "推荐",
+    "activate": "启用",
+    "pause": "暂停",
+    "end": "结束",
+    "status": {
+      "draft": "草稿",
+      "active": "进行中",
+      "paused": "已暂停",
+      "ended": "已结束"
+    },
+    "entryStatus": {
+      "pending": "待处理",
+      "drawn": "中奖",
+      "redeemed": "已核销",
+      "expired": "已过期",
+      "invalid": "无效"
+    },
+    "lang": {
+      "en": "英文",
+      "zh-CN": "简体中文",
+      "zh-TW": "繁体中文"
+    },
+    "bonusType": {
+      "extra_entry": "额外抽奖机会",
+      "better_odds": "更高中奖率"
+    },
+    "tabs": {
+      "overview": "概览",
+      "prizes": "奖品",
+      "qr": "二维码",
+      "entries": "参与记录"
+    },
+    "stats": {
+      "scans": "扫描",
+      "entries": "参与",
+      "uniqueCustomers": "独立客户",
+      "redeemed": "已核销",
+      "deliveryRate": "WhatsApp 送达",
+      "shared": "已分享",
+      "referred": "被推荐",
+      "referralConversion": "推荐转化",
+      "wins": "中奖",
+      "prizeDistribution": "奖品分布",
+      "referralFunnel": "推荐漏斗"
+    },
+    "form": {
+      "createTitle": "新建活动",
+      "editTitle": "编辑活动",
+      "basics": "基本信息",
+      "name": "活动名称",
+      "description": "描述",
+      "startDate": "开始日期",
+      "endDate": "结束日期（可选）",
+      "dailyLimit": "每位客户每日参与次数",
+      "couponValidity": "优惠券有效期（天）",
+      "language": "默认语言",
+      "fieldsConsent": "字段与同意",
+      "requireName": "需要姓名",
+      "requirePhone": "需要电话",
+      "requireEmail": "需要邮箱",
+      "consentText": "同意文本",
+      "privacyText": "隐私声明",
+      "deliveryReferral": "发送与推荐",
+      "deliverWhatsapp": "通过 WhatsApp 发送优惠券",
+      "enableReferral": "启用推荐循环",
+      "bonusType": "推荐奖励",
+      "tagBuffet": "将核销者标记为自助餐客户",
+      "prizes": "奖品",
+      "addPrize": "添加奖品",
+      "prizeLabel": "标签",
+      "discount": "折扣 %",
+      "weight": "权重",
+      "weightHint": "中奖概率与权重 ÷ 总权重成正比。",
+      "editPrizesHint": "在编辑活动页面调整奖品权重。",
+      "requiredHint": "名称和同意文本为必填项。"
+    },
+    "qr": {
+      "create": "生成二维码",
+      "labelPlaceholder": "标签（例如 5 号桌）",
+      "untitled": "未命名",
+      "scans": "扫描",
+      "downloadQr": "二维码",
+      "poster": "海报"
+    },
+    "entriesTab": {
+      "redeem": "核销",
+      "redeemed": "优惠券已核销",
+      "couponPlaceholder": "输入优惠码",
+      "customer": "客户",
+      "phone": "电话",
+      "coupon": "优惠码",
+      "discount": "折扣",
+      "status": "状态",
+      "enteredAt": "参与时间"
     }
   }
 }

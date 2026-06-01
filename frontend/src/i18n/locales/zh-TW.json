@@ -118,7 +118,9 @@
     "crmDashboard": "客戶概覽",
     "crmCustomers": "客戶",
     "crmTags": "標籤",
-    "crmSegments": "客戶分群"
+    "crmSegments": "客戶分群",
+    "engage": "互動增長",
+    "luckyDraw": "幸運抽獎"
   },
   "inventory": {
     "title": "庫存",
@@ -1044,6 +1046,109 @@
       "lte": "≤",
       "exists": "存在",
       "not_exists": "不存在"
+    }
+  },
+  "luckyDraw": {
+    "title": "幸運抽獎",
+    "create": "新增活動",
+    "empty": "還沒有活動。建立你的第一個幸運抽獎。",
+    "upTo": "贏取高達 {{pct}}% 折扣",
+    "entries": "參加",
+    "qrCodes": "QR 碼",
+    "referral": "推薦",
+    "activate": "啟用",
+    "pause": "暫停",
+    "end": "結束",
+    "status": {
+      "draft": "草稿",
+      "active": "進行中",
+      "paused": "已暫停",
+      "ended": "已結束"
+    },
+    "entryStatus": {
+      "pending": "待處理",
+      "drawn": "中獎",
+      "redeemed": "已兌換",
+      "expired": "已過期",
+      "invalid": "無效"
+    },
+    "lang": {
+      "en": "英文",
+      "zh-CN": "簡體中文",
+      "zh-TW": "繁體中文"
+    },
+    "bonusType": {
+      "extra_entry": "額外抽獎機會",
+      "better_odds": "更高中獎率"
+    },
+    "tabs": {
+      "overview": "概覽",
+      "prizes": "獎品",
+      "qr": "QR 碼",
+      "entries": "參加紀錄"
+    },
+    "stats": {
+      "scans": "掃描",
+      "entries": "參加",
+      "uniqueCustomers": "獨立客戶",
+      "redeemed": "已兌換",
+      "deliveryRate": "WhatsApp 送達",
+      "shared": "已分享",
+      "referred": "被推薦",
+      "referralConversion": "推薦轉換",
+      "wins": "中獎",
+      "prizeDistribution": "獎品分佈",
+      "referralFunnel": "推薦漏斗"
+    },
+    "form": {
+      "createTitle": "新增活動",
+      "editTitle": "編輯活動",
+      "basics": "基本資料",
+      "name": "活動名稱",
+      "description": "描述",
+      "startDate": "開始日期",
+      "endDate": "結束日期（可選）",
+      "dailyLimit": "每位客戶每日參加次數",
+      "couponValidity": "優惠券有效期（天）",
+      "language": "預設語言",
+      "fieldsConsent": "欄位與同意",
+      "requireName": "需要姓名",
+      "requirePhone": "需要電話",
+      "requireEmail": "需要電郵",
+      "consentText": "同意文字",
+      "privacyText": "私隱聲明",
+      "deliveryReferral": "發送與推薦",
+      "deliverWhatsapp": "透過 WhatsApp 發送優惠券",
+      "enableReferral": "啟用推薦循環",
+      "bonusType": "推薦獎勵",
+      "tagBuffet": "將兌換者標記為自助餐客戶",
+      "prizes": "獎品",
+      "addPrize": "新增獎品",
+      "prizeLabel": "標籤",
+      "discount": "折扣 %",
+      "weight": "權重",
+      "weightHint": "中獎機率與權重 ÷ 總權重成正比。",
+      "editPrizesHint": "在編輯活動頁面調整獎品權重。",
+      "requiredHint": "名稱及同意文字為必填項。"
+    },
+    "qr": {
+      "create": "產生 QR 碼",
+      "labelPlaceholder": "標籤（例如 5 號枱）",
+      "untitled": "未命名",
+      "scans": "掃描",
+      "downloadQr": "QR 碼",
+      "poster": "海報"
+    },
+    "entriesTab": {
+      "redeem": "兌換",
+      "redeemed": "優惠券已兌換",
+      "couponPlaceholder": "輸入優惠碼",
+      "customer": "客戶",
+      "phone": "電話",
+      "coupon": "優惠碼",
+      "discount": "折扣",
+      "status": "狀態",
+      "enteredAt": "參加時間"
     }
   }
 }

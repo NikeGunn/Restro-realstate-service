@@ -59,6 +59,8 @@ INSTALLED_APPS = [
     'apps.inventory',
     # CRM Lite (Phase 1) — consent-compliant customer database
     'apps.crm',
+    # Lucky Draw (Phase 2) — QR lead capture + WhatsApp delivery + referral loop
+    'apps.lucky_draw',
 ]
 
 MIDDLEWARE = [
@@ -286,6 +288,19 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'apps.crm.tasks.refresh_inactive_tag_task',
         'schedule': crontab(hour=1, minute=0),
     },
+    # Lucky Draw (Phase 2)
+    'lucky-draw-reset-prize-daily-counters': {
+        'task': 'apps.lucky_draw.tasks.reset_prize_daily_counters_task',
+        'schedule': crontab(hour=0, minute=1),
+    },
+    'lucky-draw-expiry-reminders': {
+        'task': 'apps.lucky_draw.tasks.send_expiry_reminders_task',
+        'schedule': crontab(minute=0),  # hourly
+    },
+    'lucky-draw-expire-entries': {
+        'task': 'apps.lucky_draw.tasks.expire_entries_task',
+        'schedule': crontab(hour=0, minute=15),
+    },
 }
 
 # ──────────────────────────────────────────────────────────────────────
@@ -295,6 +310,13 @@ CRM_AUTO_SYNC_BOOKINGS = config('CRM_AUTO_SYNC_BOOKINGS', default=True, cast=boo
 CRM_AUTO_SYNC_CONVERSATIONS = config('CRM_AUTO_SYNC_CONVERSATIONS', default=True, cast=bool)
 CRM_FREQUENT_THRESHOLD = config('CRM_FREQUENT_THRESHOLD', default=5, cast=int)
 CRM_INACTIVE_DAYS = config('CRM_INACTIVE_DAYS', default=90, cast=int)
+
+# ──────────────────────────────────────────────────────────────────────
+# Lucky Draw (Phase 2) settings
+# ──────────────────────────────────────────────────────────────────────
+# Public origin that QR codes / referral links resolve against. Non-secret →
+# belongs in k8s/configmap.yaml (chatplatform-config) in production.
+PUBLIC_BASE_URL = config('PUBLIC_BASE_URL', default='https://kribaat.com')
 
 # Redis Cache
 CACHES = {

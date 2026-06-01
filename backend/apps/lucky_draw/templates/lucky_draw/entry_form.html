@@ -1,0 +1,285 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <title>Lucky Draw</title>
+  <style>
+    :root { --brand:#6366F1; --bg:#0f172a; --card:#ffffff; --muted:#6b7280; }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    body {
+      margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Noto Sans TC","PingFang TC",sans-serif;
+      background:linear-gradient(160deg,#1e1b4b,#0f172a); color:#111827; min-height:100vh;
+    }
+    .wrap { max-width:480px; margin:0 auto; padding:20px 16px 48px; }
+    .lang { text-align:right; margin-bottom:8px; }
+    .lang button { background:rgba(255,255,255,.15); color:#fff; border:0; border-radius:999px;
+      padding:6px 12px; margin-left:6px; font-size:13px; cursor:pointer; }
+    .lang button.active { background:var(--brand); }
+    .hero { text-align:center; color:#fff; padding:8px 0 18px; }
+    .hero .org { font-size:14px; opacity:.8; }
+    .hero h1 { font-size:26px; margin:6px 0 4px; }
+    .hero .win { font-size:20px; font-weight:700; color:#fde047; }
+    .card { background:var(--card); border-radius:18px; padding:20px; box-shadow:0 20px 40px rgba(0,0,0,.35); }
+    label { display:block; font-size:14px; font-weight:600; margin:14px 0 6px; }
+    input[type=text], input[type=tel], input[type=email] {
+      width:100%; padding:13px 14px; border:1px solid #d1d5db; border-radius:12px; font-size:16px;
+    }
+    .consent { display:flex; gap:10px; align-items:flex-start; margin-top:16px; font-size:13px; color:#374151; }
+    .consent input { margin-top:3px; width:20px; height:20px; }
+    .privacy { font-size:12px; color:var(--muted); margin-top:10px; white-space:pre-wrap; }
+    .btn { width:100%; margin-top:18px; padding:15px; border:0; border-radius:14px; background:var(--brand);
+      color:#fff; font-size:17px; font-weight:700; cursor:pointer; }
+    .btn:disabled { opacity:.6; }
+    .err { color:#dc2626; font-size:13px; margin-top:10px; min-height:18px; }
+    .hidden { display:none; }
+    /* Result */
+    .reveal { text-align:center; }
+    .reveal .badge { font-size:64px; font-weight:800; color:var(--brand); margin:6px 0;
+      animation:pop .6s cubic-bezier(.18,.89,.32,1.28); }
+    @keyframes pop { 0%{transform:scale(.3);opacity:0} 100%{transform:scale(1);opacity:1} }
+    .code { font-size:30px; letter-spacing:3px; font-weight:800; background:#f3f4f6; border-radius:12px;
+      padding:12px; margin:14px 0; }
+    .meta { font-size:13px; color:var(--muted); }
+    .wa { background:#25D366; } .share { background:#0ea5e9; margin-top:10px; }
+    .note { font-size:13px; color:#059669; margin-top:12px; }
+    .center { text-align:center; }
+    .spinner { display:inline-block; width:22px; height:22px; border:3px solid rgba(255,255,255,.4);
+      border-top-color:#fff; border-radius:50%; animation:spin .8s linear infinite; vertical-align:middle; }
+    @keyframes spin { to { transform:rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="lang" id="langBar">
+      <button data-lang="zh-TW">繁體</button>
+      <button data-lang="zh-CN">简体</button>
+      <button data-lang="en">EN</button>
+    </div>
+
+    <div class="hero">
+      <div class="org" id="orgName"></div>
+      <h1 id="campName"></h1>
+      <div class="win" id="winLine"></div>
+    </div>
+
+    <!-- Not found -->
+    <div class="card center hidden" id="notFound">
+      <p id="notFoundText"></p>
+    </div>
+
+    <!-- Closed -->
+    <div class="card center hidden" id="closed">
+      <p id="closedText"></p>
+    </div>
+
+    <!-- Entry form -->
+    <div class="card hidden" id="formCard">
+      <form id="entryForm">
+        <div id="fieldName" class="hidden">
+          <label id="lblName"></label>
+          <input type="text" id="name" autocomplete="name" />
+        </div>
+        <div id="fieldPhone" class="hidden">
+          <label id="lblPhone"></label>
+          <input type="tel" id="phone" autocomplete="tel" inputmode="tel" />
+        </div>
+        <div id="fieldEmail" class="hidden">
+          <label id="lblEmail"></label>
+          <input type="email" id="email" autocomplete="email" inputmode="email" />
+        </div>
+        <div id="fieldTable">
+          <label id="lblTable"></label>
+          <input type="text" id="table_number" inputmode="numeric" />
+        </div>
+
+        <div class="consent">
+          <input type="checkbox" id="consent" />
+          <label for="consent" id="consentText" style="margin:0;font-weight:400;"></label>
+        </div>
+        <div class="privacy" id="privacyText"></div>
+
+        <div class="err" id="formErr"></div>
+        <button type="submit" class="btn" id="submitBtn"></button>
+      </form>
+    </div>
+
+    <!-- Result -->
+    <div class="card reveal hidden" id="resultCard">
+      <div id="resultWon">
+        <div id="congrats" style="font-size:18px;font-weight:700;"></div>
+        <div class="badge"><span id="discountPct"></span>%</div>
+        <div class="meta" id="couponLabel"></div>
+        <div class="code" id="couponCode"></div>
+        <div class="meta" id="expiryLabel"></div>
+        <div class="note hidden" id="waNote"></div>
+        <button class="btn share hidden" id="shareBtn"></button>
+      </div>
+      <div id="resultLost" class="hidden">
+        <div style="font-size:18px;font-weight:700;" id="thanksText"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    var URL_TOKEN = "{{ url_token|escapejs }}";
+    var REFERRAL_TOKEN = "{{ referral_token|escapejs }}";
+    var DEFAULT_LANG = "{{ default_language|escapejs }}" || "zh-TW";
+    var FOUND = {{ found|yesno:"true,false" }};
+
+    var I18N = {
+      "zh-TW": {
+        win:"掃描贏取高達 {pct}% 折扣！", name:"姓名", phone:"電話", email:"電郵", table:"枱號（可選）",
+        submit:"立即抽獎 🎁", drawing:"抽獎中…", congrats:"🎉 恭喜你中獎！", off:"折扣優惠",
+        coupon:"優惠碼", expiry:"有效期至 ", thanks:"多謝參加！", waNote:"優惠券已透過 WhatsApp 發送給你 ✅",
+        share:"分享給朋友賺取額外抽獎機會 🔗", notFound:"找不到此活動。", closed:"此活動暫未開放。",
+        errRequired:"請填寫必填欄位。", errGeneric:"發生錯誤，請重試。",
+        errDaily:"你今日已參加過了。", errEnded:"活動已結束。", errNotStarted:"活動尚未開始。",
+      },
+      "zh-CN": {
+        win:"扫描赢取高达 {pct}% 折扣！", name:"姓名", phone:"电话", email:"邮箱", table:"桌号（可选）",
+        submit:"立即抽奖 🎁", drawing:"抽奖中…", congrats:"🎉 恭喜你中奖！", off:"折扣优惠",
+        coupon:"优惠码", expiry:"有效期至 ", thanks:"感谢参加！", waNote:"优惠券已通过 WhatsApp 发送给你 ✅",
+        share:"分享给朋友赚取额外抽奖机会 🔗", notFound:"找不到此活动。", closed:"此活动暂未开放。",
+        errRequired:"请填写必填栏位。", errGeneric:"发生错误，请重试。",
+        errDaily:"你今天已参加过了。", errEnded:"活动已结束。", errNotStarted:"活动尚未开始。",
+      },
+      "en": {
+        win:"Scan to win up to {pct}% off!", name:"Name", phone:"Phone", email:"Email", table:"Table no. (optional)",
+        submit:"Spin to win 🎁", drawing:"Drawing…", congrats:"🎉 You won!", off:"discount",
+        coupon:"Coupon code", expiry:"Valid until ", thanks:"Thanks for entering!", waNote:"Your coupon was sent to WhatsApp ✅",
+        share:"Share to earn a bonus entry 🔗", notFound:"Campaign not found.", closed:"This campaign is not open yet.",
+        errRequired:"Please fill in the required fields.", errGeneric:"Something went wrong, please try again.",
+        errDaily:"You've already entered today.", errEnded:"This campaign has ended.", errNotStarted:"This campaign hasn't started.",
+      }
+    };
+
+    var lang = DEFAULT_LANG in I18N ? DEFAULT_LANG : "zh-TW";
+    var config = null;
+    var idemKey = (Date.now().toString(36) + Math.random().toString(36).slice(2));
+
+    function t(k){ return (I18N[lang] && I18N[lang][k]) || I18N["zh-TW"][k] || k; }
+    function $(id){ return document.getElementById(id); }
+    function show(id){ $(id).classList.remove("hidden"); }
+    function hide(id){ $(id).classList.add("hidden"); }
+
+    function setLangButtons(){
+      var btns = document.querySelectorAll("#langBar button");
+      for (var i=0;i<btns.length;i++){
+        btns[i].classList.toggle("active", btns[i].getAttribute("data-lang")===lang);
+        btns[i].onclick = (function(b){ return function(){ lang=b.getAttribute("data-lang"); renderTexts(); }; })(btns[i]);
+      }
+    }
+
+    function renderTexts(){
+      if (!config) return;
+      $("orgName").textContent = config.organization_name || "";
+      $("campName").textContent = config.name || "";
+      $("winLine").textContent = t("win").replace("{pct}", config.max_discount || 0);
+      $("lblName").textContent = t("name");
+      $("lblPhone").textContent = t("phone");
+      $("lblEmail").textContent = t("email");
+      $("lblTable").textContent = t("table");
+      $("consentText").textContent = config.consent_text || "";
+      $("privacyText").textContent = config.privacy_notice_text || "";
+      $("submitBtn").textContent = t("submit");
+      $("notFoundText").textContent = t("notFound");
+      $("closedText").textContent = t("closed");
+      setLangButtons();
+    }
+
+    function mapErr(reason){
+      if (reason==="daily_limit_reached"||reason==="total_limit_reached") return t("errDaily");
+      if (reason==="campaign_ended") return t("errEnded");
+      if (reason==="campaign_not_started"||reason==="campaign_not_active") return t("errNotStarted");
+      if (reason==="missing_required_fields") return t("errRequired");
+      return t("errGeneric");
+    }
+
+    function loadConfig(){
+      fetch("/public/lucky-draw/"+URL_TOKEN+"/config/", {headers:{"Accept":"application/json"}})
+        .then(function(r){ if(!r.ok) throw new Error("nf"); return r.json(); })
+        .then(function(c){
+          config = c; renderTexts();
+          if (!c.is_open){ show("closed"); return; }
+          if (c.requires_name) show("fieldName");
+          if (c.requires_phone) show("fieldPhone");
+          if (c.requires_email) show("fieldEmail");
+          show("formCard");
+        })
+        .catch(function(){ renderTexts(); show("notFound"); });
+    }
+
+    function submitEntry(e){
+      e.preventDefault();
+      $("formErr").textContent = "";
+      var btn = $("submitBtn");
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span> ' + t("drawing");
+
+      var body = {
+        name: $("name").value, phone: $("phone").value, email: $("email").value,
+        table_number: $("table_number").value, consent_given: $("consent").checked,
+        referral_token: REFERRAL_TOKEN, idempotency_key: idemKey
+      };
+
+      fetch("/public/lucky-draw/"+URL_TOKEN+"/enter/", {
+        method:"POST", headers:{"Content-Type":"application/json","Accept":"application/json"},
+        body: JSON.stringify(body)
+      }).then(function(r){ return r.json().then(function(d){ return {ok:r.ok, status:r.status, data:d}; }); })
+        .then(function(res){
+          if (!res.ok){
+            $("formErr").textContent = mapErr(res.data && res.data.detail);
+            btn.disabled = false; btn.textContent = t("submit");
+            return;
+          }
+          showResult(res.data);
+        })
+        .catch(function(){
+          $("formErr").textContent = t("errGeneric");
+          btn.disabled = false; btn.textContent = t("submit");
+        });
+    }
+
+    function showResult(d){
+      hide("formCard"); show("resultCard");
+      if (d.won){
+        hide("resultLost"); show("resultWon");
+        $("congrats").textContent = t("congrats");
+        $("discountPct").textContent = d.discount_percent;
+        $("couponLabel").textContent = t("coupon");
+        $("couponCode").textContent = d.coupon_code;
+        if (d.expires_at){
+          $("expiryLabel").textContent = t("expiry") + d.expires_at.slice(0,10);
+        }
+        if (config.referral_enabled && d.share_text && d.referral_url){
+          var shareBtn = $("shareBtn");
+          shareBtn.textContent = t("share");
+          shareBtn.classList.remove("hidden");
+          shareBtn.onclick = function(){
+            var waUrl = "https://wa.me/?text=" + encodeURIComponent(d.share_text);
+            if (navigator.share){
+              navigator.share({text:d.share_text, url:d.referral_url}).catch(function(){ window.location.href=waUrl; });
+            } else {
+              window.location.href = waUrl;
+            }
+          };
+        }
+        // Coupon delivery confirmation (server sends async if consent given).
+        $("waNote").textContent = t("waNote");
+        if ($("consent").checked){ show("waNote"); }
+      } else {
+        hide("resultWon"); show("resultLost");
+        $("thanksText").textContent = t("thanks");
+      }
+    }
+
+    document.addEventListener("DOMContentLoaded", function(){
+      $("entryForm").addEventListener("submit", submitEntry);
+      if (!FOUND){ renderTexts(); show("notFound"); return; }
+      loadConfig();
+    });
+  </script>
+</body>
+</html>

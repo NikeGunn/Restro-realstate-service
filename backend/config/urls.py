@@ -56,6 +56,12 @@ urlpatterns = [
     # CRM Lite (Phase 1)
     path('api/v1/crm/', include('apps.crm.urls')),
 
+    # Lucky Draw (Phase 2) — authenticated admin API
+    path('api/v1/lucky_draw/', include('apps.lucky_draw.urls')),
+
+    # Lucky Draw (Phase 2) — PUBLIC, no auth, throttled
+    path('public/lucky-draw/', include('apps.lucky_draw.public_urls')),
+
     # Channel configuration API (Phase 4)
     path('api/channels/', include('apps.channels.urls')),
 

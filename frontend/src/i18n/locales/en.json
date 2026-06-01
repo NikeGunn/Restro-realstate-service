@@ -118,7 +118,9 @@
     "crmDashboard": "CRM Dashboard",
     "crmCustomers": "Customers",
     "crmTags": "Tags",
-    "crmSegments": "Segments"
+    "crmSegments": "Segments",
+    "engage": "Engage",
+    "luckyDraw": "Lucky Draw"
   },
   "inventory": {
     "title": "Inventory",
@@ -1111,6 +1113,109 @@
       "lte": "≤",
       "exists": "exists",
       "not_exists": "does not exist"
+    }
+  },
+  "luckyDraw": {
+    "title": "Lucky Draw",
+    "create": "New Campaign",
+    "empty": "No campaigns yet. Create your first lucky draw.",
+    "upTo": "Win up to {{pct}}% off",
+    "entries": "Entries",
+    "qrCodes": "QR codes",
+    "referral": "Referral",
+    "activate": "Activate",
+    "pause": "Pause",
+    "end": "End",
+    "status": {
+      "draft": "Draft",
+      "active": "Active",
+      "paused": "Paused",
+      "ended": "Ended"
+    },
+    "entryStatus": {
+      "pending": "Pending",
+      "drawn": "Won",
+      "redeemed": "Redeemed",
+      "expired": "Expired",
+      "invalid": "Invalid"
+    },
+    "lang": {
+      "en": "English",
+      "zh-CN": "Simplified Chinese",
+      "zh-TW": "Traditional Chinese"
+    },
+    "bonusType": {
+      "extra_entry": "Extra entry",
+      "better_odds": "Better odds"
+    },
+    "tabs": {
+      "overview": "Overview",
+      "prizes": "Prizes",
+      "qr": "QR Codes",
+      "entries": "Entries"
+    },
+    "stats": {
+      "scans": "Scans",
+      "entries": "Entries",
+      "uniqueCustomers": "Unique customers",
+      "redeemed": "Redeemed",
+      "deliveryRate": "WhatsApp delivery",
+      "shared": "Shared",
+      "referred": "Referred",
+      "referralConversion": "Referral conversion",
+      "wins": "Wins",
+      "prizeDistribution": "Prize distribution",
+      "referralFunnel": "Referral funnel"
+    },
+    "form": {
+      "createTitle": "New Campaign",
+      "editTitle": "Edit Campaign",
+      "basics": "Basics",
+      "name": "Campaign name",
+      "description": "Description",
+      "startDate": "Start date",
+      "endDate": "End date (optional)",
+      "dailyLimit": "Daily entries per customer",
+      "couponValidity": "Coupon validity (days)",
+      "language": "Default language",
+      "fieldsConsent": "Fields & Consent",
+      "requireName": "Require name",
+      "requirePhone": "Require phone",
+      "requireEmail": "Require email",
+      "consentText": "Consent text",
+      "privacyText": "Privacy notice",
+      "deliveryReferral": "Delivery & Referral",
+      "deliverWhatsapp": "Deliver coupon via WhatsApp",
+      "enableReferral": "Enable referral loop",
+      "bonusType": "Referral bonus",
+      "tagBuffet": "Tag redeemers as buffet customer",
+      "prizes": "Prizes",
+      "addPrize": "Add prize",
+      "prizeLabel": "Label",
+      "discount": "Discount %",
+      "weight": "Weight",
+      "weightHint": "Win probability is proportional to weight ÷ total weight.",
+      "editPrizesHint": "Edit prize weights from the Edit Campaign screen.",
+      "requiredHint": "Name and consent text are required."
+    },
+    "qr": {
+      "create": "Generate QR",
+      "labelPlaceholder": "Label (e.g. Table 5)",
+      "untitled": "Untitled",
+      "scans": "Scans",
+      "downloadQr": "QR",
+      "poster": "Poster"
+    },
+    "entriesTab": {
+      "redeem": "Redeem",
+      "redeemed": "Coupon redeemed",
+      "couponPlaceholder": "Enter coupon code",
+      "customer": "Customer",
+      "phone": "Phone",
+      "coupon": "Coupon",
+      "discount": "Discount",
+      "status": "Status",
+      "enteredAt": "Entered"
     }
   }
 }

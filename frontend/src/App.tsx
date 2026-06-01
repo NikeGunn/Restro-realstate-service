@@ -47,6 +47,11 @@ import { CustomersPage } from '@/pages/crm/CustomersPage'
 import { TagsPage } from '@/pages/crm/TagsPage'
 import { SegmentsPage } from '@/pages/crm/SegmentsPage'
 
+// Lucky Draw (Phase 2)
+import { CampaignListPage } from '@/pages/lucky_draw/CampaignListPage'
+import { CampaignDetailPage } from '@/pages/lucky_draw/CampaignDetailPage'
+import { CampaignFormPage } from '@/pages/lucky_draw/CampaignFormPage'
+
 // Public pages
 import { LandingPage } from '@/pages/LandingPage'
 import { PrivacyPolicy } from '@/pages/PrivacyPolicy'
@@ -218,6 +223,12 @@ function App() {
           <Route path="/crm/customers" element={<CustomersPage />} />
           <Route path="/crm/tags" element={<TagsPage />} />
           <Route path="/crm/segments" element={<SegmentsPage />} />
+
+          {/* Lucky Draw (Phase 2) */}
+          <Route path="/lucky-draw" element={<CampaignListPage />} />
+          <Route path="/lucky-draw/new" element={<CampaignFormPage />} />
+          <Route path="/lucky-draw/:id" element={<CampaignDetailPage />} />
+          <Route path="/lucky-draw/:id/edit" element={<CampaignFormPage />} />
         </Route>
       </Routes>
       <Toaster />
