@@ -57,6 +57,8 @@ INSTALLED_APPS = [
     'apps.realestate',
     # Inventory (Plane B — admin-only, sealed from public chatbot)
     'apps.inventory',
+    # CRM Lite (Phase 1) — consent-compliant customer database
+    'apps.crm',
 ]
 
 MIDDLEWARE = [
@@ -271,7 +273,28 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'apps.inventory.tasks.refresh_inventory_ai_profiles_task',
         'schedule': crontab(hour=3, minute=0),
     },
+    # CRM Lite (Phase 1)
+    'crm-refresh-segment-counts': {
+        'task': 'apps.crm.tasks.refresh_segment_counts_task',
+        'schedule': crontab(hour=2, minute=0),
+    },
+    'crm-refresh-birthday-tag': {
+        'task': 'apps.crm.tasks.refresh_birthday_tag_task',
+        'schedule': crontab(hour=0, minute=30),
+    },
+    'crm-refresh-inactive-tag': {
+        'task': 'apps.crm.tasks.refresh_inactive_tag_task',
+        'schedule': crontab(hour=1, minute=0),
+    },
 }
+
+# ──────────────────────────────────────────────────────────────────────
+# CRM Lite (Phase 1) settings
+# ──────────────────────────────────────────────────────────────────────
+CRM_AUTO_SYNC_BOOKINGS = config('CRM_AUTO_SYNC_BOOKINGS', default=True, cast=bool)
+CRM_AUTO_SYNC_CONVERSATIONS = config('CRM_AUTO_SYNC_CONVERSATIONS', default=True, cast=bool)
+CRM_FREQUENT_THRESHOLD = config('CRM_FREQUENT_THRESHOLD', default=5, cast=int)
+CRM_INACTIVE_DAYS = config('CRM_INACTIVE_DAYS', default=90, cast=int)
 
 # Redis Cache
 CACHES = {

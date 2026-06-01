@@ -159,6 +159,37 @@ The prerequisite `common` library app (REQUIREMENTS.md § Phase 0). Pure cross-c
 - The object-storage path is settings-gated and **never exercised in tests** (tests run with `USE_OBJECT_STORAGE=false`). Before enabling it in prod, provision the COS/R2 bucket, set the configmap keys, swap the dummy `S3_ACCESS_KEY_ID`/`S3_SECRET_ACCESS_KEY` GitHub Secrets for real values, **and** add their `--from-literal=` lines to the `deploy-secrets` job in `deploy.yml` (the one manual repo edit object storage needs). Only then is raising backend `replicas` past 1 safe.
 - A pre-existing `STATICFILES_STORAGE` deprecation warning surfaces in test output — it's from the legacy `STATICFILES_STORAGE` setting line (not Phase 0); left untouched to avoid scope creep.
 
+## `crm` app — Phase 1 CRM Lite
+
+### Phase 1a (backend) — DONE (2026-06-01, 267/267 backend tests pass)
+
+Consent-compliant customer database mounted at **`/api/v1/crm/`**. Authorized scope override of `agent.md`'s no-CRM rule (2026-05-31). Builds on Phase 0 `common`. **Frontend is Phase 1b (not yet built).**
+
+**Models** (`models.py`, migration `0001` + data migration `0002`, all tables `crm_*`, UUID PKs):
+- `CRMCustomer` — partial unique constraints `uniq_crm_org_phone` / `uniq_crm_org_email` (only when non-null/non-empty). Denormalized **`birthday_month`** (indexed) + **`visit_count`** for cheap segments. `save()` normalizes phone→E.164 (HK default, via `customer_service.normalize_phone`), lowercases email, derives `birthday_month`, defaults `whatsapp_number`. Indexes on `(org, consent_status)`, `(org, source)`, `(org, birthday_month)`, `(org, last_visit_date)`.
+- `CRMTag` (+ 7 seeded system tags) · `CRMCustomerTag` (M2M through, unique `(customer,tag)`) · `CRMInteraction` (append-only, `save()` blocks updates) · `CRMConsent` (append-only & immutable; withdrawal = new row) · `CRMSegment` (JSON `filter_rules`).
+
+**Services** (`services/`):
+- `customer_service.py` — `get_or_create_customer` (merge-by-identity: phone then email, `select_for_update` + IntegrityError fallback for concurrency), `normalize_phone` (E.164/HK, never raises), `merge_customers` (re-points interactions/consent/tags/lucky-draw, **releases the duplicate's unique phone/email before backfilling** the primary to avoid constraint collision with the soft-deleted row, then `is_active=False`).
+- `interaction_service.py` — `log_interaction` (append row, bump `visit_count` for booking/walk_in via `F()`, auto-apply `frequent_customer` at `CRM_FREQUENT_THRESHOLD`=5).
+- `consent_service.py` — `record_consent` (append + recompute status: given→GIVEN, first refusal→REFUSED, refusal-after-given→WITHDRAWN, sets `opt_out_timestamp`), **`has_marketing_consent(customer, channel)` — THE gate every WhatsApp push must call.**
+- `segment_service.py` — **DSL→Q compiler. Whitelisted field/op maps, NEVER eval/raw SQL** (unknown field/op → `ValidationError`). Relative dates (`-90d`) resolved server-side. `evaluate_segment` / `preview_count` / `refresh_counts`.
+
+**API** (`views.py`, `OrgScopeMixin` + `IsOrgMember` read / `IsOrgOwner` write): `CRMCustomerViewSet` (CRUD + `tags`/`interactions`/`consents`/`merge` actions), `CRMTagViewSet` (system tags block delete/rename), `CRMInteractionViewSet` (RO), `CRMConsentViewSet` (RO + `record`), `CRMSegmentViewSet` (CRUD + `preview`/`customers`/`ready-to-engage` — the last filters to `consent_status='given'`). Querysets prefetch tags (`Prefetch('customer_tags'→select_related('tag'))`) to kill N+1. Cross-org → 404.
+
+**Signals** (`signals.py`, lazy-connected in `apps.py::ready()`, one-directional, failure-safe): Org `post_save` (created) → seed 7 system tags + default "All consenting customers" segment. `restaurant.Booking` `post_save` (CONFIRMED/COMPLETED) → upsert customer + log booking interaction (COMPLETED sets `last_visit_date`); gated `CRM_AUTO_SYNC_BOOKINGS`. `messaging.Conversation` `post_save` (created, whatsapp/instagram) → upsert + log message; gated `CRM_AUTO_SYNC_CONVERSATIONS`. **Every receiver wraps work in try/except — never blocks the originating save.** No module-level imports of restaurant/messaging.
+
+**Celery** (`tasks.py`, 3 beat entries appended to settings): `refresh_segment_counts_task` (02:00), `refresh_birthday_tag_task` (00:30 — syncs `birthday_this_month` off the indexed column), `refresh_inactive_tag_task` (01:00 — `CRM_INACTIVE_DAYS`=90).
+
+**Settings**: `CRM_AUTO_SYNC_BOOKINGS`/`CRM_AUTO_SYNC_CONVERSATIONS` (default True), `CRM_FREQUENT_THRESHOLD` (5), `CRM_INACTIVE_DAYS` (90). Admin: all 5 models registered; append-only/consent models have add/change(/delete) locked; JSON rendered via `_pretty_json`.
+
+**Tests** (`apps/crm/tests/`, **53 — spec minimum was 28**): `test_models` (8: partial-unique, append-only, birthday_month, cross-org phone OK), `test_customer_service` (8: E.164/HK, dedupe by phone/email, backfill, merge, cross-org reject), `test_segment_dsl` (10: every op, OR logic, relative date, tags, **unknown field/op + injection rejected, no eval**), `test_consent` (6: refusal vs withdrawal, gate, opt-out ts), `test_api` (11: CRUD, manager RO, cross-org 404, preview, ready-to-engage consent filter, system-tag delete block, merge), `test_signals` (7: org seeding, booking/conversation sync, pending/website skipped, **failure-doesn't-break-save**), `test_permissions` (4). **Full suite 267/267 green in Docker.**
+
+### Phase 1a known limitations / debt
+- Frontend (`pages/crm/*`, `services/crm.ts`, sidebar CRM group, i18n) is **not built** — that's Phase 1b. The API is live and tested.
+- `merge_customers` soft-deletes the duplicate (`is_active=False`) after nulling its phone/email so the primary can claim them; the duplicate row is retained for audit (never hard-deleted).
+- A no-org user gets **403** (not empty 200) on CRM endpoints — `IsOrgMember` requires membership. Intentional; matches inventory.
+
 ## Inventory app — Plane B (resume notes)
 
 The inventory module is the "sealed vault" admin counterpart to the public chatbot. The full design lives in `INVENTORY_CLAUDE_CODE_PROMPT_V2.md` (gitignored, ~1.5k lines, FAANG-grade spec). Read it before extending phase 2+.

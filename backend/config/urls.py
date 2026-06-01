@@ -53,6 +53,9 @@ urlpatterns = [
     # Inventory (Plane B — admin-only)
     path('api/v1/inventory/', include('apps.inventory.urls')),
 
+    # CRM Lite (Phase 1)
+    path('api/v1/crm/', include('apps.crm.urls')),
+
     # Channel configuration API (Phase 4)
     path('api/channels/', include('apps.channels.urls')),
 
