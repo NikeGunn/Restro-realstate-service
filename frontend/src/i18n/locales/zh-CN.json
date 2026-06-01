@@ -113,7 +113,12 @@
     "inventoryAI": "库存 AI",
     "inventoryStockTake": "库存盘点",
     "inventoryAnalytics": "分析",
-    "inventoryLocationPricing": "门店定价"
+    "inventoryLocationPricing": "门店定价",
+    "crm": "客户管理",
+    "crmDashboard": "客户概览",
+    "crmCustomers": "客户",
+    "crmTags": "标签",
+    "crmSegments": "客户分群"
   },
   "inventory": {
     "title": "库存",
@@ -643,7 +648,6 @@
     "noShows": "未到",
     "powerPlanAnalytics": "高级版数据分析",
     "powerPlanAnalyticsSubtitle": "高级版订阅用户专享的高级洞察和详细性能指标",
-    "avgResponseTime": "平均响应时间",
     "basedOnMessages": "基于 {{count}} 条消息",
     "fastestResponse": "最快响应",
     "bestResponseTime": "已达到的最佳响应时间",
@@ -662,7 +666,6 @@
     "weeklyActivityPattern": "每周活动模式",
     "conversationByDayOfWeek": "按星期几的会话分布",
     "noWeeklyData": "暂无每周数据",
-    "conversations": "会话",
     "locationPerformance": "位置表现",
     "analyticsByLocation": "按位置细分的分析数据",
     "noLocationData": "暂无位置数据",
@@ -1001,5 +1004,113 @@
     "unauthorized": "您无权执行此操作。",
     "notFound": "未找到请求的资源。",
     "validationError": "请检查您的输入并重试。"
+  },
+  "crm": {
+    "dashboard": {
+      "title": "客户概览",
+      "totalCustomers": "客户总数",
+      "newThisMonth": "本月新增",
+      "consentRate": "同意率",
+      "birthdayThisMonth": "本月生日",
+      "inactive": "不活跃（90天以上）",
+      "bySource": "按来源划分的客户"
+    },
+    "customers": {
+      "title": "客户",
+      "count": "{{count}} 位客户",
+      "add": "添加客户",
+      "searchPlaceholder": "搜索姓名、电话或邮箱",
+      "source": "来源",
+      "consent": "同意",
+      "visits": "到访次数",
+      "birthday": "生日",
+      "whatsapp": "WhatsApp",
+      "lastVisit": "最近到访",
+      "empty": "暂无客户。客户会从预订和聊天中自动添加。"
+    },
+    "detail": {
+      "info": "信息",
+      "timeline": "时间线",
+      "consent": "同意记录",
+      "tags": "标签"
+    },
+    "tags": {
+      "title": "标签",
+      "add": "添加标签",
+      "color": "颜色",
+      "systemLocked": "系统标签无法删除。"
+    },
+    "segments": {
+      "title": "客户分群",
+      "add": "新建分群",
+      "empty": "暂无分群。创建一个以按规则分组客户。",
+      "matchLogic": "匹配",
+      "all": "所有规则（且）",
+      "any": "任一规则（或）",
+      "addRule": "添加规则",
+      "commaSeparated": "用逗号分隔的值",
+      "previewCount": "匹配 {{count}} 位客户",
+      "memberCount": "{{count}} 位成员"
+    },
+    "source": {
+      "booking": "预订",
+      "chatbot": "聊天机器人",
+      "whatsapp": "WhatsApp",
+      "instagram": "Instagram",
+      "messenger": "Messenger",
+      "manual": "手动",
+      "lucky_draw": "抽奖",
+      "wifi": "WiFi",
+      "walk_in": "到店",
+      "import": "导入"
+    },
+    "consent": {
+      "not_asked": "未询问",
+      "given": "已同意",
+      "refused": "已拒绝",
+      "withdrawn": "已撤回"
+    },
+    "consentSource": {
+      "booking_form": "预订表单",
+      "lucky_draw_form": "抽奖表单",
+      "wifi_form": "WiFi 表单",
+      "chatbot": "聊天机器人",
+      "manual": "手动",
+      "import": "导入"
+    },
+    "interactionType": {
+      "booking": "预订",
+      "chatbot_message": "聊天消息",
+      "whatsapp_message": "WhatsApp 消息",
+      "instagram_message": "Instagram 消息",
+      "messenger_message": "Messenger 消息",
+      "phone_call": "电话",
+      "walk_in": "到店",
+      "lucky_draw_entry": "抽奖参与",
+      "wifi_signin": "WiFi 登录",
+      "manual_note": "手动备注",
+      "coupon_redeemed": "优惠券已核销",
+      "whatsapp_coupon_sent": "已发送 WhatsApp 优惠券"
+    },
+    "segmentField": {
+      "source": "来源",
+      "marketing_consent_status": "同意状态",
+      "tags": "标签",
+      "last_visit_date": "最近到访日期",
+      "last_interaction_at": "最近互动",
+      "preferred_language": "偏好语言",
+      "birthday_month": "生日月份",
+      "visit_count": "到访次数"
+    },
+    "segmentOp": {
+      "eq": "等于",
+      "neq": "不等于",
+      "in": "属于",
+      "not_in": "不属于",
+      "gte": "≥",
+      "lte": "≤",
+      "exists": "存在",
+      "not_exists": "不存在"
+    }
   }
 }

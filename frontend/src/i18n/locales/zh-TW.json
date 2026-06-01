@@ -113,7 +113,12 @@
     "inventoryAI": "庫存 AI",
     "inventoryStockTake": "庫存盤點",
     "inventoryAnalytics": "分析",
-    "inventoryLocationPricing": "分店定價"
+    "inventoryLocationPricing": "分店定價",
+    "crm": "客戶管理",
+    "crmDashboard": "客戶概覽",
+    "crmCustomers": "客戶",
+    "crmTags": "標籤",
+    "crmSegments": "客戶分群"
   },
   "inventory": {
     "title": "庫存",
@@ -573,10 +578,10 @@
     "byChannel": "按頻道",
     "byLocation": "按位置",
     "daily": "每日趨勢",
-    "conversations": "對話",
+    "conversations": "會話",
     "messages": "訊息",
     "handoffs": "轉接",
-    "avgResponseTime": "平均回應時間",
+    "avgResponseTime": "平均響應時間",
     "seconds": "秒",
     "last7Days": "過去7天",
     "last30Days": "過去30天",
@@ -616,7 +621,6 @@
     "noShows": "未到",
     "powerPlanAnalytics": "高級版數據分析",
     "powerPlanAnalyticsSubtitle": "高級版訂閱用戶專享的高級洞察和詳細性能指標",
-    "avgResponseTime": "平均響應時間",
     "basedOnMessages": "基於 {{count}} 條訊息",
     "fastestResponse": "最快響應",
     "bestResponseTime": "已達到的最佳響應時間",
@@ -635,7 +639,6 @@
     "weeklyActivityPattern": "每週活動模式",
     "conversationByDayOfWeek": "按星期幾的會話分佈",
     "noWeeklyData": "暫無每週數據",
-    "conversations": "會話",
     "locationPerformance": "位置表現",
     "analyticsByLocation": "按位置細分的分析數據",
     "noLocationData": "暫無位置數據",
@@ -934,5 +937,113 @@
     "unauthorized": "您無權執行此操作。",
     "notFound": "未找到請求的資源。",
     "validationError": "請檢查您的輸入並重試。"
+  },
+  "crm": {
+    "dashboard": {
+      "title": "客戶概覽",
+      "totalCustomers": "客戶總數",
+      "newThisMonth": "本月新增",
+      "consentRate": "同意率",
+      "birthdayThisMonth": "本月生日",
+      "inactive": "不活躍（90天以上）",
+      "bySource": "按來源劃分的客戶"
+    },
+    "customers": {
+      "title": "客戶",
+      "count": "{{count}} 位客戶",
+      "add": "新增客戶",
+      "searchPlaceholder": "搜尋姓名、電話或電郵",
+      "source": "來源",
+      "consent": "同意",
+      "visits": "到訪次數",
+      "birthday": "生日",
+      "whatsapp": "WhatsApp",
+      "lastVisit": "最近到訪",
+      "empty": "暫無客戶。客戶會從預訂和對話中自動加入。"
+    },
+    "detail": {
+      "info": "資料",
+      "timeline": "時間軸",
+      "consent": "同意紀錄",
+      "tags": "標籤"
+    },
+    "tags": {
+      "title": "標籤",
+      "add": "新增標籤",
+      "color": "顏色",
+      "systemLocked": "系統標籤無法刪除。"
+    },
+    "segments": {
+      "title": "客戶分群",
+      "add": "新增分群",
+      "empty": "暫無分群。建立一個以按規則分組客戶。",
+      "matchLogic": "符合",
+      "all": "所有規則（且）",
+      "any": "任一規則（或）",
+      "addRule": "新增規則",
+      "commaSeparated": "以逗號分隔的值",
+      "previewCount": "符合 {{count}} 位客戶",
+      "memberCount": "{{count}} 位成員"
+    },
+    "source": {
+      "booking": "預訂",
+      "chatbot": "聊天機械人",
+      "whatsapp": "WhatsApp",
+      "instagram": "Instagram",
+      "messenger": "Messenger",
+      "manual": "手動",
+      "lucky_draw": "抽獎",
+      "wifi": "WiFi",
+      "walk_in": "到店",
+      "import": "匯入"
+    },
+    "consent": {
+      "not_asked": "未詢問",
+      "given": "已同意",
+      "refused": "已拒絕",
+      "withdrawn": "已撤回"
+    },
+    "consentSource": {
+      "booking_form": "預訂表單",
+      "lucky_draw_form": "抽獎表單",
+      "wifi_form": "WiFi 表單",
+      "chatbot": "聊天機械人",
+      "manual": "手動",
+      "import": "匯入"
+    },
+    "interactionType": {
+      "booking": "預訂",
+      "chatbot_message": "聊天訊息",
+      "whatsapp_message": "WhatsApp 訊息",
+      "instagram_message": "Instagram 訊息",
+      "messenger_message": "Messenger 訊息",
+      "phone_call": "電話",
+      "walk_in": "到店",
+      "lucky_draw_entry": "抽獎參與",
+      "wifi_signin": "WiFi 登入",
+      "manual_note": "手動備註",
+      "coupon_redeemed": "優惠券已核銷",
+      "whatsapp_coupon_sent": "已傳送 WhatsApp 優惠券"
+    },
+    "segmentField": {
+      "source": "來源",
+      "marketing_consent_status": "同意狀態",
+      "tags": "標籤",
+      "last_visit_date": "最近到訪日期",
+      "last_interaction_at": "最近互動",
+      "preferred_language": "偏好語言",
+      "birthday_month": "生日月份",
+      "visit_count": "到訪次數"
+    },
+    "segmentOp": {
+      "eq": "等於",
+      "neq": "不等於",
+      "in": "屬於",
+      "not_in": "不屬於",
+      "gte": "≥",
+      "lte": "≤",
+      "exists": "存在",
+      "not_exists": "不存在"
+    }
   }
 }

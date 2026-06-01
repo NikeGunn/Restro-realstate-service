@@ -161,9 +161,11 @@ The prerequisite `common` library app (REQUIREMENTS.md § Phase 0). Pure cross-c
 
 ## `crm` app — Phase 1 CRM Lite
 
-### Phase 1a (backend) — DONE (2026-06-01, 267/267 backend tests pass)
+### Phase 1 — DONE (2026-06-01, 267/267 backend tests pass, frontend prod build clean)
 
-Consent-compliant customer database mounted at **`/api/v1/crm/`**. Authorized scope override of `agent.md`'s no-CRM rule (2026-05-31). Builds on Phase 0 `common`. **Frontend is Phase 1b (not yet built).**
+Consent-compliant customer database mounted at **`/api/v1/crm/`** with a full React admin UI. Authorized scope override of `agent.md`'s no-CRM rule (2026-05-31). Builds on Phase 0 `common`. Backend = Phase 1a; frontend = Phase 1b (both done).
+
+#### Phase 1a (backend)
 
 **Models** (`models.py`, migration `0001` + data migration `0002`, all tables `crm_*`, UUID PKs):
 - `CRMCustomer` — partial unique constraints `uniq_crm_org_phone` / `uniq_crm_org_email` (only when non-null/non-empty). Denormalized **`birthday_month`** (indexed) + **`visit_count`** for cheap segments. `save()` normalizes phone→E.164 (HK default, via `customer_service.normalize_phone`), lowercases email, derives `birthday_month`, defaults `whatsapp_number`. Indexes on `(org, consent_status)`, `(org, source)`, `(org, birthday_month)`, `(org, last_visit_date)`.
@@ -185,10 +187,19 @@ Consent-compliant customer database mounted at **`/api/v1/crm/`**. Authorized sc
 
 **Tests** (`apps/crm/tests/`, **53 — spec minimum was 28**): `test_models` (8: partial-unique, append-only, birthday_month, cross-org phone OK), `test_customer_service` (8: E.164/HK, dedupe by phone/email, backfill, merge, cross-org reject), `test_segment_dsl` (10: every op, OR logic, relative date, tags, **unknown field/op + injection rejected, no eval**), `test_consent` (6: refusal vs withdrawal, gate, opt-out ts), `test_api` (11: CRUD, manager RO, cross-org 404, preview, ready-to-engage consent filter, system-tag delete block, merge), `test_signals` (7: org seeding, booking/conversation sync, pending/website skipped, **failure-doesn't-break-save**), `test_permissions` (4). **Full suite 267/267 green in Docker.**
 
-### Phase 1a known limitations / debt
-- Frontend (`pages/crm/*`, `services/crm.ts`, sidebar CRM group, i18n) is **not built** — that's Phase 1b. The API is live and tested.
+#### Phase 1b (frontend) — DONE
+- `services/crm.ts` — typed axios client for all CRM endpoints (`BASE='/v1/crm'`); `unwrap()` for paginated/array responses; exports `SEGMENT_FIELDS`/`SEGMENT_OPS` mirroring the backend DSL whitelist (drives the rule builder).
+- Pages under `pages/crm/`: `CRMDashboardPage` (KPIs — total/new-this-month/consent-rate, recharts by-source bar, **ready-to-engage cards** for birthdays + inactive), `CustomersPage` (search + source/consent filters, table with tag chips + consent badges, create dialog, row→drawer), `CustomerDetailDrawer` (Tabs: Info/Timeline/Consent/Tags — edit notes, interaction timeline, consent history, toggle tags), `TagsPage` (CRUD with color picker, system tags lock-icon + delete-blocked), `SegmentsPage` (card grid + **rule-builder dialog**: field/op/value rows, AND/OR toggle, **debounced live preview count** via `/segments/preview/`).
+- Routes wired in `App.tsx` under `OrganizationRequiredRoute` at `/crm`, `/crm/customers`, `/crm/tags`, `/crm/segments`.
+- Sidebar (`DashboardLayout.tsx`): new collapsible **`crmGroup`** (`Contact` icon, `pathPrefix:/crm`) with 4 `NavLeaf` children — pushed after `inventoryGroup`, shared across verticals.
+- i18n: full `crm.*` block + `nav.crm*` keys in **en / zh-CN / zh-TW** (11 sub-blocks each: dashboard, customers, detail, tags, segments, source, consent, consentSource, interactionType, segmentField, segmentOp).
+- Reuses inventory's `InventoryLoading/Empty/Error` state components and existing Shadcn + recharts (no new UI library).
+- `npm run build` clean; `npm run build:check` shows **zero new TS errors in CRM files** (pre-existing errors in realestate/restaurant/settings/etc. are unrelated and CI doesn't gate on them).
+
+### Phase 1 known limitations / debt
 - `merge_customers` soft-deletes the duplicate (`is_active=False`) after nulling its phone/email so the primary can claim them; the duplicate row is retained for audit (never hard-deleted).
 - A no-org user gets **403** (not empty 200) on CRM endpoints — `IsOrgMember` requires membership. Intentional; matches inventory.
+- The CRM dashboard KPIs compute client-side over the first customers page (sufficient for typical org sizes); a dedicated `/stats` aggregation endpoint can be added later if an org grows past one page.
 
 ## Inventory app — Plane B (resume notes)
 

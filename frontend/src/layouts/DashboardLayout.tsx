@@ -36,6 +36,9 @@ import {
   ChevronRight,
   TrendingUp,
   MapPin,
+  Contact,
+  Tag,
+  Filter,
 } from 'lucide-react'
 
 type NavLeaf = {
@@ -105,6 +108,21 @@ const inventoryGroup: NavGroup = {
   ],
 }
 
+// CRM Lite (Phase 1) — collapsible group, shared across verticals.
+const crmGroup: NavGroup = {
+  kind: 'group',
+  id: 'crm',
+  labelKey: 'nav.crm',
+  icon: Contact,
+  pathPrefix: '/crm',
+  children: [
+    { kind: 'leaf', path: '/crm', labelKey: 'nav.crmDashboard', icon: LayoutDashboard },
+    { kind: 'leaf', path: '/crm/customers', labelKey: 'nav.crmCustomers', icon: Users },
+    { kind: 'leaf', path: '/crm/tags', labelKey: 'nav.crmTags', icon: Tag },
+    { kind: 'leaf', path: '/crm/segments', labelKey: 'nav.crmSegments', icon: Filter },
+  ],
+}
+
 const settingsNavKey: NavLeaf = { kind: 'leaf', path: '/settings', labelKey: 'nav.settings', icon: Settings }
 const channelsNavKey: NavLeaf = { kind: 'leaf', path: '/settings/channels', labelKey: 'nav.channels', icon: Phone }
 
@@ -150,6 +168,9 @@ export function DashboardLayout() {
 
     // Inventory is shared across both verticals — single collapsible group.
     items.push(inventoryGroup)
+
+    // CRM Lite — shared across verticals.
+    items.push(crmGroup)
 
     items.push(settingsNavKey)
     items.push(channelsNavKey)

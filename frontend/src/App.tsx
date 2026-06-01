@@ -41,6 +41,12 @@ import { StockTakePage } from '@/pages/inventory/StockTakePage'
 import { Phase5ReportsPage } from '@/pages/inventory/Phase5ReportsPage'
 import { LocationPricingPage } from '@/pages/inventory/LocationPricingPage'
 
+// CRM (Phase 1)
+import { CRMDashboardPage } from '@/pages/crm/CRMDashboardPage'
+import { CustomersPage } from '@/pages/crm/CustomersPage'
+import { TagsPage } from '@/pages/crm/TagsPage'
+import { SegmentsPage } from '@/pages/crm/SegmentsPage'
+
 // Public pages
 import { LandingPage } from '@/pages/LandingPage'
 import { PrivacyPolicy } from '@/pages/PrivacyPolicy'
@@ -206,6 +212,12 @@ function App() {
           <Route path="/inventory/stock-take" element={<StockTakePage />} />
           <Route path="/inventory/analytics" element={<Phase5ReportsPage />} />
           <Route path="/inventory/location-pricing" element={<LocationPricingPage />} />
+
+          {/* CRM (Phase 1) */}
+          <Route path="/crm" element={<CRMDashboardPage />} />
+          <Route path="/crm/customers" element={<CustomersPage />} />
+          <Route path="/crm/tags" element={<TagsPage />} />
+          <Route path="/crm/segments" element={<SegmentsPage />} />
         </Route>
       </Routes>
       <Toaster />

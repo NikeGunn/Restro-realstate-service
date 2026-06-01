@@ -113,7 +113,12 @@
     "inventoryAI": "Inventory AI",
     "inventoryStockTake": "Stock-take",
     "inventoryAnalytics": "Analytics",
-    "inventoryLocationPricing": "Location pricing"
+    "inventoryLocationPricing": "Location pricing",
+    "crm": "CRM",
+    "crmDashboard": "CRM Dashboard",
+    "crmCustomers": "Customers",
+    "crmTags": "Tags",
+    "crmSegments": "Segments"
   },
   "inventory": {
     "title": "Inventory",
@@ -600,7 +605,7 @@
     "byChannel": "By Channel",
     "byLocation": "By Location",
     "daily": "Daily Trends",
-    "conversations": "Conversations",
+    "conversations": "conversations",
     "messages": "Messages",
     "handoffs": "Handoffs",
     "avgResponseTime": "Avg Response Time",
@@ -643,7 +648,6 @@
     "noShows": "no-shows",
     "powerPlanAnalytics": "Power Plan Analytics",
     "powerPlanAnalyticsSubtitle": "Advanced insights and detailed performance metrics exclusive to Power Plan subscribers",
-    "avgResponseTime": "Avg Response Time",
     "basedOnMessages": "Based on {{count}} messages",
     "fastestResponse": "Fastest Response",
     "bestResponseTime": "Best response time achieved",
@@ -662,7 +666,6 @@
     "weeklyActivityPattern": "Weekly Activity Pattern",
     "conversationByDayOfWeek": "Conversation distribution by day of week",
     "noWeeklyData": "No weekly data available",
-    "conversations": "conversations",
     "locationPerformance": "Location Performance",
     "analyticsByLocation": "Analytics breakdown by location",
     "noLocationData": "No location data available",
@@ -1001,5 +1004,113 @@
     "unauthorized": "You are not authorized to perform this action.",
     "notFound": "The requested resource was not found.",
     "validationError": "Please check your input and try again."
+  },
+  "crm": {
+    "dashboard": {
+      "title": "CRM Dashboard",
+      "totalCustomers": "Total customers",
+      "newThisMonth": "New this month",
+      "consentRate": "Consent rate",
+      "birthdayThisMonth": "Birthdays this month",
+      "inactive": "Inactive (90d+)",
+      "bySource": "Customers by source"
+    },
+    "customers": {
+      "title": "Customers",
+      "count": "{{count}} customers",
+      "add": "Add customer",
+      "searchPlaceholder": "Search name, phone or email",
+      "source": "Source",
+      "consent": "Consent",
+      "visits": "Visits",
+      "birthday": "Birthday",
+      "whatsapp": "WhatsApp",
+      "lastVisit": "Last visit",
+      "empty": "No customers yet. They appear automatically from bookings and chats."
+    },
+    "detail": {
+      "info": "Info",
+      "timeline": "Timeline",
+      "consent": "Consent",
+      "tags": "Tags"
+    },
+    "tags": {
+      "title": "Tags",
+      "add": "Add tag",
+      "color": "Color",
+      "systemLocked": "System tags cannot be deleted."
+    },
+    "segments": {
+      "title": "Segments",
+      "add": "New segment",
+      "empty": "No segments yet. Create one to group customers by rules.",
+      "matchLogic": "Match",
+      "all": "All rules (AND)",
+      "any": "Any rule (OR)",
+      "addRule": "Add rule",
+      "commaSeparated": "comma,separated,values",
+      "previewCount": "Matches {{count}} customers",
+      "memberCount": "{{count}} members"
+    },
+    "source": {
+      "booking": "Booking",
+      "chatbot": "Chatbot",
+      "whatsapp": "WhatsApp",
+      "instagram": "Instagram",
+      "messenger": "Messenger",
+      "manual": "Manual",
+      "lucky_draw": "Lucky Draw",
+      "wifi": "WiFi",
+      "walk_in": "Walk-in",
+      "import": "Import"
+    },
+    "consent": {
+      "not_asked": "Not asked",
+      "given": "Given",
+      "refused": "Refused",
+      "withdrawn": "Withdrawn"
+    },
+    "consentSource": {
+      "booking_form": "Booking form",
+      "lucky_draw_form": "Lucky draw form",
+      "wifi_form": "WiFi form",
+      "chatbot": "Chatbot",
+      "manual": "Manual",
+      "import": "Import"
+    },
+    "interactionType": {
+      "booking": "Booking",
+      "chatbot_message": "Chatbot message",
+      "whatsapp_message": "WhatsApp message",
+      "instagram_message": "Instagram message",
+      "messenger_message": "Messenger message",
+      "phone_call": "Phone call",
+      "walk_in": "Walk-in",
+      "lucky_draw_entry": "Lucky draw entry",
+      "wifi_signin": "WiFi sign-in",
+      "manual_note": "Manual note",
+      "coupon_redeemed": "Coupon redeemed",
+      "whatsapp_coupon_sent": "WhatsApp coupon sent"
+    },
+    "segmentField": {
+      "source": "Source",
+      "marketing_consent_status": "Consent status",
+      "tags": "Tag",
+      "last_visit_date": "Last visit date",
+      "last_interaction_at": "Last interaction",
+      "preferred_language": "Preferred language",
+      "birthday_month": "Birthday month",
+      "visit_count": "Visit count"
+    },
+    "segmentOp": {
+      "eq": "is",
+      "neq": "is not",
+      "in": "in",
+      "not_in": "not in",
+      "gte": "≥",
+      "lte": "≤",
+      "exists": "exists",
+      "not_exists": "does not exist"
+    }
   }
 }
