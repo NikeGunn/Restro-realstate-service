@@ -22,6 +22,12 @@ from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 
 from apps.accounts.models import OrganizationMembership
+from apps.common.utils import (
+    client_ip as _client_ip,
+    model_to_dict as _model_to_dict,
+    diff as _diff,
+)
+from apps.common.mixins import AuditLoggedMixin as _CommonAuditLoggedMixin
 
 from .mixins import InventoryOrgScopeMixin
 from .models import (
@@ -54,108 +60,20 @@ from .serializers import (
 
 
 # ──────────────────────────────────────────────────────────────────────
-# Helpers
+# Audit logging
+#
+# As of Phase 0 the helpers (_client_ip / _model_to_dict / _diff) and the
+# create/update/destroy audit logic were promoted to apps.common (imported at
+# the top of this module under their original names). This subclass just points
+# the shared mixin at the inventory audit model — behavior is unchanged.
 # ──────────────────────────────────────────────────────────────────────
-def _client_ip(request):
-    xff = request.META.get('HTTP_X_FORWARDED_FOR')
-    if xff:
-        return xff.split(',')[0].strip()
-    return request.META.get('REMOTE_ADDR')
-
-
-def _model_to_dict(instance, exclude=('updated_at',)):
-    """Lightweight snapshot for audit-log diffs."""
-    data = {}
-    for f in instance._meta.fields:
-        if f.name in exclude:
-            continue
-        val = getattr(instance, f.attname, None)
-        if hasattr(val, 'isoformat'):
-            val = val.isoformat()
-        elif isinstance(val, Decimal):
-            val = str(val)
-        else:
-            val = str(val) if val is not None else None
-        data[f.name] = val
-    return data
-
-
-def _diff(before: dict, after: dict) -> dict:
-    out = {}
-    for k in set(before) | set(after):
-        b, a = before.get(k), after.get(k)
-        if b != a:
-            out[k] = {'before': b, 'after': a}
-    return out
-
-
-class AuditLoggedMixin:
+class AuditLoggedMixin(_CommonAuditLoggedMixin):
     """
-    Auto-log create/update/destroy on inventory ViewSets to InventoryAuditLog.
-
-    Reads `audit_model_name` from the ViewSet (defaults to model class name).
-    Skips logging when the writer is None or the request is read-only.
+    Inventory audit logging — writes to InventoryAuditLog. The create/update/
+    destroy logic lives in the shared common mixin (Phase 0); this subclass
+    just points it at the inventory audit model, so behavior is unchanged.
     """
-    audit_model_name = None
-
-    def _audit(self, action: str, instance, before=None, after=None):
-        try:
-            org = getattr(instance, 'organization', None)
-            if org is None:
-                # Fallback for models scoped via item or stock_take.
-                org = (
-                    getattr(getattr(instance, 'item', None), 'organization', None)
-                    or getattr(getattr(instance, 'stock_take', None), 'organization', None)
-                )
-            InventoryAuditLog.objects.create(
-                organization=org,
-                location=getattr(instance, 'location', None),
-                action=action,
-                model_name=self.audit_model_name or type(instance).__name__,
-                object_id=instance.id,
-                object_repr=str(instance)[:200],
-                before=before,
-                after=after,
-                diff=_diff(before, after) if (before and after) else None,
-                performed_by=self.request.user if self.request.user.is_authenticated else None,
-                ip_address=_client_ip(self.request),
-            )
-        except Exception:
-            # Never let audit failure break the request.
-            import logging
-            logging.getLogger(__name__).exception('Audit log write failed')
-
-    def perform_create(self, serializer):
-        super().perform_create(serializer)
-        instance = serializer.instance
-        self._audit('create', instance, after=_model_to_dict(instance))
-
-    def perform_update(self, serializer):
-        before_instance = self.get_object()
-        before = _model_to_dict(before_instance)
-        super().perform_update(serializer)
-        instance = serializer.instance
-        self._audit('update', instance, before=before, after=_model_to_dict(instance))
-
-    def perform_destroy(self, instance):
-        before = _model_to_dict(instance)
-        org = instance.organization
-        loc = getattr(instance, 'location', None)
-        model_name = self.audit_model_name or type(instance).__name__
-        instance_id = instance.id
-        instance_repr = str(instance)[:200]
-        super().perform_destroy(instance)
-        try:
-            InventoryAuditLog.objects.create(
-                organization=org, location=loc,
-                action='delete', model_name=model_name,
-                object_id=instance_id, object_repr=instance_repr,
-                before=before,
-                performed_by=self.request.user if self.request.user.is_authenticated else None,
-                ip_address=_client_ip(self.request),
-            )
-        except Exception:
-            pass
+    audit_log_model = InventoryAuditLog
 
 
 # ──────────────────────────────────────────────────────────────────────

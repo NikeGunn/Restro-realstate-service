@@ -1,68 +1,38 @@
 """
 Inventory permissions — Plane B is admin-only.
 
-Roles in this codebase live on apps.accounts.OrganizationMembership.role
-with choices ('owner', 'manager'). There is no separate 'admin' role.
+As of Phase 0 the role logic was promoted to `apps.common.permissions`
+(`IsOrgMember` / `IsOrgOwner`). The inventory classes are kept as thin
+subclasses so existing imports and behavior are unchanged:
 
-Inventory write access  → owner only
-Inventory read access   → owner OR manager
+    IsInventoryAdmin     -> owner write / owner|manager read  (== IsOrgMember)
+    IsInventoryReadOnly  -> read-only for owner|manager
+
+Roles live on apps.accounts.OrganizationMembership.role with choices
+('owner', 'manager'). There is no separate 'admin' role.
 """
 from rest_framework.permissions import BasePermission, SAFE_METHODS
-from apps.accounts.models import OrganizationMembership
+
+from apps.common.permissions import (
+    IsOrgMember,
+    user_role_in_org,
+    user_has_any_owner_membership,
+    user_has_any_membership,
+)
+
+# Re-export the helpers under their original private names so any existing
+# imports keep working.
+_user_role_in_org = user_role_in_org
+_user_has_any_owner_membership = user_has_any_owner_membership
+_user_has_any_membership = user_has_any_membership
 
 
-def _user_role_in_org(user, organization_id):
-    if not user or not user.is_authenticated or not organization_id:
-        return None
-    m = OrganizationMembership.objects.filter(
-        user=user, organization_id=organization_id
-    ).first()
-    return m.role if m else None
-
-
-def _user_has_any_owner_membership(user):
-    if not user or not user.is_authenticated:
-        return False
-    return OrganizationMembership.objects.filter(
-        user=user, role=OrganizationMembership.Role.OWNER
-    ).exists()
-
-
-def _user_has_any_membership(user):
-    if not user or not user.is_authenticated:
-        return False
-    return OrganizationMembership.objects.filter(user=user).exists()
-
-
-class IsInventoryAdmin(BasePermission):
+class IsInventoryAdmin(IsOrgMember):
     """
-    Owner-level access required. Used for write operations (create/update/delete).
-    Object-level check additionally enforces that the object's organization
-    matches one of the user's owner memberships.
+    Owner-level write, owner|manager read — identical to the shared IsOrgMember.
+    Kept as a named subclass for import stability and a clearer message.
     """
     message = "Inventory write access requires owner role in the organization."
-
-    def has_permission(self, request, view):
-        # For list/retrieve we check at queryset level; this gates writes.
-        if not request.user or not request.user.is_authenticated:
-            return False
-        if request.method in SAFE_METHODS:
-            return _user_has_any_membership(request.user)
-        return _user_has_any_owner_membership(request.user)
-
-    def has_object_permission(self, request, view, obj):
-        if not request.user.is_authenticated:
-            return False
-        org_id = getattr(obj, 'organization_id', None)
-        if not org_id:
-            return False
-        role = _user_role_in_org(request.user, org_id)
-        if request.method in SAFE_METHODS:
-            return role in (
-                OrganizationMembership.Role.OWNER,
-                OrganizationMembership.Role.MANAGER,
-            )
-        return role == OrganizationMembership.Role.OWNER
 
 
 class IsInventoryReadOnly(BasePermission):
@@ -74,4 +44,4 @@ class IsInventoryReadOnly(BasePermission):
             return False
         if request.method not in SAFE_METHODS:
             return False
-        return _user_has_any_membership(request.user)
+        return user_has_any_membership(request.user)

@@ -8,6 +8,8 @@ Multi-tenant AI business chatbot platform ("Kribaat" / chatplatform) with two ve
 
 The product spec is `agent.md` (gitignored locally but authoritative for scope decisions). It is strict about NOT building POS/CRM/payments/delivery features — keep changes inside the documented scope unless the user explicitly overrides.
 
+**`REQUIREMENTS.md`** (repo root, committed) is the authoritative **design spec for the next 6 authorized phases** — CRM Lite, Lucky Draw, Menu updates, Drink/Cocktail formulas, AI Content Studio, and Credit/Usage Billing (plus a prerequisite `common` infra phase). It is hardened against the real codebase and the Tencent/ArgoCD pipeline. **It is design only — do not start coding any of those phases until the user explicitly says "start Phase N".** The CRM phase is an authorized scope override of `agent.md`'s no-CRM rule (user-authorized 2026-05-31).
+
 ## Common Commands
 
 > **Always run this app via Docker.** Never use `python manage.py runserver` or `npm run dev` against the host directly — host Python / Node versions can drift from the container (Python 3.11 in the backend image vs. whatever is on the host) and silently mask bugs that production will hit. **Always run tests inside Docker too** (`docker-compose run --rm backend pytest ...`, `docker-compose run --rm frontend npm test`). A "host green / Docker red" gap has burned us before.
@@ -57,18 +59,32 @@ Note: `npm run build` deliberately skips `tsc`. CI also doesn't gate on TypeScri
 
 The `node_modules` lives in a **named volume** (`frontend_node_modules`), not anonymous, so it survives `docker compose down`. Only `docker compose down -v` (which `kribaat-down.ps1 -Wipe` runs) drops it — and even then the entrypoint rehydrates on next start.
 
-### Production / deployment
-- **CI is the deploy mechanism.** Pushing to `main` triggers `.github/workflows/deploy.yml`, which builds Docker images, tags them with the short SHA, rewrites `image:` lines in `k8s/*/deployment.yaml`, commits the manifest update back to `main` ("🚀 Deploy: ..."), and ArgoCD auto-syncs within ~3 minutes. Do not manually edit image tags in `k8s/`.
-- `redeploy.ps1` and `toggle-maintenance.ps1` are legacy SSH-based deploy tools for the pre-K8s VM at `43.152.233.234`. Do not use them for the production cluster — they bypass GitOps. They are gitignored (see `.gitignore`: `*.ps1`).
-- Secrets are *not* in `k8s/secrets.yaml` (gitignored). They are pushed by the `deploy-secrets` job in CI via SSH from GitHub Secrets.
+### Production / deployment (Tencent Cloud K3s + GitHub Actions → ArgoCD)
+The cluster runs on **Tencent Cloud**. The deploy contract is: **you `git push` to `main`, ArgoCD does the rest.** Never `kubectl`, SSH the bastion, or edit image tags by hand for a routine deploy.
+
+- **CI is the deploy mechanism** (`.github/workflows/deploy.yml`, 5 jobs in order):
+  1. `test` — backend `manage.py test` + frontend `npm run build` on GitHub runners. **⚠️ Runs with `|| true` / `continue-on-error` → failing tests do NOT block the deploy.** Treat "tests green" as a discipline you enforce **locally in Docker before pushing** — CI will not catch a regression for you.
+  2. `build` — builds `*/Dockerfile.prod`, pushes to **Docker Hub** (`${DOCKER_USERNAME}/chatplatform-backend` + `-frontend`), tagged short-SHA + `latest`, with registry build cache.
+  3. `update-manifests` — `sed`-rewrites `image:` lines in `k8s/{backend,frontend,celery-worker,celery-beat}/deployment.yaml` + `k8s/backend/migrate-job.yaml` to the new SHA and commits back to `main` ("🚀 Deploy: ..."). **Do not hand-edit those tags — the bot owns them.**
+  4. `deploy-secrets` — SSHes the Tencent bastion (`K8S_SERVER_IP`/`K8S_SERVER_USER`/`K8S_SSH_KEY`), recreates the `chatplatform-secrets` Secret from GitHub Secrets, `kubectl rollout restart backend celery-worker celery-beat`, then re-applies `k8s/argocd/application.yaml` (drift guard). **This is the only path for secrets into the cluster.**
+  5. `security-scan` — Trivy (non-blocking).
+- **ArgoCD** runs in-cluster, watches the repo's `k8s/` path (`recurse: true`, excludes `argocd/*` + `kustomization.yaml` → **plain manifests, not Kustomize**), auto-syncs ~3 min (`prune`, `selfHeal`, `ServerSideApply`), runs the **PreSync `migrate-job`** before Deployments roll, and **ignores `/spec/replicas` drift** (so `kubectl scale` survives a sync).
+- **Where new config goes:** non-secret env → `k8s/configmap.yaml` (`chatplatform-config`, committed → ArgoCD applies). Secret env → a GitHub Secret **and** a new `--from-literal=` line in the `deploy-secrets` job. (`OPENAI_MODEL: gpt-4o-mini` lives in the configmap and is read by chatbot Plane A — don't repurpose it; add new keys for new features.)
+- **Images come from Docker Hub** (not Tencent TCR). Mirroring to TCR is a possible future infra change if Docker Hub pull limits/latency ever bite — out of scope unless raised.
+- `redeploy.ps1` / `toggle-maintenance.ps1` are legacy SSH tools for the pre-K8s VM (`43.152.233.234`). **Do not use them** — they bypass GitOps and are gitignored (`*.ps1`).
+- Secrets are **not** in `k8s/secrets.yaml` (gitignored) — only the `deploy-secrets` job creates `chatplatform-secrets`.
+- **Migrations must be forward-only/additive** (new tables, nullable/defaulted columns, new enum *values*). The PreSync migrate-job runs before a `RollingUpdate maxUnavailable:0` rollout, so the still-running old pod must be able to query the post-migration schema — no drops/renames in the same release as code that reads them.
 
 ## Architecture
 
 ### Backend layout (`backend/`, Django 4.2 + DRF + Celery)
 `config/` holds Django settings, `apps/` holds the domain. Apps are split into **core** and **vertical**:
 
-- **Core**: `accounts` (User/Organization/Location/Role, JWT auth), `messaging` (unified `Conversation`/`Message` model + FSM, channel-agnostic), `ai_engine` (OpenAI integration, language detection, confidence scoring), `knowledge` (KnowledgeBase + FAQ), `handoff` (human takeover, AI-disable), `analytics`, `widget` (serves `widget.js` and the `/api/v1/widget/` public endpoints), `channels` (WhatsApp + Instagram via Meta Graph API + webhook handlers).
+- **Core**: `accounts` (User/Organization/Location/Role, JWT auth), `messaging` (unified `Conversation`/`Message` model + FSM, channel-agnostic), `ai_engine` (OpenAI integration, language detection, confidence scoring), `knowledge` (KnowledgeBase + FAQ), `handoff` (human takeover, AI-disable), `analytics`, `widget` (serves `widget.js` and the `/api/v1/widget/` public endpoints), `channels` (WhatsApp + Instagram via Meta Graph API + webhook handlers), `coupons` (admin-managed promo codes that grant an **org plan tier** for N days — **not** customer discounts; see `apps/coupons/models.py`).
 - **Verticals**: `restaurant` (menu, bookings), `realestate` (listings, leads, appointments). Verticals plug into core — they must NOT duplicate auth, messaging, or AI logic.
+- **Admin module**: `inventory` (Plane B — owner-only stock/suppliers/recipes/POs; full design history in the `### Inventory app` / `### Phase N — DONE` blocks below).
+- **Shared infra: `common` (Phase 0 — DONE).** `apps/common/` holds the cross-cutting machinery promoted from inventory: `OrgScopeMixin` + `AuditLoggedMixin` (`mixins.py`), `IsOrgMember`/`IsOrgOwner` (`permissions.py`), public throttle classes (`throttling.py`), the Redis idempotency helper (`idempotency.py`), shared audit helpers (`utils.py`), and the opt-in object-storage hook (`storage.py`). No tables, no URL mount. See the `### Phase 0 — DONE` block below.
+- **Planned expansion (design only — see `REQUIREMENTS.md` at repo root):** `crm`, `lucky_draw`, `content_studio`, `billing`. **`REQUIREMENTS.md` is the authoritative spec for these phases. Do not start building them until the user says "start Phase N".**
 
 **Key cross-cutting invariants** (these are the "big picture" rules that span multiple files):
 
@@ -101,11 +117,14 @@ Routes are mounted in `backend/config/urls.py`. The two non-obvious ones:
 ### Embeddable widget
 The widget is **not** a separate npm package. It's a single static file at `backend/apps/widget/widget.js` served by Django's static pipeline. `apps/widget/views.py` handles its API (`/api/v1/widget/init/`, `/api/v1/widget/message/`). When changing the widget, you're editing one JS file — keep it framework-free.
 
-### Infra (`k8s/`, ArgoCD)
-- `k8s/argocd/application.yaml` is the ArgoCD `Application` pointing at this repo's `k8s/` directory.
-- One Deployment per component: `backend`, `frontend`, `celery-worker`, `celery-beat`, plus StatefulSets for `postgres` and `redis`. Do NOT add `volumeClaimTemplates` status fields manually — recent commits show ArgoCD's `ignoreDifferences` is configured to skip those (see commits `3c9a932`, `b260df5`).
-- `k8s/secrets.yaml` is gitignored. The CI `deploy-secrets` job creates the `chatplatform-secrets` Secret directly via `kubectl` over SSH.
-- Image tags are rewritten by CI; do not edit them by hand.
+### Infra (`k8s/`, ArgoCD on Tencent Cloud)
+- `k8s/argocd/application.yaml` is the ArgoCD `Application` pointing at this repo's `k8s/` directory (`recurse: true`, excludes `argocd/*` + `kustomization.yaml` → **plain manifests, not Kustomize**; new manifests are just valid YAML dropped under `k8s/`).
+- One Deployment per component: `backend`, `frontend`, `celery-worker`, `celery-beat`, plus StatefulSets for `postgres` and `redis`. Do NOT add `volumeClaimTemplates` status fields manually — ArgoCD's `ignoreDifferences` is configured to skip those (commits `3c9a932`, `b260df5`).
+- ArgoCD `ignoreDifferences` also covers Deployment `/spec/replicas` — so `kubectl scale` is honored and not reverted on the next sync.
+- **Media storage is a 5Gi `ReadWriteOnce` `media-pvc` and the backend is pinned to `replicas: 1` *because of it*** (`k8s/backend/pvc.yaml`, `deployment.yaml`). User uploads / generated images write to `/app/media`. **To scale the backend past 1 replica you must first move media to object storage** (Tencent COS `ap-hongkong` or R2 via `django-storages` + `USE_OBJECT_STORAGE=true`) — see `REQUIREMENTS.md` § Phase 0 / Cross-Cutting › Media & Storage. Don't bump replicas while media is on the RWO PVC.
+- `k8s/secrets.yaml` is gitignored. The CI `deploy-secrets` job creates the `chatplatform-secrets` Secret directly via `kubectl` over SSH from the Tencent bastion.
+- Image tags are rewritten by CI; do not edit them by hand. Images live on **Docker Hub** (`${DOCKER_USERNAME}/chatplatform-*`).
+- `k8s/tests/` holds the cluster test suite (commit `dfe56c5`); `k8s/cert-manager/` + `ingress.yaml` front TLS via Traefik.
 
 ## Conventions specific to this repo
 
@@ -115,6 +134,30 @@ The widget is **not** a separate npm package. It's a single static file at `back
 - **`*.ps1` scripts are gitignored** (except `config.ps1.example`). Local-only deployment helpers; don't rely on them in CI or docs.
 - **`agent.md`, `QUICK_REFERENCE.txt`, `SECURITY*.md`, `*-diagnostic.ps1`, `check_*.py` and similar debug scripts are gitignored** — when investigating, you may find such files locally; don't commit them.
 - The repo path contains a space (`Restro & real estate`). Quote paths in shell commands.
+
+## `common` app — Phase 0 shared infrastructure
+
+### Phase 0 — DONE (2026-06-01, 214/214 backend tests pass, frontend prod build clean)
+
+The prerequisite `common` library app (REQUIREMENTS.md § Phase 0). Pure cross-cutting machinery, **promoted from the proven inventory patterns** — no new mechanisms invented. **No models/tables, no migrations, no URL mount** → ArgoCD PreSync migrate-job is unaffected.
+
+**`backend/apps/common/`** (registered first in `INSTALLED_APPS`):
+- `mixins.py` — **`OrgScopeMixin`** (generalized from `inventory/mixins.py`: queryset scoped to membership orgs; optional `?organization=`/`?location=` narrowing with membership check; cross-org object lookup → 404; `perform_create` requires owner of the payload's org; `_save_with_creator` passes `created_by` only if the model has that field). **`AuditLoggedMixin`** (generalized from `inventory/views.py`: create/update/destroy → before/after JSON + diff; **audit sink is pluggable via `audit_log_model` / `get_audit_log_model()`**; org resolved via a fallback chain item→stock_take→recipe→customer→campaign→job; audit failures swallowed).
+- `permissions.py` — **`IsOrgMember`** (read = owner|manager, write = owner) and **`IsOrgOwner`** (owner-only, all methods). Plus exported helpers `user_role_in_org` / `user_has_any_owner_membership` / `user_has_any_membership`.
+- `throttling.py` — `PublicBurstThrottle` (`public_burst`), `PublicSustainedThrottle` (`public_sustained`), `PublicFormThrottle` (`public_form`). Rates added to `settings.REST_FRAMEWORK['DEFAULT_THROTTLE_RATES']` (60/min, 600/hour, 10/min). **No global default throttle class → authenticated views unaffected.**
+- `idempotency.py` — `claim(key, ttl)` / `idempotent(key, ttl)` (atomic Redis `cache.add()` SET-NX; returns False on replay) + `release(key)`. **Fails OPEN on cache outage** (returns True, never 500s the public path; DB uniqueness is the real backstop).
+- `storage.py` + settings — opt-in object storage. `settings.USE_OBJECT_STORAGE` (env, **default False**) gates a `STORAGES` block pointing at `storages.backends.s3.S3Storage` (Tencent COS `ap-hongkong` / Cloudflare R2). **OFF by default → dev + current prod keep `FileSystemStorage` + media-pvc, zero cluster change.** Non-secret S3 keys (`S3_BUCKET/ENDPOINT_URL/REGION/CDN_DOMAIN`) → configmap; secret keys (`S3_ACCESS_KEY_ID/SECRET_ACCESS_KEY`) are GitHub Secrets created with dummy values but **NOT yet wired into `deploy.yml`** (the two-edit wiring is deferred until a bucket is provisioned — see REQUIREMENTS.md § Credentials).
+- `utils.py` — `client_ip` / `model_to_dict` / `diff` (the audit helpers, promoted verbatim).
+
+**Backward-compat (the key safety property):** inventory's `InventoryOrgScopeMixin` is now a thin subclass of `OrgScopeMixin`; `IsInventoryAdmin` subclasses `IsOrgMember`; inventory's `AuditLoggedMixin` subclasses the common one with `audit_log_model = InventoryAuditLog`; the old private helper names (`_client_ip`/`_model_to_dict`/`_diff`) are aliases to `common.utils`. **All 151 inventory tests still pass unchanged.**
+
+**Deps** (`requirements.txt`): `django-storages[s3]>=1.14`, `boto3>=1.34`, `phonenumbers>=8.13`, `qrcode[pil]>=7.4` (the last two are pre-installed for Phase 1/2; storage code is import-safe without storages/boto3).
+
+**Tests** (`apps/common/tests/`, **24 — spec minimum was 8**): `test_org_scope.py` (member/outsider/manager visibility, cross-org `?organization=` → 403, cross-org retrieve → 404, owner-only create), `test_throttling.py` (11th `public_form` request → 429; distinct IPs independent), `test_idempotency.py` (claim/replay, alias, fail-open on cache error, release-then-reclaim), `test_permissions.py` (`IsOrgMember`/`IsOrgOwner` matrix + inventory-alias subclass assertions). `conftest.py` mirrors inventory's fixtures and reuses the real `InventoryItem`/`InventoryAuditLog` (no throwaway test model). **Full suite: 214 passed in Docker.**
+
+### Phase 0 known limitations / debt
+- The object-storage path is settings-gated and **never exercised in tests** (tests run with `USE_OBJECT_STORAGE=false`). Before enabling it in prod, provision the COS/R2 bucket, set the configmap keys, swap the dummy `S3_ACCESS_KEY_ID`/`S3_SECRET_ACCESS_KEY` GitHub Secrets for real values, **and** add their `--from-literal=` lines to the `deploy-secrets` job in `deploy.yml` (the one manual repo edit object storage needs). Only then is raising backend `replicas` past 1 safe.
+- A pre-existing `STATICFILES_STORAGE` deprecation warning surfaces in test output — it's from the legacy `STATICFILES_STORAGE` setting line (not Phase 0); left untouched to avoid scope creep.
 
 ## Inventory app — Plane B (resume notes)
 

@@ -42,6 +42,7 @@ INSTALLED_APPS = [
     'django_celery_results',
     
     # Local apps
+    'apps.common',  # Phase 0: shared mixins/permissions/throttles/idempotency/storage
     'apps.accounts',
     'apps.messaging',
     'apps.ai_engine',
@@ -122,6 +123,38 @@ STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 MEDIA_URL = 'media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
+# ──────────────────────────────────────────────────────────────────────
+# Object storage (Phase 0) — OPT-IN, OFF by default.
+#
+# Default (dev + current prod): Django's FileSystemStorage writing to the
+# media-pvc. Setting USE_OBJECT_STORAGE=true (env) flips every ImageField/
+# FileField to an S3-compatible bucket (Tencent COS ap-hongkong / Cloudflare
+# R2) via django-storages — with ZERO model changes. That is the prerequisite
+# for raising backend `replicas` past 1 (the RWO media-pvc can't be multi-mounted).
+#
+# Non-secret S3 config (bucket, endpoint, region, CDN) belongs in
+# k8s/configmap.yaml; the secret keys (S3_ACCESS_KEY_ID / S3_SECRET_ACCESS_KEY)
+# are GitHub Secrets that must ALSO be wired into the deploy.yml deploy-secrets
+# job before they reach the cluster (deferred until a bucket is provisioned).
+# ──────────────────────────────────────────────────────────────────────
+USE_OBJECT_STORAGE = config('USE_OBJECT_STORAGE', default=False, cast=bool)
+if USE_OBJECT_STORAGE:
+    STORAGES = {
+        'default': {'BACKEND': 'storages.backends.s3.S3Storage'},
+        'staticfiles': {
+            'BACKEND': 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+        },
+    }
+    AWS_STORAGE_BUCKET_NAME = config('S3_BUCKET', default='')
+    AWS_S3_ENDPOINT_URL = config('S3_ENDPOINT_URL', default=None)   # COS / R2 endpoint
+    AWS_S3_REGION_NAME = config('S3_REGION', default='auto')        # 'ap-hongkong' (COS) | 'auto' (R2)
+    AWS_S3_CUSTOM_DOMAIN = config('S3_CDN_DOMAIN', default=None)    # CDN domain for serving
+    AWS_ACCESS_KEY_ID = config('S3_ACCESS_KEY_ID', default='')
+    AWS_SECRET_ACCESS_KEY = config('S3_SECRET_ACCESS_KEY', default='')
+    AWS_QUERYSTRING_AUTH = config('S3_SIGNED_URLS', default=True, cast=bool)
+    AWS_S3_FILE_OVERWRITE = False
+# else: FileSystemStorage (Django default) + media-pvc — unchanged.
+
 # Default primary key field type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
@@ -142,6 +175,13 @@ REST_FRAMEWORK = {
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 20,
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+    # Phase 0: throttle scopes for unauthenticated public endpoints (lucky-draw etc.).
+    # Authenticated views are unaffected (no default throttle class is set globally).
+    'DEFAULT_THROTTLE_RATES': {
+        'public_burst': '60/min',       # GET campaign config etc.
+        'public_sustained': '600/hour',
+        'public_form': '10/min',        # POST lucky-draw entry — anti-abuse
+    },
 }
 
 # JWT Settings
