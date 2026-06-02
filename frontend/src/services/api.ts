@@ -495,6 +495,13 @@ export const restaurantApi = {
 
   // Menu Promo Rules (Phase 3)
   promoRules: {
+    // List all promo rules for an org (flat route) — used by Phase 4 to link
+    // a recipe to a promo rule for 1+1-style inventory deduction.
+    list: async (params?: { organization?: string; menu_item?: string }) => {
+      const response = await api.get('/restaurant/promo-rules/', { params })
+      return Array.isArray(response.data) ? response.data : (response.data.results || [])
+    },
+
     // List a single item's promo rule (nested route).
     getForItem: async (itemId: string) => {
       const response = await api.get(`/restaurant/items/${itemId}/promo-rule/`)

@@ -274,7 +274,22 @@
       "confirmConsume": "消耗 {{batches}} 批 {{name}}？将永久扣减原料库存。",
       "versions": "版本",
       "versionHistory": "版本历史",
-      "empty": "暂无配方。"
+      "empty": "暂无配方。",
+      "formulaTypeLabel": "配方类型",
+      "formulaTypeAll": "全部",
+      "servingMl": "出品容量（毫升）",
+      "pourVariance": "倒酒误差 %",
+      "linkedPromoRule": "关联促销规则",
+      "noPromoRule": "无",
+      "promoLinked": "已关联促销",
+      "promoRuleHint": "将此配方关联到菜单促销规则，使买一送一等活动按正确数量扣减库存。",
+      "formulaType": {
+        "food_recipe": "食品",
+        "drink_formula": "饮品",
+        "cocktail_formula": "鸡尾酒",
+        "batch_recipe": "批量",
+        "promo_combo_formula": "促销套餐"
+      }
     },
     "import": {
       "salesTitle": "销售导入",

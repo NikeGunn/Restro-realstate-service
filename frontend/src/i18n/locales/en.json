@@ -274,7 +274,22 @@
       "confirmConsume": "Consume {{batches}} batch(es) of {{name}}? This deducts ingredient stock permanently.",
       "versions": "Versions",
       "versionHistory": "Version history",
-      "empty": "No recipes yet."
+      "empty": "No recipes yet.",
+      "formulaTypeLabel": "Formula type",
+      "formulaTypeAll": "All",
+      "servingMl": "Serving volume (ml)",
+      "pourVariance": "Pour variance %",
+      "linkedPromoRule": "Linked promo rule",
+      "noPromoRule": "None",
+      "promoLinked": "Promo-linked",
+      "promoRuleHint": "Links this formula to a menu promo rule so 1+1-style deals deduct the right amount of inventory.",
+      "formulaType": {
+        "food_recipe": "Food",
+        "drink_formula": "Drink",
+        "cocktail_formula": "Cocktail",
+        "batch_recipe": "Batch",
+        "promo_combo_formula": "Promo Combo"
+      }
     },
     "import": {
       "salesTitle": "Sales import",

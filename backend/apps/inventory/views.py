@@ -39,6 +39,7 @@ from .models import (
     LocationStock, LocationItemPricing, StockTake, StockTakeLine,
     PurchaseOrderEmail,
     RecipeBookingLink,
+    ConsumptionLog,
 )
 from .permissions import IsInventoryAdmin
 from .serializers import (
@@ -56,6 +57,7 @@ from .serializers import (
     PurchaseOrderSendSerializer, PurchaseOrderEmailSerializer,
     BulkItemEditSerializer,
     RecipeBookingLinkSerializer,
+    ConsumptionLogSerializer,
 )
 
 
@@ -524,7 +526,10 @@ class PurchaseOrderViewSet(AuditLoggedMixin, InventoryOrgScopeMixin, viewsets.Mo
 # Recipes
 # ──────────────────────────────────────────────────────────────────────
 class RecipeViewSet(AuditLoggedMixin, InventoryOrgScopeMixin, viewsets.ModelViewSet):
-    queryset = Recipe.objects.select_related('output_item', 'category').prefetch_related('ingredients__item').all()
+    queryset = Recipe.objects.select_related(
+        'output_item', 'category',
+        'linked_promo_rule', 'linked_promo_rule__menu_item',
+    ).prefetch_related('ingredients__item').all()
     serializer_class = RecipeSerializer
     permission_classes = [IsAuthenticated, IsInventoryAdmin]
     audit_model_name = 'Recipe'
@@ -535,6 +540,9 @@ class RecipeViewSet(AuditLoggedMixin, InventoryOrgScopeMixin, viewsets.ModelView
             qs = qs.filter(
                 is_active=self.request.query_params['is_active'].lower() == 'true'
             )
+        formula_type = self.request.query_params.get('formula_type')
+        if formula_type:
+            qs = qs.filter(formula_type=formula_type)
         return qs
 
     @action(detail=True, methods=['post'])
@@ -565,12 +573,24 @@ class RecipeViewSet(AuditLoggedMixin, InventoryOrgScopeMixin, viewsets.ModelView
             )
         ser = RecipeBatchSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
+        # Optional explicit classification; otherwise StockEngine infers it
+        # (cocktail_serve / promo_sale / manual) from the recipe.
+        consumption_type = request.data.get('consumption_type') or None
+        valid_types = {c[0] for c in ConsumptionLog.ConsumptionType.choices}
+        if consumption_type and consumption_type not in valid_types:
+            return Response(
+                {'consumption_type': f'Invalid value. One of: {sorted(valid_types)}'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         from .services.stock_engine import StockEngine
         engine = StockEngine(
             organization=recipe.organization, location=recipe.location, performed_by=request.user,
         )
         try:
-            result = engine.consume_recipe(recipe, ser.validated_data['batches'])
+            result = engine.consume_recipe(
+                recipe, ser.validated_data['batches'],
+                consumption_type=consumption_type,
+            )
         except Exception as e:
             payload = getattr(e, 'message_dict', None) or {'detail': str(e)}
             return Response(payload, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
@@ -1045,6 +1065,7 @@ class LocationItemPricingViewSet(AuditLoggedMixin, InventoryOrgScopeMixin, views
     permission_classes = [IsAuthenticated, IsInventoryAdmin]
     audit_model_name = 'LocationItemPricing'
 
+
     def get_queryset(self):
         user = self.request.user
         if not user.is_authenticated:
@@ -1065,6 +1086,24 @@ class LocationItemPricingViewSet(AuditLoggedMixin, InventoryOrgScopeMixin, views
         # in the payload — pricing is scoped via item.
         instance = serializer.save()
         self._audit('create', instance, after=_model_to_dict(instance))
+
+
+class ConsumptionLogViewSet(InventoryOrgScopeMixin, viewsets.ReadOnlyModelViewSet):
+    """Phase 4 — read-only audit of recipe consumption (append-only model)."""
+    queryset = ConsumptionLog.objects.select_related(
+        'recipe', 'movement', 'movement__item',
+    ).all()
+    serializer_class = ConsumptionLogSerializer
+    permission_classes = [IsAuthenticated, IsInventoryAdmin]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        params = self.request.query_params
+        if params.get('recipe'):
+            qs = qs.filter(recipe_id=params['recipe'])
+        if params.get('consumption_type'):
+            qs = qs.filter(consumption_type=params['consumption_type'])
+        return qs
 
 
 # ──────────────────────────────────────────────────────────────────────

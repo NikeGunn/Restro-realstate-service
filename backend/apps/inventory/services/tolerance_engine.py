@@ -68,6 +68,46 @@ class ToleranceEngine:
             within_tolerance=True,
         )
 
+    # Formula types that pour liquid and use pour-variance tolerance.
+    # Duplicated as a plain set here to keep this module Django-import-free
+    # (Recipe.POUR_FORMULA_TYPES is the authoritative copy on the model).
+    POUR_FORMULA_TYPES = frozenset({'drink_formula', 'cocktail_formula'})
+
+    @classmethod
+    def resolve_tolerance(
+        cls,
+        item_tolerance_percent: Decimal,
+        formula_type: str = '',
+        pour_variance_percent=None,
+    ) -> Decimal:
+        """
+        Pick the tolerance to apply for a given (item, recipe-context):
+        drink/cocktail formulas use the recipe's pour variance; everything
+        else uses the item's own tolerance. Pure — no DB, no Django.
+        """
+        if formula_type in cls.POUR_FORMULA_TYPES and pour_variance_percent is not None:
+            return Decimal(pour_variance_percent)
+        return Decimal(item_tolerance_percent)
+
+    @classmethod
+    def effective_stock_with_pour_variance(
+        cls,
+        raw_stock: Decimal,
+        reorder_level: Decimal,
+        item_tolerance_percent: Decimal,
+        formula_type: str = '',
+        pour_variance_percent=None,
+    ) -> EffectiveStock:
+        """
+        Same as effective_stock(), but for drink_formula / cocktail_formula
+        recipes the recipe's pour_variance_percent replaces the item tolerance.
+        Delegates to effective_stock() so the band math lives in one place (DRY).
+        """
+        tolerance = cls.resolve_tolerance(
+            item_tolerance_percent, formula_type, pour_variance_percent,
+        )
+        return cls.effective_stock(raw_stock, reorder_level, tolerance)
+
     @staticmethod
     def check_recipe_feasibility(ingredients: list) -> RecipeFeasibility:
         """

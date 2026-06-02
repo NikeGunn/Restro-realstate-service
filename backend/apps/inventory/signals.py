@@ -239,7 +239,9 @@ def _connect_booking_signal():
         )
         for link in links:
             try:
-                engine.consume_recipe(link.recipe, link.batches)
+                engine.consume_recipe(
+                    link.recipe, link.batches, consumption_type='booking_auto',
+                )
                 RecipeBookingLink.objects.filter(pk=link.pk).update(
                     consumed_at=timezone.now(),
                 )

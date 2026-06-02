@@ -402,6 +402,14 @@ INVENTORY_SETTINGS = {
     # Phase 6 — per-org AI profile freshness. Profiles older than this are
     # regenerated on next AI query; a daily Celery task also refreshes.
     'AI_PROFILE_TTL_HOURS': 36,
+    # Phase 4 — drink/cocktail formula pour variance (default tolerance for
+    # drink_formula / cocktail_formula recipes when the recipe doesn't override).
+    'DEFAULT_POUR_VARIANCE_PERCENT': _Decimal(
+        config('INVENTORY_POUR_VARIANCE', default='5.0')
+    ),
+    'COCKTAIL_FORMULA_ENABLED': config(
+        'INVENTORY_COCKTAIL_FORMULA', default=True, cast=bool,
+    ),
 }
 
 # API Documentation

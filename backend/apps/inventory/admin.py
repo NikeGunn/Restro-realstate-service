@@ -24,6 +24,7 @@ from .models import (
     StockTake, StockTakeLine,
     LocationItemPricing,
     RecipeBookingLink, InventoryAIProfile,
+    ConsumptionLog,
 )
 
 
@@ -231,12 +232,13 @@ class RecipeIngredientInline(admin.TabularInline):
 @admin.register(Recipe)
 class RecipeAdmin(admin.ModelAdmin):
     list_display = (
-        'name', 'output_item', 'output_quantity',
-        'yield_percent', 'version', 'is_active',
+        'name', 'formula_type', 'output_item', 'output_quantity',
+        'serving_ml', 'yield_percent', 'version', 'is_active',
     )
-    list_filter = ('is_active', 'organization')
+    list_filter = ('is_active', 'organization', 'formula_type')
     search_fields = ('name',)
     readonly_fields = ('version', 'created_at', 'updated_at')
+    autocomplete_fields = ('linked_promo_rule',)
     inlines = [RecipeIngredientInline]
 
 
@@ -354,3 +356,28 @@ class InventoryAIProfileAdmin(admin.ModelAdmin):
     @admin.display(description='Profile')
     def profile_pretty(self, obj):
         return _pretty_json(obj.profile)
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Consumption Log (Phase 4) — append-only audit, read-only in admin.
+# ──────────────────────────────────────────────────────────────────────
+@admin.register(ConsumptionLog)
+class ConsumptionLogAdmin(admin.ModelAdmin):
+    list_display = (
+        'recipe', 'consumption_type', 'quantity_consumed', 'movement', 'created_at',
+    )
+    list_filter = ('consumption_type', 'organization')
+    search_fields = ('recipe__name',)
+    readonly_fields = (
+        'organization', 'recipe', 'movement', 'consumption_type',
+        'quantity_consumed', 'created_at', 'updated_at',
+    )
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False

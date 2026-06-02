@@ -14,6 +14,7 @@ from .models import (
     LocationStock, LocationItemPricing, StockTake, StockTakeLine,
     PurchaseOrderEmail,
     RecipeBookingLink,
+    ConsumptionLog,
 )
 
 
@@ -310,6 +311,10 @@ class RecipeIngredientSerializer(serializers.ModelSerializer):
 class RecipeSerializer(serializers.ModelSerializer):
     ingredients = RecipeIngredientSerializer(many=True, required=False)
     output_item_name = serializers.CharField(source='output_item.name', read_only=True)
+    # Phase 4 — resolved variance (explicit override OR settings default) so the
+    # frontend can show what's actually applied for drink/cocktail formulas.
+    effective_pour_variance_percent = serializers.SerializerMethodField()
+    linked_promo_rule_label = serializers.SerializerMethodField()
 
     class Meta:
         model = Recipe
@@ -317,12 +322,26 @@ class RecipeSerializer(serializers.ModelSerializer):
             'id', 'organization', 'location', 'name', 'description',
             'category', 'output_item', 'output_item_name',
             'output_quantity', 'output_unit', 'yield_percent',
+            'formula_type', 'serving_ml', 'pour_variance_percent',
+            'effective_pour_variance_percent',
+            'linked_promo_rule', 'linked_promo_rule_label',
             'is_active', 'version', 'ingredients',
             'created_at', 'updated_at',
         ]
         read_only_fields = [
             'id', 'version', 'created_at', 'updated_at', 'output_item_name',
+            'effective_pour_variance_percent', 'linked_promo_rule_label',
         ]
+
+    def get_effective_pour_variance_percent(self, obj):
+        v = obj.resolved_pour_variance_percent()
+        return str(v) if v is not None else None
+
+    def get_linked_promo_rule_label(self, obj):
+        rule = obj.linked_promo_rule
+        if not rule:
+            return None
+        return f'{rule.get_promo_type_display()} — {rule.menu_item.name}'
 
     def create(self, validated_data):
         ingredients_data = validated_data.pop('ingredients', [])
@@ -362,6 +381,23 @@ class RecipeVersionSerializer(serializers.ModelSerializer):
 
 class RecipeBatchSerializer(serializers.Serializer):
     batches = serializers.DecimalField(max_digits=10, decimal_places=4, min_value=Decimal('0.01'))
+
+
+class ConsumptionLogSerializer(serializers.ModelSerializer):
+    recipe_name = serializers.CharField(source='recipe.name', read_only=True)
+    item_name = serializers.CharField(source='movement.item.name', read_only=True)
+    consumption_type_display = serializers.CharField(
+        source='get_consumption_type_display', read_only=True,
+    )
+
+    class Meta:
+        model = ConsumptionLog
+        fields = [
+            'id', 'organization', 'recipe', 'recipe_name', 'movement',
+            'item_name', 'consumption_type', 'consumption_type_display',
+            'quantity_consumed', 'created_at',
+        ]
+        read_only_fields = fields
 
 
 # ──────────────────────────────────────────────────────────────────────

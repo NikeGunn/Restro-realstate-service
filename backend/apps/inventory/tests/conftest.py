@@ -10,7 +10,19 @@ from apps.accounts.models import Organization, OrganizationMembership, User
 from apps.inventory.models import (
     InventoryItem, Supplier, InventoryCategory,
     PurchaseOrder, PurchaseOrderItem, Recipe, RecipeIngredient,
+    StockMovement,
 )
+
+
+def _seed_stock(item, quantity):
+    """Give an item opening stock via the ledger (current_stock is signal-computed)."""
+    StockMovement.objects.create(
+        organization=item.organization, item=item,
+        movement_type=StockMovement.MovementType.OPENING_STOCK,
+        quantity=Decimal(quantity),
+    )
+    item.refresh_from_db()
+    return item
 
 
 @pytest.fixture
@@ -147,5 +159,97 @@ def recipe(db, org, item, item_b, output_item, owner):
     )
     RecipeIngredient.objects.create(
         recipe=r, item=item_b, quantity=Decimal('0.1'), unit=item_b.unit,
+    )
+    return r
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Phase 4 — drink/cocktail fixtures
+# ──────────────────────────────────────────────────────────────────────
+@pytest.fixture
+def vodka(db, org):
+    """Brand-specific ml-based alcohol item, stocked."""
+    i = InventoryItem.objects.create(
+        organization=org, name='Absolut Vodka', unit=InventoryItem.Unit.ML,
+        unit_cost=Decimal('0.15'), reorder_level=Decimal('500'),
+        tolerance_percent=Decimal('0.5'),
+    )
+    return _seed_stock(i, '5000')
+
+
+@pytest.fixture
+def lime_juice(db, org):
+    i = InventoryItem.objects.create(
+        organization=org, name='Lime Juice', unit=InventoryItem.Unit.ML,
+        unit_cost=Decimal('0.02'), reorder_level=Decimal('200'),
+        tolerance_percent=Decimal('0.5'),
+    )
+    return _seed_stock(i, '2000')
+
+
+@pytest.fixture
+def cocktail(db, org, vodka, lime_juice, owner):
+    """Vodka Lime cocktail formula — pour_variance_percent override."""
+    r = Recipe.objects.create(
+        organization=org, name='Vodka Lime Cocktail',
+        formula_type=Recipe.FormulaType.COCKTAIL_FORMULA,
+        serving_ml=Decimal('60'), pour_variance_percent=Decimal('5.0'),
+        output_quantity=Decimal('1'), yield_percent=Decimal('100'),
+        created_by=owner,
+    )
+    RecipeIngredient.objects.create(
+        recipe=r, item=vodka, quantity=Decimal('45'), unit=vodka.unit,
+    )
+    RecipeIngredient.objects.create(
+        recipe=r, item=lime_juice, quantity=Decimal('15'), unit=lime_juice.unit,
+    )
+    return r
+
+
+@pytest.fixture
+def beer(db, org):
+    """Beer item in pieces (a keg-pour proxy), well stocked."""
+    i = InventoryItem.objects.create(
+        organization=org, name='Draft Beer Pint', unit=InventoryItem.Unit.PIECE,
+        unit_cost=Decimal('8.0'), reorder_level=Decimal('10'),
+        tolerance_percent=Decimal('0.5'),
+    )
+    return _seed_stock(i, '100')
+
+
+@pytest.fixture
+def menu_category(db, org):
+    """A restaurant MenuCategory in the same org (for promo-rule linkage)."""
+    from apps.restaurant.models import MenuCategory
+    return MenuCategory.objects.create(organization=org, name='Drinks')
+
+
+@pytest.fixture
+def beer_promo_rule(db, org, menu_category):
+    """Happy Hour 1+1 promo rule: inventory_deduction_multiplier = 2."""
+    from apps.restaurant.models import MenuItem, MenuPromoRule
+    mi = MenuItem.objects.create(
+        category=menu_category, name='Happy Hour Beer',
+        price=Decimal('50.00'), item_type='alcohol', is_alcohol=True,
+    )
+    return MenuPromoRule.objects.create(
+        menu_item=mi, promo_type=MenuPromoRule.PromoType.HAPPY_HOUR,
+        sales_quantity_multiplier=Decimal('1.00'),
+        revenue_multiplier=Decimal('1.00'),
+        inventory_deduction_multiplier=Decimal('2.00'),
+    )
+
+
+@pytest.fixture
+def beer_recipe(db, org, beer, owner):
+    """1-piece-per-serve beer recipe (no promo link by default)."""
+    r = Recipe.objects.create(
+        organization=org, name='Beer Serve',
+        formula_type=Recipe.FormulaType.DRINK_FORMULA,
+        output_quantity=Decimal('1'), yield_percent=Decimal('100'),
+        created_by=owner,
+    )
+    RecipeIngredient.objects.create(
+        recipe=r, item=beer, quantity=Decimal('1'), unit=beer.unit,
     )
     return r

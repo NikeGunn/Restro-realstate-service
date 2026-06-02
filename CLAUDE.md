@@ -252,7 +252,37 @@ In-place additions to the existing `apps/restaurant/` (no new app). Adds item-ty
 - `MenuPromoRule` is OneToOne with the item; one rule per item. Multi-promo-per-item would need a FK + a way to disambiguate which applies (out of scope here).
 - The promo multipliers are **stored but not yet consumed** — Phase 4's `StockEngine.consume_recipe` + `Recipe.linked_promo_rule` is what actually reads `inventory_deduction_multiplier`. Until Phase 4 lands, the rule is data-only.
 - `MenuItemViewSet` still uses the older inline org-scoping (not `OrgScopeMixin`); left untouched to avoid regressing existing menu behavior. Only the new `MenuPromoRuleViewSet` uses the common mixin.
-- Next authorized phase is **Phase 4 (Inventory Formula — Drinks & Cocktails)** — wait for the user to say "start Phase 4".
+- Phase 4 consumes these promo multipliers (see the Phase 4 — DONE block below).
+
+## `inventory` Drinks & Cocktails — Phase 4
+
+### Phase 4 — DONE (2026-06-02, 382/382 backend tests pass, frontend prod build clean)
+
+In-place additions to `apps/inventory/` (no new app). Extends the recipe system for ml-based cocktail/drink formulas, configurable pour variance, brand-specific alcohol tracking, and correct deduction via the Phase 3 `MenuPromoRule`. Builds on Phase 0/3.
+
+**Models** (`models.py`, migration `0007`):
+- `InventoryItem.Unit` gains `cl` + `fl_oz` (ml already existed). `unit` is `max_length=10` so `fl_oz` fits; choices-only change = no schema migration risk.
+- `Recipe` gains a `FormulaType` enum (`food_recipe · drink_formula · cocktail_formula · batch_recipe · promo_combo_formula`, default `food_recipe`), `serving_ml`, `pour_variance_percent` (nullable override), and `linked_promo_rule` FK → **`restaurant.MenuPromoRule` via string ref** (inventory→restaurant stays one-directional, no import). New index `(organization, formula_type)`. Helper `Recipe.resolved_pour_variance_percent()` is the **single source of truth** for variance resolution (explicit override → settings default → None for non-pour formulas); `POUR_FORMULA_TYPES = {drink_formula, cocktail_formula}`.
+- New `ConsumptionLog` — `inv_consumption_logs`, **append-only** (save-guard mirrors StockMovement). One row per ingredient movement classifying *why* stock went (manual/booking_auto/promo_sale/sales_import/cocktail_serve/staff_use/spoilage/wastage/complimentary/giveaway). Index `(organization, consumption_type, -created_at)`.
+
+**Services** (DRY — variance + multiplier logic each live in one place):
+- `tolerance_engine.py` — new `effective_stock_with_pour_variance(...)` + `resolve_tolerance(...)`; **delegates the band math to the existing `effective_stock()`** (no duplication). Still zero Django imports at module level (`POUR_FORMULA_TYPES` duplicated as a plain frozenset to preserve that invariant).
+- `recipe_engine.calculate_batch` — resolves the recipe's pour variance once and feeds the **same** tolerance into both the displayed band and the feasibility check.
+- `stock_engine.consume_recipe(recipe, batches, consumption_type=None)` — reads `recipe.linked_promo_rule.inventory_deduction_multiplier` (1 if none) and multiplies each ingredient deduction **before** quantizing to 4 dp (the existing Decimal-precision fix is preserved). Writes a `ConsumptionLog` per movement via `bulk_create`. Auto-classifies type when not given (`promo_sale` if a multiplying promo rule, else `cocktail_serve` for drink/cocktail, else `manual`). Helpers `_promo_deduction_multiplier` / `_default_consumption_type`. The Phase 6 booking signal now passes `consumption_type='booking_auto'`.
+
+**Settings**: `INVENTORY_SETTINGS` adds `DEFAULT_POUR_VARIANCE_PERCENT` (env `INVENTORY_POUR_VARIANCE`, default 5.0) and `COCKTAIL_FORMULA_ENABLED` (env `INVENTORY_COCKTAIL_FORMULA`, default True).
+
+**API**: `RecipeSerializer` exposes `formula_type/serving_ml/pour_variance_percent` + read-only `effective_pour_variance_percent` and `linked_promo_rule(_label)`. `RecipeViewSet` adds `?formula_type=` filter and prefetches the promo rule; `consume` accepts an optional validated `consumption_type`. New read-only `ConsumptionLogViewSet` at `/api/v1/inventory/consumption-logs/` (org-scoped, `?recipe=`/`?consumption_type=` filters). **Admin**: RecipeAdmin gains formula columns/filter + `linked_promo_rule` autocomplete; `ConsumptionLog` registered append-only (no add/change/delete).
+
+**Frontend**: `services/inventory.ts` adds `FormulaType`/`POUR_FORMULA_TYPES`/`ConsumptionLog`, extends `Recipe`, adds `listConsumptionLogs` + `?formula_type` + `consumeRecipe(consumptionType?)`. `restaurantApi.promoRules.list()` added (flat `?organization=`). `RecipesPage.tsx`: formula-type **filter chips** + card badges (formula type, ±variance, serving ml, promo-linked), formula-type select in the form, conditional `serving_ml`/`pour_variance` inputs for pour formulas, and a linked-promo-rule selector showing the deduction multiplier. Ingredient rows already render unit next to qty. i18n `inventory.recipes.formulaType.*` + form keys in **en/zh-CN/zh-TW**.
+
+**Tests** (`apps/inventory/tests/`, **29 — spec minimum was 16**): `test_cocktail_formula.py` (10: ml deduction, pour variance applied for cocktail not food, settings-default fallback, brand-specific item, 4-dp quantization, cocktail_serve log, cl/fl_oz present), `test_promo_deduction.py` (5: no-rule=×1, 1+1 doubles, scales with batches, promo_sale log, movement reflects multiplier), `test_formula_types.py` (8: `?formula_type` filter, serializer fields, default-variance fallback, create cocktail via API, ml/cl/fl_oz items creatable, promo label), `test_consumption_log.py` (6: row-per-ingredient, append-only reject, read-only API 405 on POST, type/recipe filters, cross-org isolation). conftest gains `_seed_stock` helper + vodka/lime/cocktail/beer/promo-rule fixtures. **Full suite 382/382 (353 prior + 29 new) green in Docker.** Frontend `npm run build` clean; `build:check` zero errors in Phase 4 files (pre-existing api.ts/realestate/settings errors unrelated, not CI-gated).
+
+### Phase 4 known limitations / debt
+- `RecipeIngredient.clean()` still enforces `unit == item.unit`; brand-specific ml items naturally carry `ml`, so cocktail ingredients use the item's unit. cl/fl_oz are selectable on the **item**, not as a per-ingredient conversion — there is no unit conversion engine (45 ml means the vodka item must be a ml item).
+- `serving_ml` is informational (drives the variance UI/contract) — it is not yet cross-checked against the sum of ingredient volumes.
+- A recipe's `linked_promo_rule` and the recipe's org are not constraint-checked to match at the DB level; the promo selector in the UI only lists the current org's rules, and `OrgScopeMixin` keeps cross-org recipes out of reach, so this is a UI/scope guarantee rather than a DB one.
+- Next authorized phase is **Phase 5 (AI Content Studio)** — wait for the user to say "start Phase 5".
 
 ## Inventory app — Plane B (resume notes)
 

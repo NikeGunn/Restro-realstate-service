@@ -18,13 +18,21 @@ class RecipeEngine:
         # to 4 decimal places, so we quantize calculated quantities the
         # same way for both display and feasibility math.
         _Q4 = Decimal('0.0001')
+        # For drink/cocktail formulas the recipe's pour variance overrides each
+        # item's own tolerance (resolved once per recipe — DRY).
+        effective_variance = recipe.resolved_pour_variance_percent()
         ingredients_data = []
         for ing in recipe.ingredients.select_related('item').filter(is_optional=False):
             required = ((ing.quantity * batches) / yield_factor).quantize(_Q4)
             item = ing.item
             item.refresh_from_db(fields=['current_stock', 'tolerance_percent', 'reorder_level', 'unit_cost'])
-            es = ToleranceEngine.effective_stock(
+            es = ToleranceEngine.effective_stock_with_pour_variance(
                 item.current_stock, item.reorder_level, item.tolerance_percent,
+                formula_type=recipe.formula_type,
+                pour_variance_percent=effective_variance,
+            )
+            tolerance_applied = ToleranceEngine.resolve_tolerance(
+                item.tolerance_percent, recipe.formula_type, effective_variance,
             )
             ingredients_data.append({
                 'item_id': str(item.id),
@@ -39,7 +47,9 @@ class RecipeEngine:
                 # echoed back for the feasibility helper
                 'raw_stock': es.raw,
                 'reorder_level': item.reorder_level,
-                'tolerance_percent': item.tolerance_percent,
+                # Feasibility uses the SAME tolerance the band was built with
+                # (pour variance for drinks/cocktails, item tolerance otherwise).
+                'tolerance_percent': tolerance_applied,
                 'quantity_required': required,
                 'unit_cost': item.unit_cost,
             })

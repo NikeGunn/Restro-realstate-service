@@ -136,8 +136,9 @@ class StockEngine:
     # Recipe consumption
     # ──────────────────────────────────────────────────────────────
     @transaction.atomic
-    def consume_recipe(self, recipe, batches: Decimal) -> dict:
+    def consume_recipe(self, recipe, batches: Decimal, consumption_type=None) -> dict:
         from .recipe_engine import RecipeEngine
+        from apps.inventory.models import ConsumptionLog
 
         batches = Decimal(batches)
         if batches <= 0:
@@ -150,15 +151,28 @@ class StockEngine:
                 'message': 'Insufficient stock to complete this recipe.',
             })
 
+        # Phase 4 — 1+1 / promo deduction. A linked MenuPromoRule multiplies
+        # the inventory deducted per serve WITHOUT changing the recorded sale.
+        # Read via the string-FK relation only — no restaurant import here.
+        deduction_multiplier = self._promo_deduction_multiplier(recipe)
+
+        # Default classification: cocktail/drink serves are tagged accordingly,
+        # promo-linked consumption is a promo_sale, everything else is manual.
+        if consumption_type is None:
+            consumption_type = self._default_consumption_type(recipe, deduction_multiplier)
+
         yield_factor = recipe.yield_percent / Decimal('100')
         movements = []
+        logs = []
         # StockMovement.quantity is Decimal(max_digits=10, decimal_places=4).
-        # Recipe math (ing.quantity × batches / yield_factor) can produce
-        # values with more than 4 decimal places when both operands carry
+        # Recipe math (ing.quantity × batches / yield_factor × multiplier) can
+        # produce values with more than 4 decimal places when operands carry
         # trailing zeros from DB Decimal storage. Quantize to 4 decimals.
         _Q4 = Decimal('0.0001')
         for ing in recipe.ingredients.filter(is_optional=False).select_related('item'):
-            required = ((ing.quantity * batches) / yield_factor).quantize(_Q4)
+            required = (
+                (ing.quantity * batches * deduction_multiplier) / yield_factor
+            ).quantize(_Q4)
             mv = self._create_movement(
                 item=ing.item,
                 movement_type=StockMovement.MovementType.RECIPE_CONSUMPTION,
@@ -168,6 +182,14 @@ class StockEngine:
                 notes=f'Recipe: {recipe.name} × {batches} batch(es)',
             )
             movements.append(mv)
+            logs.append(ConsumptionLog(
+                organization=self.organization,
+                recipe=recipe,
+                movement=mv,
+                consumption_type=consumption_type,
+                quantity_consumed=required,
+            ))
+        ConsumptionLog.objects.bulk_create(logs)
 
         if recipe.output_item:
             output_qty = (recipe.output_quantity * batches).quantize(_Q4)
@@ -185,7 +207,27 @@ class StockEngine:
             'batches': str(batches),
             'recipe_id': str(recipe.id),
             'recipe_version': recipe.version,
+            'deduction_multiplier': str(deduction_multiplier),
+            'consumption_type': consumption_type,
         }
+
+    @staticmethod
+    def _promo_deduction_multiplier(recipe) -> Decimal:
+        """Inventory-deduction multiplier from the recipe's linked promo rule
+        (1 if none). One-directional read of restaurant data via the FK."""
+        rule = getattr(recipe, 'linked_promo_rule', None)
+        if rule is None:
+            return Decimal('1')
+        return Decimal(rule.inventory_deduction_multiplier or 1)
+
+    @staticmethod
+    def _default_consumption_type(recipe, deduction_multiplier) -> str:
+        from apps.inventory.models import ConsumptionLog
+        if recipe.linked_promo_rule_id and deduction_multiplier != Decimal('1'):
+            return ConsumptionLog.ConsumptionType.PROMO_SALE
+        if recipe.formula_type in ('cocktail_formula', 'drink_formula'):
+            return ConsumptionLog.ConsumptionType.COCKTAIL_SERVE
+        return ConsumptionLog.ConsumptionType.MANUAL
 
     # ──────────────────────────────────────────────────────────────
     # Import application

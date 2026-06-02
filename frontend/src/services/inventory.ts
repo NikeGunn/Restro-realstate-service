@@ -180,6 +180,12 @@ export interface RecipeIngredient {
   locked_fields?: string[]
 }
 
+export type FormulaType =
+  | 'food_recipe' | 'drink_formula' | 'cocktail_formula'
+  | 'batch_recipe' | 'promo_combo_formula'
+
+export const POUR_FORMULA_TYPES: FormulaType[] = ['drink_formula', 'cocktail_formula']
+
 export interface Recipe {
   id: string
   organization: string
@@ -192,11 +198,31 @@ export interface Recipe {
   output_quantity: string
   output_unit: string
   yield_percent: string
+  // Phase 4 — drink/cocktail formula
+  formula_type: FormulaType
+  serving_ml: string | null
+  pour_variance_percent: string | null
+  effective_pour_variance_percent: string | null
+  linked_promo_rule: string | null
+  linked_promo_rule_label: string | null
   is_active: boolean
   version: number
   ingredients: RecipeIngredient[]
   created_at: string
   updated_at: string
+}
+
+export interface ConsumptionLog {
+  id: string
+  organization: string
+  recipe: string
+  recipe_name: string
+  movement: string
+  item_name: string
+  consumption_type: string
+  consumption_type_display: string
+  quantity_consumed: string
+  created_at: string
 }
 
 export interface RecipeCalculation {
@@ -510,6 +536,7 @@ export const inventoryApi = {
   listRecipes: async (params: {
     organization?: string
     is_active?: boolean
+    formula_type?: string
   } = {}): Promise<Recipe[]> => {
     const res = await api.get(`${BASE}/recipes/`, { params })
     return unwrap<Recipe>(res.data)
@@ -544,9 +571,25 @@ export const inventoryApi = {
     return res.data
   },
 
-  consumeRecipe: async (id: string, batches: string): Promise<{ movements_created: number; batches: string; recipe_id: string; recipe_version: number }> => {
-    const res = await api.post(`${BASE}/recipes/${id}/consume/`, { batches })
+  consumeRecipe: async (
+    id: string, batches: string, consumptionType?: string,
+  ): Promise<{
+    movements_created: number; batches: string; recipe_id: string
+    recipe_version: number; deduction_multiplier: string; consumption_type: string
+  }> => {
+    const body: Record<string, string> = { batches }
+    if (consumptionType) body.consumption_type = consumptionType
+    const res = await api.post(`${BASE}/recipes/${id}/consume/`, body)
     return res.data
+  },
+
+  listConsumptionLogs: async (params: {
+    recipe?: string
+    consumption_type?: string
+    organization?: string
+  } = {}): Promise<ConsumptionLog[]> => {
+    const res = await api.get(`${BASE}/consumption-logs/`, { params })
+    return unwrap<ConsumptionLog>(res.data)
   },
 
   suggestBatches: async (id: string): Promise<{ max_batches: string }> => {

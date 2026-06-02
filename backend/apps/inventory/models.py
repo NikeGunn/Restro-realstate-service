@@ -110,6 +110,8 @@ class InventoryItem(_InventoryTimestamps):
         G = 'g', 'Gram'
         LITER = 'liter', 'Liter'
         ML = 'ml', 'Milliliter'
+        CL = 'cl', 'Centiliter'        # Phase 4 — cocktail/drink formulas
+        FL_OZ = 'fl_oz', 'Fluid Ounce'  # Phase 4 — cocktail/drink formulas
         PIECE = 'piece', 'Piece'
         BOX = 'box', 'Box'
         BAG = 'bag', 'Bag'
@@ -562,6 +564,16 @@ class PurchaseOrderItem(_InventoryTimestamps):
 # Recipe
 # ──────────────────────────────────────────────────────────────────────
 class Recipe(_InventoryTimestamps):
+    class FormulaType(models.TextChoices):
+        FOOD_RECIPE = 'food_recipe', 'Food Recipe'
+        DRINK_FORMULA = 'drink_formula', 'Drink Formula'
+        COCKTAIL_FORMULA = 'cocktail_formula', 'Cocktail Formula'
+        BATCH_RECIPE = 'batch_recipe', 'Batch Recipe'
+        PROMO_COMBO_FORMULA = 'promo_combo_formula', 'Promo Combo Formula'
+
+    # Formula types that pour liquid and therefore use pour-variance tolerance.
+    POUR_FORMULA_TYPES = {'drink_formula', 'cocktail_formula'}
+
     organization = models.ForeignKey(
         Organization, on_delete=models.CASCADE, related_name='recipes'
     )
@@ -574,6 +586,26 @@ class Recipe(_InventoryTimestamps):
     category = models.ForeignKey(
         InventoryCategory, on_delete=models.SET_NULL,
         null=True, blank=True, related_name='recipes',
+    )
+    # Phase 4 — drink/cocktail formula support.
+    formula_type = models.CharField(
+        max_length=20, choices=FormulaType.choices,
+        default=FormulaType.FOOD_RECIPE,
+    )
+    serving_ml = models.DecimalField(
+        max_digits=8, decimal_places=2, null=True, blank=True,
+        help_text='Total expected serve volume (ml) — drives pour variance.',
+    )
+    pour_variance_percent = models.DecimalField(
+        max_digits=5, decimal_places=2, null=True, blank=True,
+        help_text='Overrides per-item tolerance for drink/cocktail formulas. '
+                  'Defaults to INVENTORY_SETTINGS[DEFAULT_POUR_VARIANCE_PERCENT].',
+    )
+    # Bridge for 1+1-style deduction. String ref → no restaurant import here
+    # (inventory→restaurant stays one-directional).
+    linked_promo_rule = models.ForeignKey(
+        'restaurant.MenuPromoRule', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='inventory_recipes',
     )
     output_item = models.ForeignKey(
         InventoryItem, on_delete=models.SET_NULL,
@@ -597,10 +629,31 @@ class Recipe(_InventoryTimestamps):
     class Meta:
         db_table = 'inv_recipe'
         ordering = ['name']
-        indexes = [models.Index(fields=['organization', 'is_active'])]
+        indexes = [
+            models.Index(fields=['organization', 'is_active']),
+            models.Index(fields=['organization', 'formula_type']),
+        ]
 
     def __str__(self):
         return self.name
+
+    @property
+    def is_pour_formula(self) -> bool:
+        return self.formula_type in self.POUR_FORMULA_TYPES
+
+    def resolved_pour_variance_percent(self):
+        """
+        The pour variance to apply for this recipe: the explicit override if
+        set, otherwise the settings default. Returns None for non-pour
+        formulas (so callers fall back to per-item tolerance). Single source
+        of truth for variance resolution (DRY).
+        """
+        if not self.is_pour_formula:
+            return None
+        if self.pour_variance_percent is not None:
+            return self.pour_variance_percent
+        from django.conf import settings
+        return settings.INVENTORY_SETTINGS.get('DEFAULT_POUR_VARIANCE_PERCENT')
 
 
 class RecipeIngredient(_InventoryTimestamps):
@@ -897,3 +950,58 @@ class InventoryAIProfile(_InventoryTimestamps):
 
     def __str__(self):
         return f'AIProfile({self.organization.name})'
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Phase 4 — Consumption log (append-only).
+#
+# Every recipe consumption that produces stock movements writes one
+# ConsumptionLog row per ingredient movement, classifying WHY stock was
+# consumed (cocktail serve, promo sale, spoilage, …). Mirrors the
+# StockMovement append-only guard — it is an audit ledger, never edited.
+# ──────────────────────────────────────────────────────────────────────
+class ConsumptionLog(_InventoryTimestamps):
+    class ConsumptionType(models.TextChoices):
+        MANUAL = 'manual', 'Manual'
+        BOOKING_AUTO = 'booking_auto', 'Booking Auto-consume'
+        PROMO_SALE = 'promo_sale', 'Promo Sale'
+        SALES_IMPORT = 'sales_import', 'Sales Import'
+        COCKTAIL_SERVE = 'cocktail_serve', 'Cocktail Serve'
+        STAFF_USE = 'staff_use', 'Staff Use'
+        SPOILAGE = 'spoilage', 'Spoilage'
+        WASTAGE = 'wastage', 'Wastage'
+        COMPLIMENTARY = 'complimentary', 'Complimentary'
+        GIVEAWAY = 'giveaway', 'Giveaway'
+
+    organization = models.ForeignKey(
+        Organization, on_delete=models.CASCADE, related_name='consumption_logs'
+    )
+    recipe = models.ForeignKey(
+        Recipe, on_delete=models.CASCADE, related_name='consumption_logs',
+    )
+    movement = models.ForeignKey(
+        StockMovement, on_delete=models.CASCADE, related_name='consumption_logs',
+    )
+    consumption_type = models.CharField(
+        max_length=20, choices=ConsumptionType.choices,
+        default=ConsumptionType.MANUAL,
+    )
+    quantity_consumed = models.DecimalField(max_digits=10, decimal_places=4)
+
+    class Meta:
+        db_table = 'inv_consumption_logs'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['organization', 'consumption_type', '-created_at']),
+        ]
+
+    def __str__(self):
+        return f'{self.consumption_type} {self.quantity_consumed} ({self.recipe.name})'
+
+    def save(self, *args, **kwargs):
+        if self.pk and not self._state.adding:
+            raise ValidationError(
+                "ConsumptionLog is an append-only ledger and cannot be edited. "
+                f"Record ID: {self.pk}"
+            )
+        super().save(*args, **kwargs)

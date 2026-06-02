@@ -21,7 +21,10 @@ import { useAuthStore } from '@/store/auth'
 import {
   inventoryApi,
   type Recipe, type InventoryItem, type RecipeCalculation, type RecipeVersion,
+  type FormulaType, POUR_FORMULA_TYPES,
 } from '@/services/inventory'
+import { restaurantApi } from '@/services/api'
+import type { MenuPromoRule } from '@/types'
 import { StockDisplay } from '@/components/inventory/StockDisplay'
 
 interface DraftIngredient {
@@ -36,6 +39,20 @@ const emptyIngredient: DraftIngredient = {
   item: '', quantity: '0', unit: '', is_optional: false, notes: '',
 }
 
+const FORMULA_TYPES: FormulaType[] = [
+  'food_recipe', 'drink_formula', 'cocktail_formula', 'batch_recipe', 'promo_combo_formula',
+]
+
+const FORMULA_BADGE: Record<FormulaType, string> = {
+  food_recipe: 'bg-slate-100 text-slate-700',
+  drink_formula: 'bg-cyan-100 text-cyan-800',
+  cocktail_formula: 'bg-pink-100 text-pink-800',
+  batch_recipe: 'bg-indigo-100 text-indigo-800',
+  promo_combo_formula: 'bg-rose-100 text-rose-800',
+}
+
+const isPourFormula = (ft: FormulaType) => POUR_FORMULA_TYPES.includes(ft)
+
 export function RecipesPage() {
   const { t } = useTranslation()
   const { toast } = useToast()
@@ -43,7 +60,9 @@ export function RecipesPage() {
 
   const [recipes, setRecipes] = useState<Recipe[]>([])
   const [items, setItems] = useState<InventoryItem[]>([])
+  const [promoRules, setPromoRules] = useState<MenuPromoRule[]>([])
   const [loading, setLoading] = useState(true)
+  const [typeFilter, setTypeFilter] = useState<FormulaType | ''>('')
 
   const [createOpen, setCreateOpen] = useState(false)
   const [editing, setEditing] = useState<Recipe | null>(null)
@@ -52,6 +71,10 @@ export function RecipesPage() {
   const [outputItem, setOutputItem] = useState('')
   const [outputQty, setOutputQty] = useState('1')
   const [yieldPercent, setYieldPercent] = useState('100')
+  const [formulaType, setFormulaType] = useState<FormulaType>('food_recipe')
+  const [servingMl, setServingMl] = useState('')
+  const [pourVariance, setPourVariance] = useState('')
+  const [linkedPromoRule, setLinkedPromoRule] = useState('')
   const [ingredients, setIngredients] = useState<DraftIngredient[]>([{ ...emptyIngredient }])
 
   const [calculator, setCalculator] = useState<Recipe | null>(null)
@@ -60,18 +83,23 @@ export function RecipesPage() {
     if (!orgId) return
     void loadAll()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orgId])
+  }, [orgId, typeFilter])
 
   async function loadAll() {
     if (!orgId) return
     setLoading(true)
     try {
-      const [r, i] = await Promise.all([
-        inventoryApi.listRecipes({ organization: orgId }),
+      const [r, i, p] = await Promise.all([
+        inventoryApi.listRecipes({
+          organization: orgId,
+          ...(typeFilter ? { formula_type: typeFilter } : {}),
+        }),
         inventoryApi.listItems({ organization: orgId, is_active: true }),
+        restaurantApi.promoRules.list({ organization: orgId }).catch(() => []),
       ])
       setRecipes(r)
       setItems(i)
+      setPromoRules(p)
     } catch (e) {
       toast({ title: t('common.error'), description: String(e), variant: 'destructive' })
     } finally {
@@ -82,6 +110,8 @@ export function RecipesPage() {
   function resetForm() {
     setName(''); setDescription(''); setOutputItem(''); setOutputQty('1')
     setYieldPercent('100'); setIngredients([{ ...emptyIngredient }])
+    setFormulaType('food_recipe'); setServingMl(''); setPourVariance('')
+    setLinkedPromoRule('')
     setEditing(null)
   }
 
@@ -92,6 +122,10 @@ export function RecipesPage() {
     setOutputItem(r.output_item || '')
     setOutputQty(r.output_quantity)
     setYieldPercent(r.yield_percent)
+    setFormulaType(r.formula_type || 'food_recipe')
+    setServingMl(r.serving_ml || '')
+    setPourVariance(r.pour_variance_percent || '')
+    setLinkedPromoRule(r.linked_promo_rule || '')
     setIngredients(r.ingredients.map(ing => ({
       item: ing.item,
       quantity: ing.quantity,
@@ -119,6 +153,11 @@ export function RecipesPage() {
       output_item: outputItem || null,
       output_quantity: outputQty,
       yield_percent: yieldPercent,
+      formula_type: formulaType,
+      // Only meaningful for pour formulas; send null otherwise to keep data clean.
+      serving_ml: isPourFormula(formulaType) && servingMl ? servingMl : null,
+      pour_variance_percent: isPourFormula(formulaType) && pourVariance ? pourVariance : null,
+      linked_promo_rule: linkedPromoRule || null,
       ingredients: valid.map(v => ({
         item: v.item,
         quantity: v.quantity,
@@ -173,6 +212,27 @@ export function RecipesPage() {
         </Button>
       </div>
 
+      {/* Formula-type filter chips */}
+      <div className="flex flex-wrap gap-2">
+        <Badge
+          variant={typeFilter === '' ? 'default' : 'outline'}
+          className="cursor-pointer"
+          onClick={() => setTypeFilter('')}
+        >
+          {t('inventory.recipes.formulaTypeAll')}
+        </Badge>
+        {FORMULA_TYPES.map(ft => (
+          <Badge
+            key={ft}
+            variant={typeFilter === ft ? 'default' : 'outline'}
+            className="cursor-pointer"
+            onClick={() => setTypeFilter(ft)}
+          >
+            {t(`inventory.recipes.formulaType.${ft}`)}
+          </Badge>
+        ))}
+      </div>
+
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {loading && <div className="text-slate-400">{t('common.loading')}</div>}
         {!loading && recipes.length === 0 && (
@@ -187,6 +247,22 @@ export function RecipesPage() {
                   <p className="text-xs text-slate-500">{r.output_item_name || '—'}</p>
                 </div>
                 <Badge variant="outline">v{r.version}</Badge>
+              </div>
+              <div className="flex flex-wrap gap-1">
+                <Badge className={FORMULA_BADGE[r.formula_type] || FORMULA_BADGE.food_recipe} variant="outline">
+                  {t(`inventory.recipes.formulaType.${r.formula_type}`)}
+                </Badge>
+                {isPourFormula(r.formula_type) && r.effective_pour_variance_percent && (
+                  <Badge variant="outline">±{r.effective_pour_variance_percent}%</Badge>
+                )}
+                {r.serving_ml && (
+                  <Badge variant="outline">{r.serving_ml} ml</Badge>
+                )}
+                {r.linked_promo_rule_label && (
+                  <Badge className="bg-rose-100 text-rose-800" variant="outline">
+                    {t('inventory.recipes.promoLinked')}
+                  </Badge>
+                )}
               </div>
               <div className="text-xs text-slate-600">
                 {t('inventory.recipes.ingredientsCount', { count: r.ingredients.length })} ·{' '}
@@ -241,6 +317,51 @@ export function RecipesPage() {
               <div className="space-y-1">
                 <Label>{t('inventory.recipes.yieldPercent')}</Label>
                 <Input type="number" step="0.01" min="1" max="100" value={yieldPercent} onChange={e => setYieldPercent(e.target.value)} />
+              </div>
+              <div className="space-y-1">
+                <Label>{t('inventory.recipes.formulaTypeLabel')}</Label>
+                <Select value={formulaType} onValueChange={(v) => setFormulaType(v as FormulaType)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {FORMULA_TYPES.map(ft => (
+                      <SelectItem key={ft} value={ft}>
+                        {t(`inventory.recipes.formulaType.${ft}`)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {isPourFormula(formulaType) && (
+                <>
+                  <div className="space-y-1">
+                    <Label>{t('inventory.recipes.servingMl')}</Label>
+                    <Input type="number" step="0.01" min="0" value={servingMl}
+                      onChange={e => setServingMl(e.target.value)} placeholder="130" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>{t('inventory.recipes.pourVariance')}</Label>
+                    <Input type="number" step="0.01" min="0" max="100" value={pourVariance}
+                      onChange={e => setPourVariance(e.target.value)} placeholder="5.0" />
+                  </div>
+                </>
+              )}
+              <div className="space-y-1 col-span-2">
+                <Label>{t('inventory.recipes.linkedPromoRule')}</Label>
+                <Select
+                  value={linkedPromoRule || '__none__'}
+                  onValueChange={(v) => setLinkedPromoRule(v === '__none__' ? '' : v)}
+                >
+                  <SelectTrigger><SelectValue placeholder={t('common.optional')} /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">{t('inventory.recipes.noPromoRule')}</SelectItem>
+                    {promoRules.map(pr => (
+                      <SelectItem key={pr.id} value={pr.id}>
+                        {pr.promo_type_display} — {pr.menu_item_name} (×{pr.inventory_deduction_multiplier})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-slate-500">{t('inventory.recipes.promoRuleHint')}</p>
               </div>
             </div>
 
