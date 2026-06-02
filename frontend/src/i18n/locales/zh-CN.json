@@ -736,7 +736,49 @@
       "itemDeletedDesc": "菜单菜品已移除。",
       "saveError": "保存失败。",
       "deleteError": "删除失败。",
-      "items": "菜品"
+      "items": "菜品",
+      "itemTypeLabel": "菜品类型",
+      "isAlcohol": "含酒精",
+      "alcoholBrand": "品牌",
+      "alcoholBrandPlaceholder": "例如：绝对伏特加、喜力",
+      "soldOut": "售罄",
+      "filterAll": "全部",
+      "promoRuleSaved": "促销规则已保存",
+      "promoRuleDeleted": "促销规则已移除",
+      "managePromo": "促销规则",
+      "itemType": {
+        "food": "食品",
+        "drink": "饮品",
+        "alcohol": "酒类",
+        "cocktail": "鸡尾酒",
+        "buffet": "自助餐",
+        "combo": "套餐",
+        "promotion": "促销",
+        "addon": "加购"
+      },
+      "promoRule": {
+        "title": "促销规则",
+        "subtitle": "此菜品在销量、收入和库存上的计数方式。",
+        "promoType": "促销类型",
+        "salesMultiplier": "销量倍数",
+        "revenueMultiplier": "收入倍数",
+        "inventoryMultiplier": "库存扣减倍数",
+        "linkedItems": "套餐组成",
+        "activeFrom": "生效起始",
+        "activeTo": "生效结束",
+        "notes": "备注",
+        "none": "无促销规则",
+        "addRule": "添加促销规则",
+        "removeRule": "移除",
+        "hint": "欢乐时光买一送一：销量 1、收入 1、库存 2 —— 记一笔销售但扣两份库存。",
+        "type": {
+          "buy_x_get_y": "买 X 送 Y",
+          "combo": "套餐",
+          "staff_discount": "员工折扣",
+          "happy_hour": "欢乐时光",
+          "buffet_session": "自助餐时段"
+        }
+      }
     },
     "bookings": {
       "title": "预订",

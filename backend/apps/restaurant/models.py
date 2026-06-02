@@ -62,6 +62,21 @@ class MenuCategory(models.Model):
         return f"{self.name} - {self.organization.name}"
 
 
+class MenuItemType(models.TextChoices):
+    """
+    Item-type separation (Phase 3). Drives inventory formula routing,
+    alcohol tracking, and admin/menu filtering.
+    """
+    FOOD = 'food', 'Food'
+    DRINK = 'drink', 'Drink'
+    ALCOHOL = 'alcohol', 'Alcohol'
+    COCKTAIL = 'cocktail', 'Cocktail'
+    BUFFET = 'buffet', 'Buffet'
+    COMBO = 'combo', 'Combo'
+    PROMOTION = 'promotion', 'Promotion'
+    ADDON = 'addon', 'Add-on'
+
+
 class MenuItem(models.Model):
     """
     Individual menu item with price and details.
@@ -72,10 +87,30 @@ class MenuItem(models.Model):
         on_delete=models.CASCADE,
         related_name='items'
     )
-    
+
     name = models.CharField(max_length=200)
     description = models.TextField(blank=True)
-    
+
+    # Item-type separation (Phase 3)
+    item_type = models.CharField(
+        max_length=20,
+        choices=MenuItemType.choices,
+        default=MenuItemType.FOOD,
+    )
+    is_alcohol = models.BooleanField(
+        default=False,
+        help_text='Quick alcohol filter without a type join.'
+    )
+    alcohol_brand = models.CharField(
+        max_length=200,
+        blank=True,
+        help_text='Brand for alcohol/cocktail items (e.g. Absolut).'
+    )
+    sold_out = models.BooleanField(
+        default=False,
+        help_text='Transient daily flag — distinct from is_available.'
+    )
+
     # Pricing
     price = models.DecimalField(
         max_digits=10,
@@ -114,11 +149,13 @@ class MenuItem(models.Model):
         verbose_name_plural = 'Menu Items'
         indexes = [
             models.Index(fields=['category', 'is_active', 'is_available']),
+            models.Index(fields=['category', 'item_type']),
+            models.Index(fields=['category', 'is_alcohol']),
         ]
-    
+
     def __str__(self):
         return f"{self.name} - ${self.price}"
-    
+
     @property
     def organization(self):
         return self.category.organization
@@ -461,6 +498,89 @@ class BookingSettings(models.Model):
         db_table = 'restaurant_booking_settings'
         verbose_name = 'Booking Settings'
         verbose_name_plural = 'Booking Settings'
-    
+
     def __str__(self):
         return f"Booking Settings - {self.location.name}"
+
+
+class MenuPromoRule(models.Model):
+    """
+    Promotion rule attached to a single MenuItem (Phase 3).
+
+    Drives POS-vs-inventory accounting divergence — e.g. "Happy Hour Beer 1+1"
+    records 1 sale + 1 revenue unit but deducts 2 inventory units. Phase 4's
+    StockEngine.consume_recipe reads `inventory_deduction_multiplier`.
+
+    NOTE: MenuItem has no `organization` column (it's a @property via
+    category.organization), so we DENORMALIZE `organization` here, set on save,
+    so OrgScopeMixin can filter cheaply at the DB level. See REQUIREMENTS § 0 #3.
+    """
+    class PromoType(models.TextChoices):
+        BUY_X_GET_Y = 'buy_x_get_y', 'Buy X Get Y'
+        COMBO = 'combo', 'Combo'
+        STAFF_DISCOUNT = 'staff_discount', 'Staff Discount'
+        HAPPY_HOUR = 'happy_hour', 'Happy Hour'
+        BUFFET_SESSION = 'buffet_session', 'Buffet Session'
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    menu_item = models.OneToOneField(
+        MenuItem,
+        on_delete=models.CASCADE,
+        related_name='promo_rule',
+    )
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.CASCADE,
+        related_name='menu_promo_rules',
+        help_text='Denormalized from menu_item.category.organization (set on save).'
+    )
+
+    promo_type = models.CharField(max_length=20, choices=PromoType.choices)
+
+    # POS-vs-inventory accounting multipliers.
+    sales_quantity_multiplier = models.DecimalField(
+        max_digits=5, decimal_places=2, default=Decimal('1.00'),
+        validators=[MinValueValidator(Decimal('0.00'))],
+        help_text='POS-recorded sold qty per sale.'
+    )
+    revenue_multiplier = models.DecimalField(
+        max_digits=5, decimal_places=2, default=Decimal('1.00'),
+        validators=[MinValueValidator(Decimal('0.00'))],
+        help_text='Revenue per POS unit.'
+    )
+    inventory_deduction_multiplier = models.DecimalField(
+        max_digits=5, decimal_places=2, default=Decimal('1.00'),
+        validators=[MinValueValidator(Decimal('0.00'))],
+        help_text='Inventory units deducted per POS unit (1+1 beer => 2).'
+    )
+
+    linked_menu_items = models.ManyToManyField(
+        MenuItem,
+        blank=True,
+        related_name='promo_components',
+        help_text='Combo components.'
+    )
+
+    # Happy-hour window (optional)
+    active_from = models.TimeField(null=True, blank=True)
+    active_to = models.TimeField(null=True, blank=True)
+
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'restaurant_promo_rules'
+        verbose_name = 'Menu Promo Rule'
+        verbose_name_plural = 'Menu Promo Rules'
+        indexes = [
+            models.Index(fields=['organization', 'promo_type']),
+        ]
+
+    def __str__(self):
+        return f"{self.get_promo_type_display()} - {self.menu_item.name}"
+
+    def save(self, *args, **kwargs):
+        # Denormalize org from the item's category (MenuItem has no org column).
+        if self.organization_id is None and self.menu_item_id:
+            self.organization = self.menu_item.category.organization
+        super().save(*args, **kwargs)

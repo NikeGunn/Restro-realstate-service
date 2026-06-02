@@ -333,6 +333,10 @@ export interface MenuCategory {
   updated_at: string;
 }
 
+export type MenuItemType =
+  | 'food' | 'drink' | 'alcohol' | 'cocktail'
+  | 'buffet' | 'combo' | 'promotion' | 'addon';
+
 export interface MenuItem {
   id: string;
   category: string;
@@ -340,6 +344,10 @@ export interface MenuItem {
   name: string;
   description: string;
   price: string;
+  item_type: MenuItemType;
+  is_alcohol: boolean;
+  alcohol_brand: string;
+  sold_out: boolean;
   dietary_info: string[];
   prep_time_minutes: number | null;
   image_url: string;
@@ -348,6 +356,27 @@ export interface MenuItem {
   is_active: boolean;
   created_at: string;
   updated_at: string;
+}
+
+export type PromoType =
+  | 'buy_x_get_y' | 'combo' | 'staff_discount'
+  | 'happy_hour' | 'buffet_session';
+
+export interface MenuPromoRule {
+  id: string;
+  menu_item: string;
+  menu_item_name: string;
+  organization: string;
+  promo_type: PromoType;
+  promo_type_display: string;
+  sales_quantity_multiplier: string;
+  revenue_multiplier: string;
+  inventory_deduction_multiplier: string;
+  linked_menu_items: string[];
+  active_from: string | null;
+  active_to: string | null;
+  notes: string;
+  created_at: string;
 }
 
 export interface OpeningHours {

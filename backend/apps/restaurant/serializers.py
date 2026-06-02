@@ -8,19 +8,20 @@ from datetime import timedelta
 
 from .models import (
     MenuCategory, MenuItem, OpeningHours, DailySpecial,
-    Booking, BookingSettings
+    Booking, BookingSettings, MenuPromoRule
 )
 
 
 class MenuItemSerializer(serializers.ModelSerializer):
     """Serializer for MenuItem."""
     category_name = serializers.CharField(source='category.name', read_only=True)
-    
+
     class Meta:
         model = MenuItem
         fields = [
             'id', 'category', 'category_name', 'name', 'description',
-            'price', 'dietary_info', 'prep_time_minutes', 'image_url',
+            'price', 'item_type', 'is_alcohol', 'alcohol_brand', 'sold_out',
+            'dietary_info', 'prep_time_minutes', 'image_url',
             'display_order', 'is_available', 'is_active',
             'created_at', 'updated_at'
         ]
@@ -29,16 +30,17 @@ class MenuItemSerializer(serializers.ModelSerializer):
 
 class MenuItemCreateSerializer(serializers.ModelSerializer):
     """Serializer for creating/updating menu items."""
-    
+
     class Meta:
         model = MenuItem
         fields = [
             'id', 'category', 'name', 'description', 'price',
+            'item_type', 'is_alcohol', 'alcohol_brand', 'sold_out',
             'dietary_info', 'prep_time_minutes', 'image_url',
             'display_order', 'is_available', 'is_active'
         ]
         read_only_fields = ['id']
-    
+
     def validate_price(self, value):
         if value < Decimal('0.00'):
             raise serializers.ValidationError("Price cannot be negative.")
@@ -315,6 +317,46 @@ class BookingSettingsCreateSerializer(serializers.ModelSerializer):
             'auto_confirm', 'cancellation_hours'
         ]
         read_only_fields = ['id']
+
+
+class MenuPromoRuleSerializer(serializers.ModelSerializer):
+    """Serializer for a menu item's promo rule (Phase 3).
+
+    `organization` is denormalized and set on save from the item's category —
+    it is read-only here so a client can't spoof it onto another org.
+    """
+    promo_type_display = serializers.CharField(source='get_promo_type_display', read_only=True)
+    menu_item_name = serializers.CharField(source='menu_item.name', read_only=True)
+    # menu_item is optional in the body: on the nested route it comes from the
+    # URL (the view injects it in perform_create). Presence is enforced there.
+    menu_item = serializers.PrimaryKeyRelatedField(
+        queryset=MenuItem.objects.all(), required=False
+    )
+
+    class Meta:
+        model = MenuPromoRule
+        fields = [
+            'id', 'menu_item', 'menu_item_name', 'organization',
+            'promo_type', 'promo_type_display',
+            'sales_quantity_multiplier', 'revenue_multiplier',
+            'inventory_deduction_multiplier', 'linked_menu_items',
+            'active_from', 'active_to', 'notes', 'created_at',
+        ]
+        read_only_fields = ['id', 'organization', 'created_at']
+
+    def validate(self, data):
+        # Combo components must belong to the same org as the rule's menu item.
+        menu_item = data.get('menu_item') or getattr(self.instance, 'menu_item', None)
+        linked = data.get('linked_menu_items')
+        if menu_item and linked:
+            org_id = menu_item.category.organization_id
+            for li in linked:
+                if li.category.organization_id != org_id:
+                    raise serializers.ValidationError({
+                        'linked_menu_items':
+                            'Linked items must belong to the same organization.'
+                    })
+        return data
 
 
 # Widget-facing serializers (public, limited data)

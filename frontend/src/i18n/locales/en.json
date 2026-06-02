@@ -736,7 +736,49 @@
       "itemDeletedDesc": "Menu item has been removed.",
       "saveError": "Failed to save.",
       "deleteError": "Failed to delete.",
-      "items": "items"
+      "items": "items",
+      "itemTypeLabel": "Item Type",
+      "isAlcohol": "Contains Alcohol",
+      "alcoholBrand": "Brand",
+      "alcoholBrandPlaceholder": "e.g., Absolut, Heineken",
+      "soldOut": "Sold Out",
+      "filterAll": "All",
+      "promoRuleSaved": "Promo rule saved",
+      "promoRuleDeleted": "Promo rule removed",
+      "managePromo": "Promo Rule",
+      "itemType": {
+        "food": "Food",
+        "drink": "Drink",
+        "alcohol": "Alcohol",
+        "cocktail": "Cocktail",
+        "buffet": "Buffet",
+        "combo": "Combo",
+        "promotion": "Promotion",
+        "addon": "Add-on"
+      },
+      "promoRule": {
+        "title": "Promotion Rule",
+        "subtitle": "How this item is counted for sales, revenue, and inventory.",
+        "promoType": "Promo Type",
+        "salesMultiplier": "Sales Qty Multiplier",
+        "revenueMultiplier": "Revenue Multiplier",
+        "inventoryMultiplier": "Inventory Deduction Multiplier",
+        "linkedItems": "Combo Components",
+        "activeFrom": "Active From",
+        "activeTo": "Active To",
+        "notes": "Notes",
+        "none": "No promo rule",
+        "addRule": "Add Promo Rule",
+        "removeRule": "Remove",
+        "hint": "Happy Hour 1+1: sales 1, revenue 1, inventory 2 — records one sale but deducts two units.",
+        "type": {
+          "buy_x_get_y": "Buy X Get Y",
+          "combo": "Combo",
+          "staff_discount": "Staff Discount",
+          "happy_hour": "Happy Hour",
+          "buffet_session": "Buffet Session"
+        }
+      }
     },
     "bookings": {
       "title": "Bookings",

@@ -425,7 +425,10 @@ export const restaurantApi = {
 
   // Menu Items
   items: {
-    list: async (params?: { organization?: string; category?: string; active?: boolean; available?: boolean }) => {
+    list: async (params?: {
+      organization?: string; category?: string; active?: boolean; available?: boolean
+      item_type?: string; is_alcohol?: boolean; sold_out?: boolean
+    }) => {
       const response = await api.get('/restaurant/items/', { params })
       return Array.isArray(response.data) ? response.data : (response.data.results || [])
     },
@@ -440,6 +443,10 @@ export const restaurantApi = {
       name: string
       description?: string
       price: string
+      item_type?: string
+      is_alcohol?: boolean
+      alcohol_brand?: string
+      sold_out?: boolean
       dietary_info?: string[]
       prep_time_minutes?: number
       image_url?: string
@@ -455,6 +462,10 @@ export const restaurantApi = {
       name: string
       description: string
       price: string
+      item_type: string
+      is_alcohol: boolean
+      alcohol_brand: string
+      sold_out: boolean
       dietary_info: string[]
       prep_time_minutes: number
       image_url: string
@@ -478,6 +489,49 @@ export const restaurantApi = {
 
     reorder: async (items: { id: string; order: number }[]) => {
       const response = await api.post('/restaurant/items/reorder/', { items })
+      return response.data
+    },
+  },
+
+  // Menu Promo Rules (Phase 3)
+  promoRules: {
+    // List a single item's promo rule (nested route).
+    getForItem: async (itemId: string) => {
+      const response = await api.get(`/restaurant/items/${itemId}/promo-rule/`)
+      const data = Array.isArray(response.data) ? response.data : (response.data.results || [])
+      return data.length > 0 ? data[0] : null
+    },
+
+    create: async (itemId: string, data: {
+      promo_type: string
+      sales_quantity_multiplier?: string
+      revenue_multiplier?: string
+      inventory_deduction_multiplier?: string
+      linked_menu_items?: string[]
+      active_from?: string | null
+      active_to?: string | null
+      notes?: string
+    }) => {
+      const response = await api.post(`/restaurant/items/${itemId}/promo-rule/`, data)
+      return response.data
+    },
+
+    update: async (itemId: string, ruleId: string, data: Partial<{
+      promo_type: string
+      sales_quantity_multiplier: string
+      revenue_multiplier: string
+      inventory_deduction_multiplier: string
+      linked_menu_items: string[]
+      active_from: string | null
+      active_to: string | null
+      notes: string
+    }>) => {
+      const response = await api.patch(`/restaurant/items/${itemId}/promo-rule/${ruleId}/`, data)
+      return response.data
+    },
+
+    delete: async (itemId: string, ruleId: string) => {
+      const response = await api.delete(`/restaurant/items/${itemId}/promo-rule/${ruleId}/`)
       return response.data
     },
   },

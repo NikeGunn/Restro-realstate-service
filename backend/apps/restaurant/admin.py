@@ -4,7 +4,7 @@ Restaurant Vertical Admin Configuration.
 from django.contrib import admin
 from .models import (
     MenuCategory, MenuItem, OpeningHours, DailySpecial,
-    Booking, BookingSettings
+    Booking, BookingSettings, MenuPromoRule
 )
 
 
@@ -16,12 +16,39 @@ class MenuCategoryAdmin(admin.ModelAdmin):
     ordering = ['organization', 'display_order', 'name']
 
 
+class MenuPromoRuleInline(admin.StackedInline):
+    model = MenuPromoRule
+    extra = 0
+    autocomplete_fields = ['linked_menu_items']
+    readonly_fields = ['organization', 'created_at']
+
+
 @admin.register(MenuItem)
 class MenuItemAdmin(admin.ModelAdmin):
-    list_display = ['name', 'category', 'price', 'is_available', 'is_active']
-    list_filter = ['category__organization', 'category', 'is_available', 'is_active']
-    search_fields = ['name', 'description']
+    list_display = [
+        'name', 'category', 'price', 'item_type', 'is_alcohol',
+        'sold_out', 'is_available', 'is_active'
+    ]
+    list_filter = [
+        'category__organization', 'category', 'item_type', 'is_alcohol',
+        'sold_out', 'is_available', 'is_active'
+    ]
+    search_fields = ['name', 'description', 'alcohol_brand']
     ordering = ['category', 'display_order', 'name']
+    inlines = [MenuPromoRuleInline]
+
+
+@admin.register(MenuPromoRule)
+class MenuPromoRuleAdmin(admin.ModelAdmin):
+    list_display = [
+        'menu_item', 'organization', 'promo_type',
+        'sales_quantity_multiplier', 'revenue_multiplier',
+        'inventory_deduction_multiplier'
+    ]
+    list_filter = ['organization', 'promo_type']
+    search_fields = ['menu_item__name', 'notes']
+    autocomplete_fields = ['linked_menu_items']
+    readonly_fields = ['organization', 'created_at']
 
 
 @admin.register(OpeningHours)

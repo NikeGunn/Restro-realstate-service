@@ -11,7 +11,7 @@ from django.db.models import Sum
 
 from .models import (
     MenuCategory, MenuItem, OpeningHours, DailySpecial,
-    Booking, BookingSettings
+    Booking, BookingSettings, MenuPromoRule
 )
 from .serializers import (
     MenuCategorySerializer, MenuCategoryListSerializer, MenuCategoryCreateSerializer,
@@ -20,10 +20,13 @@ from .serializers import (
     DailySpecialSerializer, DailySpecialCreateSerializer,
     BookingSerializer, BookingCreateSerializer, BookingUpdateSerializer,
     BookingSettingsSerializer, BookingSettingsCreateSerializer,
+    MenuPromoRuleSerializer,
     PublicMenuCategorySerializer, PublicDailySpecialSerializer,
     PublicOpeningHoursSerializer, BookingAvailabilitySerializer, BookingSlotSerializer
 )
 from apps.accounts.models import OrganizationMembership, Organization
+from apps.common.mixins import OrgScopeMixin
+from apps.common.permissions import IsOrgMember
 
 
 class MenuCategoryViewSet(viewsets.ModelViewSet):
@@ -111,7 +114,20 @@ class MenuItemViewSet(viewsets.ModelViewSet):
         available = self.request.query_params.get('available')
         if available is not None:
             queryset = queryset.filter(is_available=available.lower() == 'true')
-        
+
+        # Phase 3 filters: item_type, is_alcohol, sold_out
+        item_type = self.request.query_params.get('item_type')
+        if item_type:
+            queryset = queryset.filter(item_type=item_type)
+
+        is_alcohol = self.request.query_params.get('is_alcohol')
+        if is_alcohol is not None:
+            queryset = queryset.filter(is_alcohol=is_alcohol.lower() == 'true')
+
+        sold_out = self.request.query_params.get('sold_out')
+        if sold_out is not None:
+            queryset = queryset.filter(sold_out=sold_out.lower() == 'true')
+
         return queryset.select_related('category')
     
     def get_serializer_class(self):
@@ -448,6 +464,63 @@ class BookingSettingsViewSet(viewsets.ModelViewSet):
         if self.action in ['create', 'update', 'partial_update']:
             return BookingSettingsCreateSerializer
         return BookingSettingsSerializer
+
+
+class MenuPromoRuleViewSet(OrgScopeMixin, viewsets.ModelViewSet):
+    """
+    Promo rule for a menu item (Phase 3).
+
+    Uses the shared OrgScopeMixin (filters on the denormalized `organization`
+    column) + IsOrgMember (manager reads, owner writes). Cross-org → 404.
+
+    When the route is nested under a menu item (?menu_item= or the nested
+    router kwarg), the queryset narrows to that item. On create, the org is
+    derived from the item's category by the model's save().
+    """
+    serializer_class = MenuPromoRuleSerializer
+    permission_classes = [permissions.IsAuthenticated, IsOrgMember]
+    queryset = MenuPromoRule.objects.all().order_by('-created_at')
+
+    def get_queryset(self):
+        qs = super().get_queryset().select_related(
+            'menu_item', 'organization'
+        ).prefetch_related('linked_menu_items')
+        menu_item_id = self.kwargs.get('menu_item_pk') or \
+            self.request.query_params.get('menu_item')
+        if menu_item_id:
+            qs = qs.filter(menu_item_id=menu_item_id)
+        return qs
+
+    def perform_create(self, serializer):
+        # Resolve the item from the URL kwarg (nested route) or the body (flat
+        # route), derive its org, and enforce owner-of-that-org.
+        from rest_framework.exceptions import NotFound, ValidationError
+        menu_item = serializer.validated_data.get('menu_item')
+        menu_item_id = self.kwargs.get('menu_item_pk') or (
+            menu_item.id if menu_item else None
+        )
+        if not menu_item_id:
+            raise ValidationError({'menu_item': 'This field is required.'})
+        try:
+            item = MenuItem.objects.select_related(
+                'category'
+            ).get(pk=menu_item_id)
+        except MenuItem.DoesNotExist:
+            raise NotFound('Menu item not found.')
+
+        org_id = item.category.organization_id
+        is_owner = OrganizationMembership.objects.filter(
+            user=self.request.user,
+            organization_id=org_id,
+            role=OrganizationMembership.Role.OWNER,
+        ).exists()
+        if not is_owner:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied(
+                'Only the organization owner can manage promo rules.'
+            )
+        # organization is set on the model's save() from the item's category.
+        serializer.save(menu_item=item)
 
 
 class BookingAvailabilityView(APIView):

@@ -225,7 +225,34 @@ QR-code lucky-draw campaigns mounted at **`/api/v1/lucky_draw/`** (auth) + **`/p
 - WhatsApp delivery uses the org's existing `WhatsAppConfig`; with no active config the send is skipped (logged), not an error. Posters render with DejaVu/PIL-default fonts — CJK glyphs depend on a CJK font being present in the prod image; falls back gracefully.
 - `referral_bonus_type` `extra_entry` vs `better_odds` are recorded identically (via `referral_count`); the difference is presentational/redemption-side for now. `bonus_daily_allowance` exists for future "+1 daily slot per referral" enforcement but isn't yet wired into the eligibility check.
 - `PUBLIC_BASE_URL` defaults to kribaat.com; set it in `k8s/configmap.yaml` for prod so QR/referral links use the right origin.
-- Next authorized phase is **Phase 3 (Menu Management Updates)** — wait for the user to say "start Phase 3".
+
+## `restaurant` Menu Management — Phase 3
+
+### Phase 3 — DONE (2026-06-02, 353/353 backend tests pass, frontend prod build clean)
+
+In-place additions to the existing `apps/restaurant/` (no new app). Adds item-type separation + a per-item promo rule so Phase 4 inventory deduction (e.g. Happy Hour 1+1) can route correctly. Builds on Phase 0 `common`. Restaurant stays mounted at **`/api/restaurant/`** (not `/api/v1/`) — existing mount unchanged.
+
+**Models** (`models.py`, migration `0002`):
+- New `MenuItemType` TextChoices: `food · drink · alcohol · cocktail · buffet · combo · promotion · addon`.
+- `MenuItem` gains `item_type`(default `food`), `is_alcohol`(default False — quick filter, no type join), `alcohol_brand`(blank), `sold_out`(default False — transient daily flag, distinct from `is_available`). New indexes `(category, item_type)`, `(category, is_alcohol)`. All additive/defaulted → **forward-only migration safe** for the PreSync migrate-job.
+- New `MenuPromoRule` — `restaurant_promo_rules`, UUID PK, **OneToOne** to MenuItem. **`organization` is a denormalized FK set on `save()` from `menu_item.category.organization`** because MenuItem has no org column (REQUIREMENTS § 0 #3) — lets `OrgScopeMixin` filter at the DB level. Fields: `promo_type`(buy_x_get_y/combo/staff_discount/happy_hour/buffet_session), `sales_quantity_multiplier`/`revenue_multiplier`/`inventory_deduction_multiplier`(Decimal 5,2 default 1.00), `linked_menu_items`(M2M combo components), `active_from`/`active_to`(TimeField null — happy-hour window), `notes`. Index `(organization, promo_type)`. **Happy Hour 1+1** = sales 1, revenue 1, inventory 2 (Phase 4's `StockEngine.consume_recipe` will read `inventory_deduction_multiplier`).
+
+**API** (`serializers.py`, `views.py`, `urls.py`):
+- `MenuItemSerializer`/`MenuItemCreateSerializer` expose the 4 new fields. `MenuItemViewSet` adds `?item_type=`, `?is_alcohol=`, `?sold_out=` filters (alongside existing org-manual-scoping — that viewset predates the common mixin and is left as-is).
+- New `MenuPromoRuleViewSet` uses **`OrgScopeMixin` + `IsOrgMember`** (manager reads, owner writes; cross-org → 404). `menu_item` is optional in the serializer body (`required=False`) because on the nested route it comes from the URL kwarg; `perform_create` resolves it from `menu_item_pk` or body, derives the org from the item's category, and enforces owner-of-that-org (403 if not). `MenuPromoRuleSerializer.validate` rejects combo `linked_menu_items` from a different org. `organization` is read-only (can't be spoofed).
+- Routes: flat `promo-rules/` (filter `?menu_item=`) **and** nested `items/{menu_item_pk}/promo-rule/` (+ `/{pk}/`) — both bound to the same viewset via `as_view({...})`.
+
+**Admin**: `MenuItemAdmin` adds `item_type/is_alcohol/sold_out` to `list_display`+`list_filter`, `alcohol_brand` to search, and a `MenuPromoRuleInline` (StackedInline). `MenuPromoRule` also registered standalone (org/created_at read-only).
+
+**Frontend**: `types/index.ts` adds `MenuItemType`/`PromoType`/`MenuPromoRule` and extends `MenuItem`. `services/api.ts` `restaurantApi.items` create/update/list typings extended; new `restaurantApi.promoRules` ({getForItem, create, update, delete} on the nested route). `MenuPage.tsx`: item dialog gains item-type select (cocktail/alcohol auto-set `is_alcohol`), is_alcohol toggle, conditional alcohol_brand, sold_out toggle; item-type **filter chips** (All + 8 types); per-item type/brand/sold-out **badges**; a **PromoRuleDialog** (promo type + 3 multipliers with 1+1 hint + happy-hour time window + notes, create/update/delete). i18n `restaurant.menu.itemType.*` + `restaurant.menu.promoRule.*` (+ filter/toggle keys) in **en / zh-CN / zh-TW**.
+
+**Tests** (`apps/restaurant/tests/`, **24 — spec minimum was 12**, first tests this app has had): `conftest.py` (org/owner/manager/outsider/category + food/beer/cocktail item fixtures). `test_menu_type_filter.py` (11: defaults, all 8 type choices present, each filter returns only matching, is_alcohol/sold_out filters, serializer exposes fields, create-with-type, toggle sold_out). `test_promo_rule.py` (13: org auto-set from category, 1+1 multipliers, defaults to 1.00, OneToOne enforced, nested+flat create, multipliers round-trip, M2M linked items, manager read-but-not-write, cross-org item create rejected 403, cross-org list isolation, outsider 403, linked-item cross-org rejected 400). **Full suite 353/353 (329 prior + 24 new) green in Docker.** Frontend `npm run build` clean; `build:check` zero errors in `MenuPage.tsx`/`types/index.ts` (pre-existing errors in realestate/settings/api.ts are unrelated and CI doesn't gate on them).
+
+### Phase 3 known limitations / debt
+- `MenuPromoRule` is OneToOne with the item; one rule per item. Multi-promo-per-item would need a FK + a way to disambiguate which applies (out of scope here).
+- The promo multipliers are **stored but not yet consumed** — Phase 4's `StockEngine.consume_recipe` + `Recipe.linked_promo_rule` is what actually reads `inventory_deduction_multiplier`. Until Phase 4 lands, the rule is data-only.
+- `MenuItemViewSet` still uses the older inline org-scoping (not `OrgScopeMixin`); left untouched to avoid regressing existing menu behavior. Only the new `MenuPromoRuleViewSet` uses the common mixin.
+- Next authorized phase is **Phase 4 (Inventory Formula — Drinks & Cocktails)** — wait for the user to say "start Phase 4".
 
 ## Inventory app — Plane B (resume notes)
 
