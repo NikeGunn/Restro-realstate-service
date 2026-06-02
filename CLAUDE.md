@@ -282,7 +282,43 @@ In-place additions to `apps/inventory/` (no new app). Extends the recipe system 
 - `RecipeIngredient.clean()` still enforces `unit == item.unit`; brand-specific ml items naturally carry `ml`, so cocktail ingredients use the item's unit. cl/fl_oz are selectable on the **item**, not as a per-ingredient conversion — there is no unit conversion engine (45 ml means the vodka item must be a ml item).
 - `serving_ml` is informational (drives the variance UI/contract) — it is not yet cross-checked against the sum of ingredient volumes.
 - A recipe's `linked_promo_rule` and the recipe's org are not constraint-checked to match at the DB level; the promo selector in the UI only lists the current org's rules, and `OrgScopeMixin` keeps cross-org recipes out of reach, so this is a UI/scope guarantee rather than a DB one.
-- Next authorized phase is **Phase 5 (AI Content Studio)** — wait for the user to say "start Phase 5".
+- Phase 5 (AI Content Studio) is built on top of this — see the Phase 5 — DONE block below.
+
+## `content_studio` app — Phase 5 AI Content Studio
+
+### Phase 5 — DONE (2026-06-02, 413/413 backend tests pass, frontend prod build clean)
+
+A **structured** AI-image tool mounted at **`/api/v1/content-studio/`** — each use case is a form that builds a high-quality prompt (never a blank box). Power-plan gated. Builds on Phase 0 `common`. Image binaries are stored in Django default storage (S3 when `USE_OBJECT_STORAGE=true`), never a provider temp URL.
+
+**Models** (`models.py`, migration `0001` + seed `0002`, tables `studio_*`, UUID PKs): `ContentUseCase` (seeded catalog; field-def JSON for `required_fields`/`optional_fields`, `credit_cost`), `BrandKit` (OneToOne org; `snapshot()` frozen onto each job), `ContentPromptTemplate` (OneToOne use case — **prompts live here, never hardcoded**; `provider`/`model` blank → fall back to settings, so **no hardcoded model IDs**), `ContentGenerationJob` (status FSM draft/queued/processing/completed/failed/blocked_by_cap/cancelled/refunded; **unique `idempotency_key`** makes Celery retries safe; `usage_event_id` is a nullable UUID — no hard FK to billing), `ContentGenerationOutput` (ImageField `asset`+`thumbnail`, `max_length=300` because paths embed org+job UUIDs). Indexes on `(org,-created_at)`, `(org,status)`, `status`.
+
+**Services** (`services/`):
+- `credits.py` — the **boundary to Phase 6 billing**. Mirrors the reserve→confirm→refund saga contract; degrades to *allow, no charge* when `apps.billing` isn't installed (so Phase 5 ships standalone) and transparently delegates to `billing.credit_service` once it lands. No code change needed in `generation_service` when Phase 6 arrives.
+- `prompt_builder.py` — **pure, no OpenAI call**; merges form inputs + brand kit into the template. Required-field guard raises ValueError (last line of defence for Celery retries). Brand context is appended as a **separate authoritative block** (the Higgsfield "don't let channels fight in one block" principle). Unknown `{{placeholders}}` collapse to empty.
+- `provider.py` — config-driven OpenAI GPT Image abstraction; raises `ProviderError` on any failure (caller refunds). Resolution+aspect → size map. Negative steering folded into the prompt (Images API has no negative param). **No DALL·E.**
+- `image_storage.py` — `download_and_store` persists raw bytes to default storage + a 512px PNG thumbnail, records dims/format. Called immediately after generation.
+- `generation_service.py::run_job` — the saga orchestrator: reserve → build → generate → store-every-image → confirm-or-refund. Blocked-by-cap → no charge, provider failure → refund (technical failure never charges), idempotent on a completed job.
+
+**Prompt-engineering quality (the key ask)** — the seeded templates in `0002` use the **latest pro technique** (researched from Seedance 2.0 + Higgsfield Popcorn, June 2026), NOT dated free-text prompting:
+- **Channel separation** (Higgsfield Popcorn 6-field): every prompt is ordered named channels — SHOT & SUBJECT · FRAMING & ANGLE · LIGHTING · ENVIRONMENT · LENS/FILM LOOK · MATERIAL & TEXTURE · TYPOGRAPHY · MOOD · QUALITY · AVOID.
+- **Cinematographic language, not narrative**: precise craft directives (`90mm macro, f/2.8, 45° angle, soft window side light`) instead of vague "cinematic/dynamic".
+- **Affirmative-first** (Seedance): say what TO render; a single short `AVOID:` line carries prohibitions; most-important channel front-loaded (models weight early tokens).
+- A `MASTER_SYSTEM` instruction sets role + non-negotiables (correct spelling/kerning, single composition, no invented logos/QRs). QR/WiFi posters carry a HARD CONSTRAINT to leave a clean square (never fabricate QR pixels). Templates are admin-editable; bumping a model is a config/DB change, never a redeploy.
+
+**Plan gating / permissions**: `ContentStudioPermission` (in-app) = Phase 0 member/owner roles AND `Organization.is_power_plan`; object-perm resolves org via `obj.organization` or the parent `job`. Catalog (use-cases) is readable by any member so the grid renders; generation is owner+power only. Cross-org → 404.
+
+**API**: `ContentUseCaseViewSet` (RO), `BrandKitViewSet` (+`upload-logo` multipart), `ContentGenerationJobViewSet` (create validates required fields + the **server-side testimonial consent gate** `permission_confirmed`, estimates credits, queues task on `transaction.on_commit`; +`cancel` +`regenerate`), `ContentGenerationOutputViewSet` (RO + `favorite` + `download` with atomic `F()` count). **Settings** `CONTENT_STUDIO` (config-driven model IDs, cost estimates, USD→HKD). **Celery** `process_generation_job_task` (3 retries, exp backoff, idempotent) + `cleanup_expired_provider_urls_task` (daily). **Admin**: all 5 models; jobs/outputs read-only with pretty-JSON.
+
+**Frontend** (`pages/content_studio/`, Seedance/Higgsfield-inspired dark gradient UI): `ContentStudioHomePage` (hero + use-case card gallery), `UseCaseFormPage` (dynamic form from field defs + brand-kit preview + aspect chips), `GenerationResultPage` (polls status, animated generating state, image grid, regenerate-confirm), `JobHistoryPage`, `BrandKitPage` (logo upload, ≤5 color picker, language/watermark/CTA). `services/content_studio.ts` typed client. Sidebar `studioGroup` (`Sparkles`, prefix `/content-studio`) → Create/History/Brand Kit. i18n `contentStudio.*` + `nav.*studio*` in **en/zh-CN/zh-TW**.
+
+**Tests** (`apps/content_studio/tests/`, **31 — spec minimum was 22**): `test_prompt_builder` (7), `test_generation_service` (8 with a **mocked provider**: success confirms, provider-fail refunds, store-before-expiry, idempotency no double-generate, blocked-by-cap no charge, missing-field refunds, campaign_pack=4), `test_testimonial_consent` (3), `test_api` (13: catalog, brand-kit CRUD + validation, job create→queued via on-commit, manager-403, cancel, regenerate, favorite/download, basic-plan 403, cross-org 404, outsider 403). conftest isolates `MEDIA_ROOT` per test. **Full suite 413/413 (382 prior + 31 new) green in Docker.** Frontend `npm run build` clean; zero new TS errors in Phase 5 files.
+
+### Phase 5 known limitations / debt
+- **Billing (Phase 6) is not built yet.** The `credits` adapter currently allows generation with no charge and records no `UsageEvent`. When Phase 6 lands, it auto-delegates to `billing.credit_service` (which must expose `reserve_credits`/`confirm_credits`/`refund_credits`/`get_event`) — no Phase 5 code change. `usage_event_id` is a plain UUID column (not an FK) precisely to avoid coupling before Phase 6.
+- The stale-reservation sweeper is a Phase 6 deliverable; Phase 5's `cleanup_expired_provider_urls_task` only checks for orphaned assets.
+- `image_upload` optional fields capture a filename only (reference images aren't yet sent to the provider — gpt-image edit/variation wiring is a follow-up).
+- `provider.py` reads the API usage object's cost when present, else the settings estimate; the exact field name may need a one-line tweak on first real-API run.
+- Next authorized phase is **Phase 6 (AI Credit & Usage Billing System)** — wait for the user to say "start Phase 6". It implements the real credit saga the Phase 5 adapter targets.
 
 ## Inventory app — Plane B (resume notes)
 

@@ -51,6 +51,11 @@ import { SegmentsPage } from '@/pages/crm/SegmentsPage'
 import { CampaignListPage } from '@/pages/lucky_draw/CampaignListPage'
 import { CampaignDetailPage } from '@/pages/lucky_draw/CampaignDetailPage'
 import { CampaignFormPage } from '@/pages/lucky_draw/CampaignFormPage'
+import { ContentStudioHomePage } from '@/pages/content_studio/ContentStudioHomePage'
+import { UseCaseFormPage } from '@/pages/content_studio/UseCaseFormPage'
+import { GenerationResultPage } from '@/pages/content_studio/GenerationResultPage'
+import { JobHistoryPage } from '@/pages/content_studio/JobHistoryPage'
+import { BrandKitPage } from '@/pages/content_studio/BrandKitPage'
 
 // Public pages
 import { LandingPage } from '@/pages/LandingPage'
@@ -229,6 +234,12 @@ function App() {
           <Route path="/lucky-draw/new" element={<CampaignFormPage />} />
           <Route path="/lucky-draw/:id" element={<CampaignDetailPage />} />
           <Route path="/lucky-draw/:id/edit" element={<CampaignFormPage />} />
+          {/* Content Studio (Phase 5) */}
+          <Route path="/content-studio" element={<ContentStudioHomePage />} />
+          <Route path="/content-studio/create/:useCaseKey" element={<UseCaseFormPage />} />
+          <Route path="/content-studio/result/:jobId" element={<GenerationResultPage />} />
+          <Route path="/content-studio/history" element={<JobHistoryPage />} />
+          <Route path="/content-studio/brand-kit" element={<BrandKitPage />} />
         </Route>
       </Routes>
       <Toaster />

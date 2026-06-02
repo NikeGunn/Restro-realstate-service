@@ -61,6 +61,8 @@ INSTALLED_APPS = [
     'apps.crm',
     # Lucky Draw (Phase 2) — QR lead capture + WhatsApp delivery + referral loop
     'apps.lucky_draw',
+    # AI Content Studio (Phase 5) — structured AI image generation
+    'apps.content_studio',
 ]
 
 MIDDLEWARE = [
@@ -301,6 +303,12 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'apps.lucky_draw.tasks.expire_entries_task',
         'schedule': crontab(hour=0, minute=15),
     },
+    # Content Studio (Phase 5) — daily safety net for any output still pointing
+    # at a provider temp URL (should be none once download-and-store is in place).
+    'content-studio-cleanup-expired-urls': {
+        'task': 'apps.content_studio.tasks.cleanup_expired_provider_urls_task',
+        'schedule': crontab(hour=3, minute=30),
+    },
 }
 
 # ──────────────────────────────────────────────────────────────────────
@@ -410,6 +418,26 @@ INVENTORY_SETTINGS = {
     'COCKTAIL_FORMULA_ENABLED': config(
         'INVENTORY_COCKTAIL_FORMULA', default=True, cast=bool,
     ),
+}
+
+# ──────────────────────────────────────────────────────────────────────
+# AI Content Studio (Phase 5) settings
+# ──────────────────────────────────────────────────────────────────────
+# Model IDs are CONFIG-DRIVEN — never hardcode them in code or bump via redeploy.
+# Bumping to a future model = change an env var (configmap) or a template DB row.
+# Defaults reflect May 2026 (DALL·E removed from the API 2026-05-12 — not used).
+CONTENT_STUDIO = {
+    'IMAGE_MODEL_QUALITY': config('CONTENT_STUDIO_IMAGE_MODEL', default='gpt-image-2'),
+    'IMAGE_MODEL_CHEAP': config('CONTENT_STUDIO_IMAGE_MODEL_CHEAP', default='gpt-image-1-mini'),
+    'TEXT_ASSIST_MODEL': config('CONTENT_STUDIO_TEXT_MODEL', default='gpt-5.5'),
+    'DEFAULT_PROVIDER': config('CONTENT_STUDIO_PROVIDER', default='openai_gpt_image'),
+    'DEFAULT_RESOLUTION': config('CONTENT_STUDIO_DEFAULT_RESOLUTION', default='1024x1024'),
+    'MAX_RETRIES': 3,
+    'PROVIDER_URL_EXPIRY_MINUTES': 60,
+    # Estimated USD per image by resolution tier — pre-flight credit estimate only;
+    # actual cost is read from the provider usage object post-generation.
+    'COST_ESTIMATE_USD': {'1k': _Decimal('0.05'), '2k': _Decimal('0.20'), '4k': _Decimal('0.80')},
+    'USD_TO_HKD': _Decimal(config('USD_TO_HKD', default='7.8')),
 }
 
 # API Documentation

@@ -40,6 +40,9 @@ import {
   Tag,
   Filter,
   Gift,
+  Wand2,
+  History,
+  Palette,
 } from 'lucide-react'
 
 type NavLeaf = {
@@ -136,6 +139,19 @@ const engageGroup: NavGroup = {
   ],
 }
 
+const studioGroup: NavGroup = {
+  kind: 'group',
+  id: 'content-studio',
+  labelKey: 'nav.contentStudio',
+  icon: Sparkles,
+  pathPrefix: '/content-studio',
+  children: [
+    { kind: 'leaf', path: '/content-studio', labelKey: 'nav.studioCreate', icon: Wand2 },
+    { kind: 'leaf', path: '/content-studio/history', labelKey: 'nav.studioHistory', icon: History },
+    { kind: 'leaf', path: '/content-studio/brand-kit', labelKey: 'nav.studioBrandKit', icon: Palette },
+  ],
+}
+
 const settingsNavKey: NavLeaf = { kind: 'leaf', path: '/settings', labelKey: 'nav.settings', icon: Settings }
 const channelsNavKey: NavLeaf = { kind: 'leaf', path: '/settings/channels', labelKey: 'nav.channels', icon: Phone }
 
@@ -187,6 +203,9 @@ export function DashboardLayout() {
 
     // Engage (Lucky Draw) — shared across verticals.
     items.push(engageGroup)
+
+    // Content Studio (Phase 5) — shared across verticals.
+    items.push(studioGroup)
 
     items.push(settingsNavKey)
     items.push(channelsNavKey)

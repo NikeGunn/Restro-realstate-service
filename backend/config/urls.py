@@ -62,6 +62,9 @@ urlpatterns = [
     # Lucky Draw (Phase 2) — PUBLIC, no auth, throttled
     path('public/lucky-draw/', include('apps.lucky_draw.public_urls')),
 
+    # AI Content Studio (Phase 5)
+    path('api/v1/content-studio/', include('apps.content_studio.urls')),
+
     # Channel configuration API (Phase 4)
     path('api/channels/', include('apps.channels.urls')),
 
