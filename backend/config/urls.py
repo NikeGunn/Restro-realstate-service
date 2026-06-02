@@ -2,7 +2,7 @@
 URL configuration for AI Business Chat Platform.
 """
 from django.contrib import admin
-from django.urls import path, include
+from django.urls import path, include, re_path
 from django.conf import settings
 from django.conf.urls.static import static
 from django.views.static import serve
@@ -75,5 +75,18 @@ urlpatterns = [
 # Serve static files (including widget.js)
 urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
 
-if settings.DEBUG:
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+# Serve user-uploaded / generated media (Content Studio images, brand-kit logos,
+# lucky-draw QR/posters, inventory uploads). WhiteNoise only serves STATIC_ROOT,
+# so when media lives on the local FileSystemStorage (media-pvc, i.e.
+# USE_OBJECT_STORAGE=false) Django itself must serve /media/ — in prod too, not
+# just under DEBUG. When USE_OBJECT_STORAGE=true the files are served from
+# S3/CDN and this route is harmless (no local files to find).
+if not settings.USE_OBJECT_STORAGE:
+    media_prefix = settings.MEDIA_URL.lstrip('/')
+    urlpatterns += [
+        re_path(
+            rf'^{media_prefix}(?P<path>.*)$',
+            serve,
+            {'document_root': settings.MEDIA_ROOT},
+        ),
+    ]

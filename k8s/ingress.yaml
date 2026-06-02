@@ -55,6 +55,14 @@ spec:
                 name: backend
                 port:
                   number: 8000
+          # Media files (Content Studio images, brand-kit logos, QR/posters) → backend
+          - path: /media
+            pathType: Prefix
+            backend:
+              service:
+                name: backend
+                port:
+                  number: 8000
           # Webhook routes → backend
           - path: /webhooks
             pathType: Prefix
@@ -99,6 +107,13 @@ spec:
                 port:
                   number: 8000
           - path: /static
+            pathType: Prefix
+            backend:
+              service:
+                name: backend
+                port:
+                  number: 8000
+          - path: /media
             pathType: Prefix
             backend:
               service:
