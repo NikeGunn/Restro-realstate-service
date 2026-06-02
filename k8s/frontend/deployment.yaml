@@ -27,7 +27,7 @@ spec:
     spec:
       containers:
         - name: frontend
-          image: nemo2092/chatplatform-frontend:140cd0c
+          image: nemo2092/chatplatform-frontend:9b11d71
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 80
