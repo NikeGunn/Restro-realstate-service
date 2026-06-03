@@ -62,6 +62,7 @@ import { BillingDashboardPage } from '@/pages/billing/BillingDashboardPage'
 import { UsageHistoryPage } from '@/pages/billing/UsageHistoryPage'
 import { UsageLimitsPage } from '@/pages/billing/UsageLimitsPage'
 import { MonthlySummaryPage } from '@/pages/billing/MonthlySummaryPage'
+import { BuyCreditsPage } from '@/pages/billing/BuyCreditsPage'
 
 // Public pages
 import { LandingPage } from '@/pages/LandingPage'
@@ -252,6 +253,7 @@ function App() {
           <Route path="/billing/usage" element={<UsageHistoryPage />} />
           <Route path="/billing/limits" element={<UsageLimitsPage />} />
           <Route path="/billing/monthly" element={<MonthlySummaryPage />} />
+          <Route path="/billing/buy" element={<BuyCreditsPage />} />
         </Route>
       </Routes>
       <Toaster />

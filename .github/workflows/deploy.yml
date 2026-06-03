@@ -315,6 +315,8 @@ jobs:
           EMAIL_HOST_USER: ${{ secrets.EMAIL_HOST_USER }}
           EMAIL_HOST_PASSWORD: ${{ secrets.EMAIL_HOST_PASSWORD }}
           DEFAULT_FROM_EMAIL: ${{ secrets.DEFAULT_FROM_EMAIL }}
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+          STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
         run: |
           echo "📝 Creating/updating Kubernetes secrets..."
 
@@ -336,7 +338,9 @@ jobs:
               --from-literal=INSTAGRAM_DEFAULT_VERIFY_TOKEN='$INSTAGRAM_VERIFY_TOKEN' \
               --from-literal=EMAIL_HOST_USER='$EMAIL_HOST_USER' \
               --from-literal=EMAIL_HOST_PASSWORD='$EMAIL_HOST_PASSWORD' \
-              --from-literal=DEFAULT_FROM_EMAIL='$DEFAULT_FROM_EMAIL'"
+              --from-literal=DEFAULT_FROM_EMAIL='$DEFAULT_FROM_EMAIL' \
+              --from-literal=STRIPE_SECRET_KEY='$STRIPE_SECRET_KEY' \
+              --from-literal=STRIPE_WEBHOOK_SECRET='$STRIPE_WEBHOOK_SECRET'"
 
           echo "✅ Secrets deployed successfully"
 

@@ -129,7 +129,8 @@
     "billingDashboard": "儀表板",
     "billingUsage": "用量記錄",
     "billingLimits": "限額",
-    "billingMonthly": "月度匯總"
+    "billingMonthly": "月度匯總",
+    "billingBuy": "購買額度"
   },
   "inventory": {
     "title": "庫存",
@@ -1371,5 +1372,39 @@
     "images": "圖片",
     "aiQueries": "AI 查詢",
     "billable": "應計費"
+  },
+  "payments": {
+    "badge": "Stripe 安全結帳",
+    "heroTitle": "為您的 AI 額度充值",
+    "heroSubtitle": "購買額度包以繼續生成內容。使用銀行卡安全付款——付款成功後額度立即到帳。",
+    "trust": {
+      "securedByStripe": "由 Stripe 保護",
+      "pciCompliant": "符合 PCI 標準——我們不會看到您的卡號",
+      "instantCredits": "額度即時到帳"
+    },
+    "choosePack": "選擇額度包",
+    "credits": "額度",
+    "credit": "額度",
+    "bestValue": "最划算",
+    "save": "省 {{pct}}%",
+    "buyNow": "立即購買",
+    "redirecting": "跳轉中…",
+    "buyCredits": "購買額度",
+    "ownerOnly": "僅機構擁有者可購買額度。",
+    "ownerOnlyHint": "僅機構擁有者可購買額度。",
+    "recentPurchases": "最近購買",
+    "receipt": "收據",
+    "status": {
+      "paid": "已支付",
+      "pending": "待處理",
+      "failed": "失敗",
+      "expired": "已過期",
+      "refunded": "已退款"
+    },
+    "loadError": "無法載入額度包。",
+    "checkoutFailed": "無法開始結帳，請重試。",
+    "successToast": "已收到付款",
+    "successBody": "額度已新增至您的錢包。",
+    "cancelledToast": "付款已取消——未產生費用。"
   }
 }

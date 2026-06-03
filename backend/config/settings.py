@@ -65,6 +65,8 @@ INSTALLED_APPS = [
     'apps.content_studio',
     # AI Credit & Usage Billing (Phase 6) — credit wallet + usage ledger + spend cap
     'apps.billing',
+    # Payments — Stripe Checkout for AI credit-pack purchases (tops up Phase 6)
+    'apps.payments',
 ]
 
 MIDDLEWARE = [
@@ -189,6 +191,7 @@ REST_FRAMEWORK = {
         'public_burst': '60/min',       # GET campaign config etc.
         'public_sustained': '600/hour',
         'public_form': '10/min',        # POST lucky-draw entry — anti-abuse
+        'payments_checkout': '20/min',  # POST create-checkout-session — anti-abuse (authed)
     },
 }
 
@@ -357,6 +360,16 @@ BILLING_SETTINGS = {
     # Notify the org owner (WhatsApp) when the spend cap crosses a threshold.
     'NOTIFY_OWNER_ON_CAP': config('BILLING_NOTIFY_OWNER_ON_CAP', default=True, cast=bool),
 }
+
+# ──────────────────────────────────────────────────────────────────────
+# Payments (Stripe) settings
+# ──────────────────────────────────────────────────────────────────────
+# SECRET keys → GitHub Secrets → chatplatform-secrets (deploy-secrets job).
+# PUBLISHABLE key is non-secret → k8s/configmap.yaml. Empty defaults keep the
+# checkout endpoint returning 503 (not 500) until configured.
+STRIPE_SECRET_KEY = config('STRIPE_SECRET_KEY', default='')
+STRIPE_PUBLISHABLE_KEY = config('STRIPE_PUBLISHABLE_KEY', default='')
+STRIPE_WEBHOOK_SECRET = config('STRIPE_WEBHOOK_SECRET', default='')
 
 # Redis Cache
 CACHES = {

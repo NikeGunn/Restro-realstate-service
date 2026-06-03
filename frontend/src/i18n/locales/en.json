@@ -129,7 +129,8 @@
     "billingDashboard": "Dashboard",
     "billingUsage": "Usage History",
     "billingLimits": "Limits",
-    "billingMonthly": "Monthly"
+    "billingMonthly": "Monthly",
+    "billingBuy": "Buy Credits"
   },
   "inventory": {
     "title": "Inventory",
@@ -1438,5 +1439,39 @@
     "images": "Images",
     "aiQueries": "AI queries",
     "billable": "Billable"
+  },
+  "payments": {
+    "badge": "Secure checkout by Stripe",
+    "heroTitle": "Top up your AI credits",
+    "heroSubtitle": "Buy a credit pack to keep generating content. Pay securely by card — credits land in your wallet the moment payment clears.",
+    "trust": {
+      "securedByStripe": "Secured by Stripe",
+      "pciCompliant": "PCI-compliant — we never see your card",
+      "instantCredits": "Credits added instantly"
+    },
+    "choosePack": "Choose a credit pack",
+    "credits": "credits",
+    "credit": "credit",
+    "bestValue": "Best value",
+    "save": "Save {{pct}}%",
+    "buyNow": "Buy now",
+    "redirecting": "Redirecting…",
+    "buyCredits": "Buy credits",
+    "ownerOnly": "Only the organization owner can purchase credits.",
+    "ownerOnlyHint": "Only the organization owner can purchase credits.",
+    "recentPurchases": "Recent purchases",
+    "receipt": "Receipt",
+    "status": {
+      "paid": "Paid",
+      "pending": "Pending",
+      "failed": "Failed",
+      "expired": "Expired",
+      "refunded": "Refunded"
+    },
+    "loadError": "Could not load credit packs.",
+    "checkoutFailed": "Could not start checkout. Please try again.",
+    "successToast": "Payment received",
+    "successBody": "Your credits have been added to your wallet.",
+    "cancelledToast": "Payment cancelled — no charge was made."
   }
 }

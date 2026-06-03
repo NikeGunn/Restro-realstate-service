@@ -233,6 +233,68 @@ def refund_credits(event):
         cap_monitor.recompute_cap_status(balance, persist=True)
 
 
+def add_paid_credits(org, credits, *, reference_id=None, user=None,
+                     event_type='credit_purchase', provider='stripe',
+                     metadata=None):
+    """Top up paid credits (e.g. a Stripe credit-pack purchase).
+
+    Row-locked. Appends a `success` UsageEvent recording the grant (credits as
+    a negative-spend top-up is not modeled; we record credits_used=credits with
+    is_free_credit=False and zero cost — the *purchase* cost lives on the
+    payments.CreditPurchase row, not here, to keep this ledger about AI usage).
+    Returns the created UsageEvent. The caller is responsible for its own
+    idempotency latch (payments.CreditPurchase.credited) — this function does
+    NOT dedupe, so only call it once per paid purchase.
+    """
+    credits = int(credits)
+    with transaction.atomic():
+        balance = UsageCreditBalance.objects.select_for_update().get(organization=org)
+        balance.paid_credits_remaining += credits
+        balance.save(update_fields=['paid_credits_remaining', 'updated_at'])
+        event = UsageEvent.objects.create(
+            organization=org,
+            user=user,
+            module=UsageModule.CONTENT_STUDIO,
+            event_type=event_type,
+            provider=provider,
+            credits_used=credits,
+            is_free_credit=False,
+            cost_usd=Decimal('0'),
+            cost_hkd=Decimal('0'),
+            billable_amount_hkd=Decimal('0'),
+            status=EventStatus.SUCCESS,
+            reference_id=reference_id,
+            metadata={**(metadata or {}), 'kind': 'credit_topup'},
+        )
+        return event
+
+
+def deduct_paid_credits(org, credits, *, reference_id=None, metadata=None):
+    """Remove paid credits (e.g. a refunded credit-pack purchase). Row-locked.
+
+    Floors at zero — if the org already spent the purchased credits we don't
+    drive the balance negative (the money refund still goes back via Stripe;
+    the wallet simply can't be clawed below zero).
+    """
+    credits = int(credits)
+    with transaction.atomic():
+        balance = UsageCreditBalance.objects.select_for_update().get(organization=org)
+        balance.paid_credits_remaining = max(0, balance.paid_credits_remaining - credits)
+        balance.save(update_fields=['paid_credits_remaining', 'updated_at'])
+        UsageEvent.objects.create(
+            organization=org,
+            module=UsageModule.CONTENT_STUDIO,
+            event_type='credit_purchase_refund',
+            provider='stripe',
+            credits_used=credits,
+            is_free_credit=False,
+            status=EventStatus.REFUNDED,
+            reference_id=reference_id,
+            metadata={**(metadata or {}), 'kind': 'credit_topup_refund'},
+        )
+        return balance
+
+
 def reset_monthly_credits(org):
     """Period rollover: free credits reset to the plan grant; paid untouched."""
     from .provisioning import _plan_for_org

@@ -68,6 +68,9 @@ urlpatterns = [
     # AI Credit & Usage Billing (Phase 6)
     path('api/v1/billing/', include('apps.billing.urls')),
 
+    # Payments (Stripe) — credit-pack purchases + webhook
+    path('api/v1/payments/', include('apps.payments.urls')),
+
     # Channel configuration API (Phase 4)
     path('api/channels/', include('apps.channels.urls')),
 
