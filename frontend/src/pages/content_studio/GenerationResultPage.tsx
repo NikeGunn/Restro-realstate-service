@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/dialog'
 import { useToast } from '@/hooks/use-toast'
 import { contentStudioApi, type GenerationJob } from '@/services/content_studio'
+import { PlanGate, isPlanGateError } from '@/components/PlanGate'
 
 const POLL_MS = 2500
 const ACTIVE = new Set(['queued', 'processing', 'draft'])
@@ -23,6 +24,7 @@ export function GenerationResultPage() {
 
   const [job, setJob] = useState<GenerationJob | null>(null)
   const [regenOpen, setRegenOpen] = useState(false)
+  const [planBlocked, setPlanBlocked] = useState(false)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const poll = useCallback(async () => {
@@ -34,6 +36,7 @@ export function GenerationResultPage() {
         timer.current = setTimeout(poll, POLL_MS)
       }
     } catch (e) {
+      if (isPlanGateError(e)) { setPlanBlocked(true); return }
       toast({ title: t('common.error'), description: String(e), variant: 'destructive' })
     }
   }, [jobId, t, toast])
@@ -60,6 +63,7 @@ export function GenerationResultPage() {
     navigate(`/content-studio/result/${newJob.id}`)
   }
 
+  if (planBlocked) return <PlanGate feature={t('contentStudio.title')} />
   if (!job) {
     return <div className="py-10 text-muted-foreground">{t('common.loading')}</div>
   }

@@ -1280,6 +1280,7 @@
     }
   },
   "contentStudio": {
+    "title": "AI Content Studio",
     "badge": "AI Content Studio",
     "tagline": "Create stunning restaurant visuals in seconds.",
     "subtitle": "Pick a use case, fill a short form, and let AI design a share-ready, on-brand image.",
@@ -1291,7 +1292,11 @@
     "generatingNow": "Designing your image…",
     "generatingHint": "This usually takes a few seconds. You can leave this page and check History later.",
     "aspect": "Format",
-    "aspectType": { "square": "Square", "portrait": "Portrait", "landscape": "Landscape" },
+    "aspectType": {
+      "square": "Square",
+      "portrait": "Portrait",
+      "landscape": "Landscape"
+    },
     "brandContext": "Brand context",
     "noBrandName": "No brand name set",
     "noBrandKit": "No brand kit yet.",
@@ -1328,7 +1333,11 @@
     "website": "Website",
     "address": "Address",
     "watermark": "Watermark",
-    "watermarkType": { "none": "None", "logo": "Logo", "text": "Text" },
+    "watermarkType": {
+      "none": "None",
+      "logo": "Logo",
+      "text": "Text"
+    },
     "status": {
       "draft": "Draft",
       "queued": "Queued",
@@ -1339,5 +1348,14 @@
       "cancelled": "Cancelled",
       "refunded": "Refunded"
     }
+  },
+  "planGate": {
+    "defaultFeature": "This feature",
+    "powerBadge": "Power plan",
+    "title": "{{feature}} is a Power plan feature",
+    "body": "Your organization is currently on the Basic plan, or your Power plan has expired. Upgrade to the Power plan to unlock {{feature}} and the rest of the AI suite.",
+    "upgradeCta": "Upgrade to Power",
+    "backToDashboard": "Back to dashboard",
+    "contactHint": "Have a coupon or upgraded already? Open Settings → Plan & Coupons to apply it."
   }
 }

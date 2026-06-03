@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/store/auth'
 import { organizationsApi, locationsApi } from '@/services/api'
@@ -25,6 +26,10 @@ import type { Location } from '@/types'
 
 export function SettingsPage() {
   const { t } = useTranslation()
+  const [searchParams] = useSearchParams()
+  const requestedTab = searchParams.get('tab')
+  const validTabs = ['organization', 'widget', 'locations', 'plan']
+  const initialTab = requestedTab && validTabs.includes(requestedTab) ? requestedTab : 'organization'
   const { currentOrganization, setCurrentOrganization } = useAuthStore()
   const [locations, setLocations] = useState<Location[]>([])
   const [loading, setLoading] = useState(true)
@@ -198,7 +203,7 @@ export function SettingsPage() {
           </p>
         </div>
 
-      <Tabs defaultValue="organization">
+      <Tabs defaultValue={initialTab}>
         <TabsList>
           <TabsTrigger value="organization">{t('settings.organization')}</TabsTrigger>
           <TabsTrigger value="widget">{t('settings.widget')}</TabsTrigger>

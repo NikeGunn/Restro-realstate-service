@@ -12,6 +12,7 @@ import {
 import { useToast } from '@/hooks/use-toast'
 import { useAuthStore } from '@/store/auth'
 import { contentStudioApi, type BrandKit } from '@/services/content_studio'
+import { PlanGate, isPlanGateError } from '@/components/PlanGate'
 import { parseColor, toPickerHex } from '@/lib/color'
 
 const LANGS = ['zh-TW', 'zh-CN', 'en']
@@ -34,6 +35,7 @@ export function BrandKitPage() {
   const [swatch, setSwatch] = useState('#E11D48')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [planBlocked, setPlanBlocked] = useState(false)
 
   // Live parse of whatever the user typed/pasted — null while invalid.
   const parsedInput = colorInput.trim() ? parseColor(colorInput) : null
@@ -53,6 +55,8 @@ export function BrandKitPage() {
         })
         setColors(k.brand_colors || [])
       }
+    }).catch(e => {
+      if (active && isPlanGateError(e)) setPlanBlocked(true)
     }).finally(() => { if (active) setLoading(false) })
     return () => { active = false }
   }, [orgId])
@@ -99,6 +103,7 @@ export function BrandKitPage() {
     toast({ title: t('contentStudio.logoUploaded') })
   }
 
+  if (planBlocked) return <PlanGate feature={t('contentStudio.title')} />
   if (loading) return <div className="py-10 text-muted-foreground">{t('common.loading')}</div>
 
   return (

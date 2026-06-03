@@ -18,6 +18,7 @@ import { useAuthStore } from '@/store/auth'
 import {
   contentStudioApi, type ContentUseCase, type BrandKit, type UseCaseField,
 } from '@/services/content_studio'
+import { PlanGate, isPlanGateError } from '@/components/PlanGate'
 import { useCaseIcon } from './icons'
 
 const ASPECTS = ['square', 'portrait', 'landscape'] as const
@@ -35,6 +36,7 @@ export function UseCaseFormPage() {
   const [aspect, setAspect] = useState<string>('square')
   const [submitting, setSubmitting] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [planBlocked, setPlanBlocked] = useState(false)
 
   useEffect(() => {
     if (!orgId) return
@@ -71,6 +73,7 @@ export function UseCaseFormPage() {
       })
       navigate(`/content-studio/result/${job.id}`)
     } catch (e: any) {
+      if (isPlanGateError(e)) { setPlanBlocked(true); return }
       toast({
         title: t('common.error'),
         description: e?.response?.data ? JSON.stringify(e.response.data) : String(e),
@@ -81,6 +84,7 @@ export function UseCaseFormPage() {
     }
   }
 
+  if (planBlocked) return <PlanGate feature={t('contentStudio.title')} />
   if (loading) {
     return <div className="py-10 text-muted-foreground">{t('common.loading')}</div>
   }

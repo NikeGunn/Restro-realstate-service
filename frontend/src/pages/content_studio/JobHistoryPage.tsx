@@ -7,6 +7,7 @@ import { Card } from '@/components/ui/card'
 import { useToast } from '@/hooks/use-toast'
 import { useAuthStore } from '@/store/auth'
 import { contentStudioApi, type GenerationJob } from '@/services/content_studio'
+import { PlanGate, isPlanGateError } from '@/components/PlanGate'
 import { StatusBadge } from './GenerationResultPage'
 
 export function JobHistoryPage() {
@@ -17,16 +18,23 @@ export function JobHistoryPage() {
 
   const [jobs, setJobs] = useState<GenerationJob[]>([])
   const [loading, setLoading] = useState(true)
+  const [planBlocked, setPlanBlocked] = useState(false)
 
   useEffect(() => {
     if (!orgId) return
     let active = true
     contentStudioApi.listJobs({ organization: orgId })
       .then(rows => { if (active) setJobs(rows) })
-      .catch(e => toast({ title: t('common.error'), description: String(e), variant: 'destructive' }))
+      .catch(e => {
+        if (!active) return
+        if (isPlanGateError(e)) { setPlanBlocked(true); return }
+        toast({ title: t('common.error'), description: String(e), variant: 'destructive' })
+      })
       .finally(() => { if (active) setLoading(false) })
     return () => { active = false }
   }, [orgId, t, toast])
+
+  if (planBlocked) return <PlanGate feature={t('contentStudio.title')} />
 
   return (
     <div className="space-y-4">

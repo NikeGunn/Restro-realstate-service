@@ -1280,6 +1280,7 @@
     }
   },
   "contentStudio": {
+    "title": "AI 内容工作室",
     "badge": "AI 内容工作室",
     "tagline": "几秒钟生成惊艳的餐厅视觉素材。",
     "subtitle": "选择用途、填写简短表单，让 AI 设计出符合品牌、可直接分享的图片。",
@@ -1291,7 +1292,11 @@
     "generatingNow": "正在为您设计图片…",
     "generatingHint": "通常只需几秒。您可以离开此页面，稍后在历史中查看。",
     "aspect": "尺寸",
-    "aspectType": { "square": "正方形", "portrait": "竖版", "landscape": "横版" },
+    "aspectType": {
+      "square": "正方形",
+      "portrait": "竖版",
+      "landscape": "横版"
+    },
     "brandContext": "品牌信息",
     "noBrandName": "未设置品牌名称",
     "noBrandKit": "尚未设置品牌套件。",
@@ -1328,7 +1333,11 @@
     "website": "网站",
     "address": "地址",
     "watermark": "水印",
-    "watermarkType": { "none": "无", "logo": "Logo", "text": "文字" },
+    "watermarkType": {
+      "none": "无",
+      "logo": "Logo",
+      "text": "文字"
+    },
     "status": {
       "draft": "草稿",
       "queued": "排队中",
@@ -1339,5 +1348,14 @@
       "cancelled": "已取消",
       "refunded": "已退款"
     }
+  },
+  "planGate": {
+    "defaultFeature": "此功能",
+    "powerBadge": "Power 套餐",
+    "title": "{{feature}}属于 Power 套餐功能",
+    "body": "您的机构当前使用的是 Basic 套餐，或您的 Power 套餐已到期。升级到 Power 套餐即可解锁{{feature}}以及全部 AI 功能。",
+    "upgradeCta": "升级到 Power",
+    "backToDashboard": "返回仪表盘",
+    "contactHint": "已有优惠码或已升级？前往 设置 → 套餐与优惠码 进行应用。"
   }
 }
