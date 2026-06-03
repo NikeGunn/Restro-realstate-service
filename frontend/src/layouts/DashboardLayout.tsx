@@ -43,6 +43,10 @@ import {
   Wand2,
   History,
   Palette,
+  Wallet,
+  Receipt,
+  Gauge,
+  CalendarRange,
 } from 'lucide-react'
 
 type NavLeaf = {
@@ -152,6 +156,20 @@ const studioGroup: NavGroup = {
   ],
 }
 
+const billingGroup: NavGroup = {
+  kind: 'group',
+  id: 'billing',
+  labelKey: 'nav.billing',
+  icon: Wallet,
+  pathPrefix: '/billing',
+  children: [
+    { kind: 'leaf', path: '/billing', labelKey: 'nav.billingDashboard', icon: Gauge },
+    { kind: 'leaf', path: '/billing/usage', labelKey: 'nav.billingUsage', icon: Receipt },
+    { kind: 'leaf', path: '/billing/limits', labelKey: 'nav.billingLimits', icon: Gauge },
+    { kind: 'leaf', path: '/billing/monthly', labelKey: 'nav.billingMonthly', icon: CalendarRange },
+  ],
+}
+
 const settingsNavKey: NavLeaf = { kind: 'leaf', path: '/settings', labelKey: 'nav.settings', icon: Settings }
 const channelsNavKey: NavLeaf = { kind: 'leaf', path: '/settings/channels', labelKey: 'nav.channels', icon: Phone }
 
@@ -206,6 +224,9 @@ export function DashboardLayout() {
 
     // Content Studio (Phase 5) — shared across verticals.
     items.push(studioGroup)
+
+    // Billing & Usage (Phase 6) — shared across verticals.
+    items.push(billingGroup)
 
     items.push(settingsNavKey)
     items.push(channelsNavKey)

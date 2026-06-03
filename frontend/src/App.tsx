@@ -57,6 +57,12 @@ import { GenerationResultPage } from '@/pages/content_studio/GenerationResultPag
 import { JobHistoryPage } from '@/pages/content_studio/JobHistoryPage'
 import { BrandKitPage } from '@/pages/content_studio/BrandKitPage'
 
+// Billing & Usage (Phase 6)
+import { BillingDashboardPage } from '@/pages/billing/BillingDashboardPage'
+import { UsageHistoryPage } from '@/pages/billing/UsageHistoryPage'
+import { UsageLimitsPage } from '@/pages/billing/UsageLimitsPage'
+import { MonthlySummaryPage } from '@/pages/billing/MonthlySummaryPage'
+
 // Public pages
 import { LandingPage } from '@/pages/LandingPage'
 import { PrivacyPolicy } from '@/pages/PrivacyPolicy'
@@ -240,6 +246,12 @@ function App() {
           <Route path="/content-studio/result/:jobId" element={<GenerationResultPage />} />
           <Route path="/content-studio/history" element={<JobHistoryPage />} />
           <Route path="/content-studio/brand-kit" element={<BrandKitPage />} />
+
+          {/* Billing & Usage (Phase 6) */}
+          <Route path="/billing" element={<BillingDashboardPage />} />
+          <Route path="/billing/usage" element={<UsageHistoryPage />} />
+          <Route path="/billing/limits" element={<UsageLimitsPage />} />
+          <Route path="/billing/monthly" element={<MonthlySummaryPage />} />
         </Route>
       </Routes>
       <Toaster />

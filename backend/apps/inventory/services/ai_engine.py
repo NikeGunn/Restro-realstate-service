@@ -167,6 +167,21 @@ class InventoryAIEngine:
         except Exception:
             logger.exception('Failed to write inventory AI audit log')
 
+        # Phase 6 — meter the query as a free usage event for billing reports.
+        # Best-effort, one-directional (inventory → billing); never blocks.
+        try:
+            from apps.billing.services.meter import record_usage
+            record_usage(
+                organization=organization,
+                module='inventory_ai',
+                event_type='inventory_ai_query',
+                user=user,
+                model=self.model,
+                metadata={'confidence': confidence},
+            )
+        except Exception:
+            logger.exception('Failed to meter inventory AI usage')
+
         return result
 
     def generate_stock_alert_message(self, item) -> str:

@@ -124,7 +124,12 @@
     "contentStudio": "内容工作室",
     "studioCreate": "创作",
     "studioHistory": "历史",
-    "studioBrandKit": "品牌套件"
+    "studioBrandKit": "品牌套件",
+    "billing": "账单与用量",
+    "billingDashboard": "仪表盘",
+    "billingUsage": "用量记录",
+    "billingLimits": "限额",
+    "billingMonthly": "月度汇总"
   },
   "inventory": {
     "title": "库存",
@@ -1357,5 +1362,81 @@
     "upgradeCta": "升级到 Power",
     "backToDashboard": "返回仪表盘",
     "contactHint": "已有优惠码或已升级？前往 设置 → 套餐与优惠码 进行应用。"
+  },
+  "billing": {
+    "title": "账单与用量",
+    "thisMonth": "本月",
+    "heroBody": "您已使用本月 AI 消费上限的 {{pct}}%。",
+    "heroBlocked": "已达到本月 AI 消费上限，付费 AI 生成已暂停，提高限额即可恢复——免费额度不受影响。",
+    "adjustCap": "调整上限",
+    "viewUsage": "查看用量",
+    "loadError": "无法加载账单数据。",
+    "freeCredits": "免费额度",
+    "paidCredits": "付费额度",
+    "reserved": "预留中",
+    "inFlight": "进行中",
+    "totalAvailable": "可用",
+    "creditsOf": "共 {{total}}",
+    "usedCount": "本月已用 {{n}}",
+    "spendVsCap": "消费与上限",
+    "byModule": "按模块用量",
+    "calls": "次",
+    "spendBarHint": "上限的 {{pct}}% · 本月已用 {{used}} 额度",
+    "noUsageYet": "本周期暂无用量。",
+    "cap": {
+      "active": "正常",
+      "warning_50": "关注",
+      "warning_80": "接近上限",
+      "blocked": "已达上限"
+    },
+    "capBanner": {
+      "warning_50": {
+        "title": "提示",
+        "body": "您已使用超过本月 AI 消费上限的 50%。"
+      },
+      "warning_80": {
+        "title": "即将达到上限",
+        "body": "您已使用超过本月 AI 消费上限的 80%，建议提高以免中断。"
+      },
+      "blocked": {
+        "title": "已达消费上限",
+        "body": "付费 AI 生成已暂停，提高上限即可继续——免费额度仍可使用。"
+      }
+    },
+    "usageHistory": "用量记录",
+    "allModules": "全部模块",
+    "allStatuses": "全部状态",
+    "noEvents": "没有符合筛选条件的用量记录。",
+    "free": "免费",
+    "eventStatus": {
+      "success": "成功",
+      "reserved": "预留",
+      "failed": "失败",
+      "refunded": "已退还"
+    },
+    "col": {
+      "date": "日期",
+      "module": "模块",
+      "type": "类型",
+      "credits": "额度",
+      "cost": "费用",
+      "status": "状态",
+      "period": "周期"
+    },
+    "pageOf": "第 {{page}} / {{total}} 页",
+    "limits": "用量限额",
+    "monthlyCap": "每月 AI 消费上限",
+    "alertThreshold": "提醒阈值",
+    "capExplainer": "达到上限后，付费 AI 生成将被阻止，直至您提高限额。免费额度不受影响。",
+    "currentCap": "当前：{{value}}",
+    "alertHint": "用量超过该百分比时通知所有者。",
+    "ownerOnly": "仅机构所有者可更改用量限额。",
+    "limitSaved": "限额已更新。",
+    "monthlySummary": "月度汇总",
+    "creditsUsedByMonth": "各月额度用量",
+    "noSummaries": "暂无月度汇总，将在每月初生成。",
+    "images": "图片",
+    "aiQueries": "AI 查询",
+    "billable": "应计费"
   }
 }

@@ -65,6 +65,9 @@ urlpatterns = [
     # AI Content Studio (Phase 5)
     path('api/v1/content-studio/', include('apps.content_studio.urls')),
 
+    # AI Credit & Usage Billing (Phase 6)
+    path('api/v1/billing/', include('apps.billing.urls')),
+
     # Channel configuration API (Phase 4)
     path('api/channels/', include('apps.channels.urls')),
 
