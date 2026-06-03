@@ -46,6 +46,33 @@ export default {
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
       },
+      keyframes: {
+        // Horizontal marquees for the landing page. They translate a duplicated
+        // track by exactly -50% / +50% so the loop is seamless. Transform-only
+        // (compositor-friendly); paused for prefers-reduced-motion via CSS.
+        "marquee-left": {
+          from: { transform: "translateX(0)" },
+          to: { transform: "translateX(-50%)" },
+        },
+        "marquee-right": {
+          from: { transform: "translateX(-50%)" },
+          to: { transform: "translateX(0)" },
+        },
+        "aurora-drift": {
+          "0%, 100%": { transform: "translate3d(0,0,0) scale(1)" },
+          "50%": { transform: "translate3d(2%, -3%, 0) scale(1.08)" },
+        },
+        "float-y": {
+          "0%, 100%": { transform: "translateY(0)" },
+          "50%": { transform: "translateY(-10px)" },
+        },
+      },
+      animation: {
+        "marquee-left": "marquee-left var(--marquee-duration, 60s) linear infinite",
+        "marquee-right": "marquee-right var(--marquee-duration, 60s) linear infinite",
+        "aurora-drift": "aurora-drift 18s ease-in-out infinite",
+        "float-y": "float-y 6s ease-in-out infinite",
+      },
     },
   },
   plugins: [],

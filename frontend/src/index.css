@@ -58,3 +58,53 @@
     @apply bg-background text-foreground;
   }
 }
+
+@layer utilities {
+  /* Pause a marquee track while the user hovers or focuses inside it, so they
+     can read / interact without it sliding away. */
+  .marquee-track:hover,
+  .marquee-track:focus-within {
+    animation-play-state: paused;
+  }
+
+  /* Soft dotted grid used behind the dark hero — purely decorative. */
+  .bg-grid-glow {
+    background-image: radial-gradient(
+      circle at 1px 1px,
+      rgba(148, 163, 184, 0.12) 1px,
+      transparent 0
+    );
+    background-size: 28px 28px;
+  }
+
+  /* Edge fade mask so marquee items dissolve into the background at the
+     left/right gutters instead of hard-clipping. */
+  .marquee-mask {
+    -webkit-mask-image: linear-gradient(
+      to right,
+      transparent,
+      black 8%,
+      black 92%,
+      transparent
+    );
+    mask-image: linear-gradient(
+      to right,
+      transparent,
+      black 8%,
+      black 92%,
+      transparent
+    );
+  }
+}
+
+/* Accessibility: respect the OS "reduce motion" preference. We stop the
+   decorative landing animations and let the duplicated marquee tracks sit
+   statically (still fully readable). */
+@media (prefers-reduced-motion: reduce) {
+  .animate-marquee-left,
+  .animate-marquee-right,
+  .animate-aurora-drift,
+  .animate-float-y {
+    animation: none !important;
+  }
+}

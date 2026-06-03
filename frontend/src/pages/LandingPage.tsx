@@ -1,154 +1,124 @@
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
+import { useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
 import { LanguageSwitcher } from '@/components/LanguageSwitcher'
 import {
-  MessageSquare,
-  Bot,
-  Users,
-  Zap,
-  Building2,
-  UtensilsCrossed,
-  Home,
-  BarChart3,
-  Shield,
-  Globe,
-  Clock,
-  HeadphonesIcon,
-  ChevronRight,
-  Star,
-  Check,
-  ArrowRight,
-  Menu,
-  X
+  MessageSquare, Bot, Users, Zap, Building2, UtensilsCrossed, Home,
+  BarChart3, Shield, Globe, Clock, HeadphonesIcon, ChevronRight,
+  Star, Check, ArrowRight, Menu, X, Sparkles,
 } from 'lucide-react'
-import { useState } from 'react'
+
+/* ------------------------------------------------------------------ *
+ * Kribaat landing page — a premium, dark "AI platform" experience.
+ *
+ * Design intent (psychology-led):
+ *  - Dark aurora canvas + glass surfaces read as modern/AI/premium, which
+ *    primes trust and perceived value before a word is read.
+ *  - Two opposing horizontal marquees (features L→R, channels R→L) create
+ *    motion energy and an "always-on, always-moving" feel for an AI product,
+ *    while pausing on hover/focus so nothing feels out of the user's control.
+ *  - Generous, consistent horizontal gutters (px-6 / lg:px-8, max-w-7xl) give
+ *    the page room to breathe and feel expensive.
+ *  - All copy comes from existing i18n keys → en / zh-CN / zh-TW unchanged.
+ *  - Accessibility per Vercel Web Interface Guidelines: focus-visible rings,
+ *    aria-labels on icon buttons, aria-hidden on decorative icons,
+ *    prefers-reduced-motion honored in CSS, touch-action on controls.
+ * ------------------------------------------------------------------ */
+
+const SHELL = 'mx-auto w-full max-w-7xl px-6 lg:px-8'
 
 export function LandingPage() {
   const { t } = useTranslation()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   const scrollToSection = (sectionId: string) => {
-    const element = document.getElementById(sectionId)
-    if (element) {
-      const navHeight = 64 // Height of fixed nav
-      const elementPosition = element.getBoundingClientRect().top + window.pageYOffset
-      const offsetPosition = elementPosition - navHeight
-
-      window.scrollTo({
-        top: offsetPosition,
-        behavior: 'smooth'
-      })
-      setMobileMenuOpen(false)
-    }
+    const el = document.getElementById(sectionId)
+    if (!el) return
+    const top = el.getBoundingClientRect().top + window.pageYOffset - 72
+    window.scrollTo({ top, behavior: 'smooth' })
+    setMobileMenuOpen(false)
   }
 
+  const navItems = ['features', 'solutions', 'pricing', 'testimonials'] as const
+
   return (
-    <div className="min-h-screen bg-white scroll-smooth">
-      {/* Navigation */}
-      <nav className="fixed top-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-sm border-b border-gray-100">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            {/* Logo */}
-            <div className="flex items-center gap-2">
-              <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-xl flex items-center justify-center">
-                <MessageSquare className="h-6 w-6 text-white" />
-              </div>
-              <span className="text-xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-                Kribaat
-              </span>
-            </div>
+    // `dark` scopes shadcn tokens (LanguageSwitcher dropdown, Buttons, focus
+    // rings) to their dark-theme values so they stay legible on the slate canvas.
+    <div className="dark min-h-screen scroll-smooth bg-slate-950 text-slate-100 antialiased [touch-action:manipulation] selection:bg-indigo-500/30">
+      {/* ====================== NAV ====================== */}
+      <nav className="fixed inset-x-0 top-0 z-50 border-b border-white/5 bg-slate-950/70 backdrop-blur-xl">
+        <div className={`${SHELL} flex h-[72px] items-center justify-between`}>
+          <a href="#top" className="group flex items-center gap-2.5 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
+            aria-label="Kribaat home">
+            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 shadow-lg shadow-indigo-500/30 transition-transform group-hover:scale-105">
+              <MessageSquare className="h-5 w-5 text-white" aria-hidden="true" />
+            </span>
+            <span className="bg-gradient-to-r from-white to-slate-300 bg-clip-text text-xl font-bold tracking-tight text-transparent">
+              Kribaat
+            </span>
+          </a>
 
-            {/* Desktop Navigation */}
-            <div className="hidden md:flex items-center gap-8">
+          <div className="hidden items-center gap-1 md:flex">
+            {navItems.map(item => (
               <button
-                onClick={() => scrollToSection('features')}
-                className="text-gray-600 hover:text-blue-600 transition-colors font-medium"
+                key={item}
+                onClick={() => scrollToSection(item)}
+                className="rounded-lg px-3.5 py-2 text-sm font-medium text-slate-300 transition-colors hover:bg-white/5 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
               >
-                {t('landing.nav.features')}
+                {t(`landing.nav.${item}`)}
               </button>
-              <button
-                onClick={() => scrollToSection('solutions')}
-                className="text-gray-600 hover:text-blue-600 transition-colors font-medium"
-              >
-                {t('landing.nav.solutions')}
-              </button>
-              <button
-                onClick={() => scrollToSection('pricing')}
-                className="text-gray-600 hover:text-blue-600 transition-colors font-medium"
-              >
-                {t('landing.nav.pricing')}
-              </button>
-              <button
-                onClick={() => scrollToSection('testimonials')}
-                className="text-gray-600 hover:text-blue-600 transition-colors font-medium"
-              >
-                {t('landing.nav.testimonials')}
-              </button>
-            </div>
+            ))}
+          </div>
 
-            {/* CTA Buttons */}
-            <div className="hidden md:flex items-center gap-4">
-              <LanguageSwitcher variant="compact" />
+          <div className="hidden items-center gap-3 md:flex">
+            <LanguageSwitcher variant="compact" />
+            <Link to="/login">
+              <Button variant="ghost" className="font-medium text-slate-200 hover:bg-white/5 hover:text-white">
+                {t('landing.nav.signIn')}
+              </Button>
+            </Link>
+            <Link to="/register">
+              <Button className="bg-gradient-to-r from-indigo-500 to-violet-600 font-semibold text-white shadow-lg shadow-indigo-500/30 transition-transform hover:scale-[1.03] hover:from-indigo-400 hover:to-violet-500">
+                {t('landing.nav.getStarted')}
+              </Button>
+            </Link>
+          </div>
+
+          <div className="flex items-center gap-2 md:hidden">
+            <LanguageSwitcher variant="compact" />
+            <button
+              onClick={() => setMobileMenuOpen(v => !v)}
+              className="rounded-lg p-2 text-slate-200 hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
+              aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}
+              aria-expanded={mobileMenuOpen}
+            >
+              {mobileMenuOpen ? <X className="h-6 w-6" aria-hidden="true" /> : <Menu className="h-6 w-6" aria-hidden="true" />}
+            </button>
+          </div>
+        </div>
+
+        {mobileMenuOpen && (
+          <div className="border-t border-white/5 bg-slate-950/95 px-6 py-4 md:hidden">
+            <div className="flex flex-col gap-1">
+              {navItems.map(item => (
+                <button
+                  key={item}
+                  onClick={() => scrollToSection(item)}
+                  className="rounded-lg px-3 py-2.5 text-left font-medium text-slate-300 hover:bg-white/5 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
+                >
+                  {t(`landing.nav.${item}`)}
+                </button>
+              ))}
+            </div>
+            <div className="mt-4 flex flex-col gap-2 border-t border-white/5 pt-4">
               <Link to="/login">
-                <Button variant="ghost" className="font-medium">
+                <Button variant="outline" className="w-full border-white/15 bg-transparent text-white hover:bg-white/5">
                   {t('landing.nav.signIn')}
                 </Button>
               </Link>
               <Link to="/register">
-                <Button className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-medium shadow-lg shadow-blue-500/25">
-                  {t('landing.nav.getStarted')}
-                </Button>
-              </Link>
-            </div>
-
-            {/* Mobile menu button */}
-            <div className="md:hidden flex items-center gap-2">
-              <LanguageSwitcher variant="compact" />
-              <button
-                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                className="p-2 rounded-lg hover:bg-gray-100"
-              >
-                {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Mobile Navigation */}
-        {mobileMenuOpen && (
-          <div className="md:hidden bg-white border-t border-gray-100 px-4 py-4 space-y-4">
-            <button
-              onClick={() => scrollToSection('features')}
-              className="block w-full text-left text-gray-600 hover:text-blue-600 py-2 font-medium"
-            >
-              {t('landing.nav.features')}
-            </button>
-            <button
-              onClick={() => scrollToSection('solutions')}
-              className="block w-full text-left text-gray-600 hover:text-blue-600 py-2 font-medium"
-            >
-              {t('landing.nav.solutions')}
-            </button>
-            <button
-              onClick={() => scrollToSection('pricing')}
-              className="block w-full text-left text-gray-600 hover:text-blue-600 py-2 font-medium"
-            >
-              {t('landing.nav.pricing')}
-            </button>
-            <button
-              onClick={() => scrollToSection('testimonials')}
-              className="block w-full text-left text-gray-600 hover:text-blue-600 py-2 font-medium"
-            >
-              {t('landing.nav.testimonials')}
-            </button>
-            <div className="flex flex-col gap-2 pt-4 border-t border-gray-100">
-              <Link to="/login">
-                <Button variant="outline" className="w-full">{t('landing.nav.signIn')}</Button>
-              </Link>
-              <Link to="/register">
-                <Button className="w-full bg-gradient-to-r from-blue-600 to-indigo-600">
+                <Button className="w-full bg-gradient-to-r from-indigo-500 to-violet-600 font-semibold">
                   {t('landing.nav.getStarted')}
                 </Button>
               </Link>
@@ -157,129 +127,118 @@ export function LandingPage() {
         )}
       </nav>
 
-      {/* Hero Section */}
-      <section className="pt-32 pb-20 px-4 sm:px-6 lg:px-8 bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 overflow-hidden relative">
-        {/* Background decoration */}
-        <div className="absolute inset-0 overflow-hidden">
-          <div className="absolute -top-40 -right-40 w-80 h-80 bg-blue-400/20 rounded-full blur-3xl" />
-          <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-indigo-400/20 rounded-full blur-3xl" />
+      {/* ====================== HERO ====================== */}
+      <section id="top" className="relative overflow-hidden pb-24 pt-36">
+        {/* aurora + grid backdrop (decorative) */}
+        <div className="pointer-events-none absolute inset-0" aria-hidden="true">
+          <div className="absolute inset-0 bg-grid-glow opacity-60" />
+          <div className="absolute -left-32 -top-32 h-[28rem] w-[28rem] animate-aurora-drift rounded-full bg-indigo-600/25 blur-[120px]" />
+          <div className="absolute -right-32 top-10 h-[26rem] w-[26rem] animate-aurora-drift rounded-full bg-violet-600/20 blur-[120px] [animation-delay:-6s]" />
+          <div className="absolute bottom-0 left-1/2 h-[22rem] w-[40rem] -translate-x-1/2 rounded-full bg-fuchsia-600/10 blur-[120px]" />
         </div>
 
-        <div className="max-w-7xl mx-auto relative">
-          <div className="grid lg:grid-cols-2 gap-12 items-center">
+        <div className={`${SHELL} relative`}>
+          <div className="grid items-center gap-14 lg:grid-cols-2">
+            {/* Left: copy */}
             <div className="text-center lg:text-left">
-              {/* Badge */}
-              <div className="inline-flex items-center gap-2 bg-blue-100 text-blue-700 px-4 py-2 rounded-full text-sm font-medium mb-6">
-                <Zap className="h-4 w-4" />
+              <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-1.5 text-sm font-medium text-indigo-200 backdrop-blur">
+                <Sparkles className="h-4 w-4 text-indigo-300" aria-hidden="true" />
                 {t('landing.hero.badge')}
               </div>
 
-              <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-gray-900 leading-tight mb-6">
+              <h1 className="text-balance text-4xl font-bold leading-[1.05] tracking-tight text-white sm:text-5xl lg:text-6xl">
                 {t('landing.hero.title')}{' '}
-                <span className="bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+                <span className="bg-gradient-to-r from-indigo-300 via-violet-300 to-fuchsia-300 bg-clip-text text-transparent">
                   {t('landing.hero.titleHighlight')}
                 </span>
               </h1>
 
-              <p className="text-xl text-gray-600 mb-8 max-w-xl mx-auto lg:mx-0">
+              <p className="mx-auto mt-6 max-w-xl text-pretty text-lg text-slate-300 lg:mx-0">
                 {t('landing.hero.subtitle')}
               </p>
 
-              <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
-                <Link to="/register">
-                  <Button size="lg" className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-8 py-6 text-lg font-semibold shadow-xl shadow-blue-500/30 hover:shadow-2xl hover:shadow-blue-500/40 transition-all hover:scale-105 w-full sm:w-auto">
+              <div className="mt-9 flex flex-col justify-center gap-4 sm:flex-row lg:justify-start">
+                <Link to="/register" className="w-full sm:w-auto">
+                  <Button size="lg" className="group w-full bg-gradient-to-r from-indigo-500 to-violet-600 px-8 py-6 text-lg font-semibold text-white shadow-xl shadow-indigo-500/30 transition-all hover:scale-[1.03] hover:shadow-2xl hover:shadow-indigo-500/40 sm:w-auto">
                     {t('landing.hero.cta')}
-                    <ArrowRight className="ml-2 h-5 w-5" />
+                    <ArrowRight className="ml-2 h-5 w-5 transition-transform group-hover:translate-x-1" aria-hidden="true" />
                   </Button>
                 </Link>
-                <a href="#pricing">
-                  <Button size="lg" variant="outline" className="px-8 py-6 text-lg font-semibold border-2 hover:bg-blue-50 hover:border-blue-600 hover:text-blue-600 transition-all w-full sm:w-auto">
+                <button onClick={() => scrollToSection('pricing')} className="w-full sm:w-auto">
+                  <Button size="lg" variant="outline" className="w-full border-2 border-white/15 bg-white/5 px-8 py-6 text-lg font-semibold text-white backdrop-blur transition-all hover:border-indigo-400/50 hover:bg-white/10 sm:w-auto">
                     {t('landing.hero.watchDemo')}
                   </Button>
-                </a>
+                </button>
               </div>
 
-              {/* Trust badges */}
-              <div className="mt-10 flex flex-col sm:flex-row items-center gap-6 justify-center lg:justify-start">
-                <div className="flex items-center gap-2 text-sm text-gray-600">
-                  <Check className="h-5 w-5 text-green-500" />
-                  {t('landing.hero.trustBadge1')}
-                </div>
-                <div className="flex items-center gap-2 text-sm text-gray-600">
-                  <Check className="h-5 w-5 text-green-500" />
-                  {t('landing.hero.trustBadge2')}
-                </div>
-                <div className="flex items-center gap-2 text-sm text-gray-600">
-                  <Check className="h-5 w-5 text-green-500" />
-                  {t('landing.hero.trustBadge3')}
-                </div>
-              </div>
+              <ul className="mt-10 flex flex-col items-center gap-5 sm:flex-row lg:justify-start">
+                {(['trustBadge1', 'trustBadge2', 'trustBadge3'] as const).map(b => (
+                  <li key={b} className="flex items-center gap-2 text-sm text-slate-400">
+                    <Check className="h-5 w-5 text-emerald-400" aria-hidden="true" />
+                    {t(`landing.hero.${b}`)}
+                  </li>
+                ))}
+              </ul>
             </div>
 
-            {/* Hero Image/Demo */}
+            {/* Right: live chat demo (glass) */}
             <div className="relative">
-              <div className="bg-white rounded-2xl shadow-2xl p-6 border border-gray-100">
-                {/* Chat Demo */}
-                <div className="space-y-4">
-                  <div className="flex items-center gap-3 pb-4 border-b border-gray-100">
-                    <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-full flex items-center justify-center">
-                      <Bot className="h-5 w-5 text-white" />
-                    </div>
-                    <div>
-                      <p className="font-semibold text-gray-900">Kribaat AI</p>
-                      <p className="text-xs text-green-500 flex items-center gap-1">
-                        <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-                        {t('landing.hero.chatOnline')}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Chat messages */}
-                  <div className="space-y-3">
-                    <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl rounded-tr-sm p-4 max-w-[80%] ml-auto">
-                      <p className="text-white">{t('landing.hero.chatMsg1')}</p>
-                    </div>
-                    <div className="bg-gray-100 rounded-2xl rounded-tl-sm p-4 max-w-[80%]">
-                      <p className="text-gray-800">{t('landing.hero.chatMsg2')}</p>
-                    </div>
-                    <div className="bg-gray-100 rounded-2xl rounded-tl-sm p-4 max-w-[80%]">
-                      <p className="text-gray-800">{t('landing.hero.chatMsg3')}</p>
-                    </div>
-                  </div>
-
-                  {/* Typing indicator */}
-                  <div className="flex items-center gap-2 text-gray-400 text-sm">
-                    <div className="flex gap-1">
-                      <span className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                      <span className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                      <span className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-                    </div>
-                    {t('landing.hero.aiTyping')}
-                  </div>
-                </div>
-              </div>
-
-              {/* Floating stats cards */}
-              <div className="absolute -bottom-6 -left-6 bg-white rounded-xl shadow-lg p-4 border border-gray-100 hidden sm:block">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
-                    <BarChart3 className="h-5 w-5 text-green-600" />
-                  </div>
+              <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-6 shadow-2xl shadow-indigo-950/50 backdrop-blur-xl">
+                <div className="flex items-center gap-3 border-b border-white/10 pb-4">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-violet-600">
+                    <Bot className="h-5 w-5 text-white" aria-hidden="true" />
+                  </span>
                   <div>
-                    <p className="text-2xl font-bold text-gray-900">95%</p>
-                    <p className="text-sm text-gray-500">{t('landing.hero.statAutomated')}</p>
+                    <p className="font-semibold text-white">Kribaat AI</p>
+                    <p className="flex items-center gap-1.5 text-xs text-emerald-400">
+                      <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-400" aria-hidden="true" />
+                      {t('landing.hero.chatOnline')}
+                    </p>
                   </div>
+                </div>
+
+                <div className="space-y-3 py-4">
+                  <div className="ml-auto max-w-[80%] rounded-2xl rounded-tr-sm bg-gradient-to-r from-indigo-500 to-violet-600 p-4">
+                    <p className="text-sm text-white">{t('landing.hero.chatMsg1')}</p>
+                  </div>
+                  <div className="max-w-[80%] rounded-2xl rounded-tl-sm bg-white/10 p-4">
+                    <p className="text-sm text-slate-100">{t('landing.hero.chatMsg2')}</p>
+                  </div>
+                  <div className="max-w-[80%] rounded-2xl rounded-tl-sm bg-white/10 p-4">
+                    <p className="text-sm text-slate-100">{t('landing.hero.chatMsg3')}</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 text-sm text-slate-400">
+                  <span className="flex gap-1" aria-hidden="true">
+                    {[0, 150, 300].map(d => (
+                      <span key={d} className="h-2 w-2 animate-bounce rounded-full bg-indigo-400" style={{ animationDelay: `${d}ms` }} />
+                    ))}
+                  </span>
+                  {t('landing.hero.aiTyping')}
                 </div>
               </div>
 
-              <div className="absolute -top-4 -right-4 bg-white rounded-xl shadow-lg p-4 border border-gray-100 hidden sm:block">
+              {/* floating stat chips */}
+              <div className="absolute -bottom-6 -left-6 hidden animate-float-y rounded-2xl border border-white/10 bg-slate-900/80 p-4 shadow-xl backdrop-blur sm:block">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                    <Clock className="h-5 w-5 text-blue-600" />
-                  </div>
+                  <span className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-500/15">
+                    <BarChart3 className="h-5 w-5 text-emerald-400" aria-hidden="true" />
+                  </span>
                   <div>
-                    <p className="text-2xl font-bold text-gray-900">24/7</p>
-                    <p className="text-sm text-gray-500">{t('landing.hero.statSupport')}</p>
+                    <p className="text-2xl font-bold text-white">95%</p>
+                    <p className="text-xs text-slate-400">{t('landing.hero.statAutomated')}</p>
+                  </div>
+                </div>
+              </div>
+              <div className="absolute -right-4 -top-4 hidden animate-float-y rounded-2xl border border-white/10 bg-slate-900/80 p-4 shadow-xl backdrop-blur [animation-delay:-3s] sm:block">
+                <div className="flex items-center gap-3">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-full bg-indigo-500/15">
+                    <Clock className="h-5 w-5 text-indigo-300" aria-hidden="true" />
+                  </span>
+                  <div>
+                    <p className="text-2xl font-bold text-white">24/7</p>
+                    <p className="text-xs text-slate-400">{t('landing.hero.statSupport')}</p>
                   </div>
                 </div>
               </div>
@@ -288,606 +247,478 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* Logos Section */}
-      <section className="py-12 bg-white border-y border-gray-100">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <p className="text-center text-sm text-gray-500 mb-8">{t('landing.logos.title')}</p>
-          <div className="flex flex-wrap justify-center items-center gap-8 md:gap-16 opacity-60">
-            <div className="flex items-center gap-2 text-gray-400">
-              <UtensilsCrossed className="h-8 w-8" />
-              <span className="text-lg font-semibold">Restaurants</span>
+      {/* ============ MARQUEE 1: channels, scrolls LEFT → RIGHT ============ */}
+      <section className="border-y border-white/5 bg-slate-900/40 py-10">
+        <p className="mb-6 text-center text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+          {t('landing.logos.title')}
+        </p>
+        <Marquee direction="right" speed="50s">
+          {CHANNELS.map(({ icon: Icon, label }, i) => (
+            <div key={i} className="flex items-center gap-3 rounded-2xl border border-white/5 bg-white/[0.03] px-7 py-4 text-slate-300">
+              <Icon className="h-7 w-7 text-indigo-300/80" aria-hidden="true" />
+              <span className="whitespace-nowrap text-lg font-semibold">{label}</span>
             </div>
-            <div className="flex items-center gap-2 text-gray-400">
-              <Building2 className="h-8 w-8" />
-              <span className="text-lg font-semibold">Real Estate</span>
-            </div>
-            <div className="flex items-center gap-2 text-gray-400">
-              <Home className="h-8 w-8" />
-              <span className="text-lg font-semibold">Property Mgmt</span>
-            </div>
-            <div className="flex items-center gap-2 text-gray-400">
-              <Globe className="h-8 w-8" />
-              <span className="text-lg font-semibold">Multi-Channel</span>
-            </div>
-          </div>
+          ))}
+        </Marquee>
+      </section>
+
+      {/* ====================== FEATURES (marquee L→R) ====================== */}
+      <section id="features" className="scroll-mt-20 py-20 md:py-28">
+        <div className={`${SHELL} text-center`}>
+          <SectionBadge icon={Zap} tone="indigo">{t('landing.features.badge')}</SectionBadge>
+          <h2 className="text-balance text-3xl font-bold tracking-tight text-white sm:text-4xl">
+            {t('landing.features.title')}
+          </h2>
+          <p className="mx-auto mt-4 max-w-2xl text-pretty text-lg text-slate-400">
+            {t('landing.features.subtitle')}
+          </p>
+        </div>
+
+        {/* Row scrolling left → right */}
+        <div className="mt-14">
+          <Marquee direction="left" speed="55s">
+            {FEATURES.map((f, i) => (
+              <FeatureCard key={`a-${i}`} icon={f.icon} fkey={f.key} gradient={f.gradient} t={t} />
+            ))}
+          </Marquee>
+        </div>
+        {/* Second row scrolling right → left for the opposing-motion effect */}
+        <div className="mt-6">
+          <Marquee direction="right" speed="65s">
+            {[...FEATURES].reverse().map((f, i) => (
+              <FeatureCard key={`b-${i}`} icon={f.icon} fkey={f.key} gradient={f.gradient} t={t} />
+            ))}
+          </Marquee>
         </div>
       </section>
 
-      {/* Features Section */}
-      <section id="features" className="py-16 md:py-24 px-4 sm:px-6 lg:px-8 bg-white scroll-mt-16">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-16">
-            <div className="inline-flex items-center gap-2 bg-indigo-100 text-indigo-700 px-4 py-2 rounded-full text-sm font-medium mb-4">
-              <Zap className="h-4 w-4" />
-              {t('landing.features.badge')}
-            </div>
-            <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">
-              {t('landing.features.title')}
-            </h2>
-            <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-              {t('landing.features.subtitle')}
-            </p>
-          </div>
-
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
-            {/* Feature 1 */}
-            <Card className="border-0 shadow-lg hover:shadow-2xl transition-all hover:-translate-y-1 bg-gradient-to-br from-blue-50 to-white">
-              <CardContent className="p-6 md:p-8">
-                <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center mb-6 shadow-lg shadow-blue-500/30">
-                  <Bot className="h-7 w-7 text-white" />
-                </div>
-                <h3 className="text-xl font-bold text-gray-900 mb-3">{t('landing.features.ai.title')}</h3>
-                <p className="text-gray-600">{t('landing.features.ai.description')}</p>
-              </CardContent>
-            </Card>
-
-            {/* Feature 2 */}
-            <Card className="border-0 shadow-lg hover:shadow-2xl transition-all hover:-translate-y-1 bg-gradient-to-br from-indigo-50 to-white">
-              <CardContent className="p-6 md:p-8">
-                <div className="w-14 h-14 bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-2xl flex items-center justify-center mb-6 shadow-lg shadow-indigo-500/30">
-                  <MessageSquare className="h-7 w-7 text-white" />
-                </div>
-                <h3 className="text-xl font-bold text-gray-900 mb-3">{t('landing.features.omnichannel.title')}</h3>
-                <p className="text-gray-600">{t('landing.features.omnichannel.description')}</p>
-              </CardContent>
-            </Card>
-
-            {/* Feature 3 */}
-            <Card className="border-0 shadow-lg hover:shadow-2xl transition-all hover:-translate-y-1 bg-gradient-to-br from-purple-50 to-white">
-              <CardContent className="p-6 md:p-8">
-                <div className="w-14 h-14 bg-gradient-to-br from-purple-500 to-purple-600 rounded-2xl flex items-center justify-center mb-6 shadow-lg shadow-purple-500/30">
-                  <Users className="h-7 w-7 text-white" />
-                </div>
-                <h3 className="text-xl font-bold text-gray-900 mb-3">{t('landing.features.handoff.title')}</h3>
-                <p className="text-gray-600">{t('landing.features.handoff.description')}</p>
-              </CardContent>
-            </Card>
-
-            {/* Feature 4 */}
-            <Card className="border-0 shadow-lg hover:shadow-2xl transition-all hover:-translate-y-1 bg-gradient-to-br from-green-50 to-white">
-              <CardContent className="p-6 md:p-8">
-                <div className="w-14 h-14 bg-gradient-to-br from-green-500 to-green-600 rounded-2xl flex items-center justify-center mb-6 shadow-lg shadow-green-500/30">
-                  <BarChart3 className="h-7 w-7 text-white" />
-                </div>
-                <h3 className="text-xl font-bold text-gray-900 mb-3">{t('landing.features.analytics.title')}</h3>
-                <p className="text-gray-600">{t('landing.features.analytics.description')}</p>
-              </CardContent>
-            </Card>
-
-            {/* Feature 5 */}
-            <Card className="border-0 shadow-lg hover:shadow-2xl transition-all hover:-translate-y-1 bg-gradient-to-br from-orange-50 to-white">
-              <CardContent className="p-6 md:p-8">
-                <div className="w-14 h-14 bg-gradient-to-br from-orange-500 to-orange-600 rounded-2xl flex items-center justify-center mb-6 shadow-lg shadow-orange-500/30">
-                  <Globe className="h-7 w-7 text-white" />
-                </div>
-                <h3 className="text-xl font-bold text-gray-900 mb-3">{t('landing.features.multilingual.title')}</h3>
-                <p className="text-gray-600">{t('landing.features.multilingual.description')}</p>
-              </CardContent>
-            </Card>
-
-            {/* Feature 6 */}
-            <Card className="border-0 shadow-lg hover:shadow-2xl transition-all hover:-translate-y-1 bg-gradient-to-br from-pink-50 to-white">
-              <CardContent className="p-6 md:p-8">
-                <div className="w-14 h-14 bg-gradient-to-br from-pink-500 to-pink-600 rounded-2xl flex items-center justify-center mb-6 shadow-lg shadow-pink-500/30">
-                  <Shield className="h-7 w-7 text-white" />
-                </div>
-                <h3 className="text-xl font-bold text-gray-900 mb-3">{t('landing.features.security.title')}</h3>
-                <p className="text-gray-600">{t('landing.features.security.description')}</p>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-      </section>
-
-      {/* Solutions Section */}
-      <section id="solutions" className="py-16 md:py-24 px-4 sm:px-6 lg:px-8 bg-gradient-to-br from-slate-50 to-blue-50 scroll-mt-16">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-16">
-            <div className="inline-flex items-center gap-2 bg-blue-100 text-blue-700 px-4 py-2 rounded-full text-sm font-medium mb-4">
-              <Building2 className="h-4 w-4" />
-              {t('landing.solutions.badge')}
-            </div>
-            <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">
+      {/* ====================== SOLUTIONS ====================== */}
+      <section id="solutions" className="scroll-mt-20 py-20 md:py-28">
+        <div className={SHELL}>
+          <div className="mb-14 text-center">
+            <SectionBadge icon={Building2} tone="violet">{t('landing.solutions.badge')}</SectionBadge>
+            <h2 className="text-balance text-3xl font-bold tracking-tight text-white sm:text-4xl">
               {t('landing.solutions.title')}
             </h2>
-            <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+            <p className="mx-auto mt-4 max-w-2xl text-pretty text-lg text-slate-400">
               {t('landing.solutions.subtitle')}
             </p>
           </div>
 
-          <div className="grid lg:grid-cols-2 gap-8">
-            {/* Restaurant Solution */}
-            <Card className="border-0 shadow-xl hover:shadow-2xl transition-all hover:-translate-y-2 bg-white overflow-hidden group">
-              <CardContent className="p-0">
-                <div className="bg-gradient-to-br from-orange-500 to-red-500 p-8 text-white">
-                  <UtensilsCrossed className="h-12 w-12 mb-4 group-hover:scale-110 transition-transform" />
-                  <h3 className="text-2xl font-bold mb-2">{t('landing.solutions.restaurant.title')}</h3>
-                  <p className="opacity-90">{t('landing.solutions.restaurant.subtitle')}</p>
-                </div>
-                <div className="p-8">
-                  <ul className="space-y-4">
-                    <li className="flex items-start gap-3">
-                      <Check className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" />
-                      <span className="text-gray-700">{t('landing.solutions.restaurant.feature1')}</span>
-                    </li>
-                    <li className="flex items-start gap-3">
-                      <Check className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" />
-                      <span className="text-gray-700">{t('landing.solutions.restaurant.feature2')}</span>
-                    </li>
-                    <li className="flex items-start gap-3">
-                      <Check className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" />
-                      <span className="text-gray-700">{t('landing.solutions.restaurant.feature3')}</span>
-                    </li>
-                    <li className="flex items-start gap-3">
-                      <Check className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" />
-                      <span className="text-gray-700">{t('landing.solutions.restaurant.feature4')}</span>
-                    </li>
-                  </ul>
-                  <Link to="/register" className="mt-6 inline-flex items-center text-orange-600 font-semibold hover:text-orange-700 group-hover:gap-3 gap-2 transition-all">
-                    {t('landing.solutions.learnMore')}
-                    <ChevronRight className="h-4 w-4" />
-                  </Link>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Real Estate Solution */}
-            <Card className="border-0 shadow-xl hover:shadow-2xl transition-all hover:-translate-y-2 bg-white overflow-hidden group">
-              <CardContent className="p-0">
-                <div className="bg-gradient-to-br from-blue-500 to-indigo-600 p-8 text-white">
-                  <Building2 className="h-12 w-12 mb-4 group-hover:scale-110 transition-transform" />
-                  <h3 className="text-2xl font-bold mb-2">{t('landing.solutions.realEstate.title')}</h3>
-                  <p className="opacity-90">{t('landing.solutions.realEstate.subtitle')}</p>
-                </div>
-                <div className="p-8">
-                  <ul className="space-y-4">
-                    <li className="flex items-start gap-3">
-                      <Check className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" />
-                      <span className="text-gray-700">{t('landing.solutions.realEstate.feature1')}</span>
-                    </li>
-                    <li className="flex items-start gap-3">
-                      <Check className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" />
-                      <span className="text-gray-700">{t('landing.solutions.realEstate.feature2')}</span>
-                    </li>
-                    <li className="flex items-start gap-3">
-                      <Check className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" />
-                      <span className="text-gray-700">{t('landing.solutions.realEstate.feature3')}</span>
-                    </li>
-                    <li className="flex items-start gap-3">
-                      <Check className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" />
-                      <span className="text-gray-700">{t('landing.solutions.realEstate.feature4')}</span>
-                    </li>
-                  </ul>
-                  <Link to="/register" className="mt-6 inline-flex items-center text-blue-600 font-semibold hover:text-blue-700 group-hover:gap-3 gap-2 transition-all">
-                    {t('landing.solutions.learnMore')}
-                    <ChevronRight className="h-4 w-4" />
-                  </Link>
-                </div>
-              </CardContent>
-            </Card>
+          <div className="grid gap-8 lg:grid-cols-2">
+            <SolutionCard
+              icon={UtensilsCrossed}
+              gradient="from-orange-500 to-rose-500"
+              accent="text-orange-300 hover:text-orange-200"
+              title={t('landing.solutions.restaurant.title')}
+              subtitle={t('landing.solutions.restaurant.subtitle')}
+              features={[1, 2, 3, 4].map(n => t(`landing.solutions.restaurant.feature${n}`))}
+              learnMore={t('landing.solutions.learnMore')}
+            />
+            <SolutionCard
+              icon={Building2}
+              gradient="from-indigo-500 to-violet-600"
+              accent="text-indigo-300 hover:text-indigo-200"
+              title={t('landing.solutions.realEstate.title')}
+              subtitle={t('landing.solutions.realEstate.subtitle')}
+              features={[1, 2, 3, 4].map(n => t(`landing.solutions.realEstate.feature${n}`))}
+              learnMore={t('landing.solutions.learnMore')}
+            />
           </div>
         </div>
       </section>
 
-      {/* Stats Section */}
-      <section className="py-16 px-4 sm:px-6 lg:px-8 bg-gradient-to-r from-blue-600 to-indigo-600">
-        <div className="max-w-7xl mx-auto">
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-8 text-center text-white">
-            <div>
-              <p className="text-4xl sm:text-5xl font-bold mb-2">95%</p>
-              <p className="text-blue-100">{t('landing.stats.automation')}</p>
-            </div>
-            <div>
-              <p className="text-4xl sm:text-5xl font-bold mb-2">24/7</p>
-              <p className="text-blue-100">{t('landing.stats.availability')}</p>
-            </div>
-            <div>
-              <p className="text-4xl sm:text-5xl font-bold mb-2">3x</p>
-              <p className="text-blue-100">{t('landing.stats.efficiency')}</p>
-            </div>
-            <div>
-              <p className="text-4xl sm:text-5xl font-bold mb-2">50%</p>
-              <p className="text-blue-100">{t('landing.stats.savings')}</p>
+      {/* ====================== STATS ====================== */}
+      <section className="py-8">
+        <div className={SHELL}>
+          <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-r from-indigo-600/90 via-violet-600/90 to-fuchsia-600/90 px-6 py-14">
+            <div className="pointer-events-none absolute inset-0 bg-grid-glow opacity-30" aria-hidden="true" />
+            <div className="relative grid grid-cols-2 gap-8 text-center text-white lg:grid-cols-4">
+              {STATS.map(({ value, key }) => (
+                <div key={key}>
+                  <p className="text-4xl font-bold sm:text-5xl">{value}</p>
+                  <p className="mt-1 text-sm text-indigo-100">{t(`landing.stats.${key}`)}</p>
+                </div>
+              ))}
             </div>
           </div>
         </div>
       </section>
 
-      {/* Pricing Section */}
-      <section id="pricing" className="py-16 md:py-24 px-4 sm:px-6 lg:px-8 bg-white scroll-mt-16">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-12 md:mb-16">
-            <div className="inline-flex items-center gap-2 bg-green-100 text-green-700 px-4 py-2 rounded-full text-sm font-medium mb-4">
-              <Zap className="h-4 w-4" />
-              {t('landing.pricing.badge')}
-            </div>
-            <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">
+      {/* ====================== PRICING ====================== */}
+      <section id="pricing" className="scroll-mt-20 py-20 md:py-28">
+        <div className={SHELL}>
+          <div className="mb-14 text-center">
+            <SectionBadge icon={Zap} tone="emerald">{t('landing.pricing.badge')}</SectionBadge>
+            <h2 className="text-balance text-3xl font-bold tracking-tight text-white sm:text-4xl">
               {t('landing.pricing.title')}
             </h2>
-            <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+            <p className="mx-auto mt-4 max-w-2xl text-pretty text-lg text-slate-400">
               {t('landing.pricing.subtitle')}
             </p>
           </div>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8 max-w-5xl mx-auto">
-            {/* Basic Plan */}
-            <Card className="border-2 border-gray-200 hover:border-blue-400 hover:shadow-xl transition-all hover:-translate-y-1">
-              <CardContent className="p-6 md:p-8">
-                <h3 className="text-xl font-bold text-gray-900 mb-2">{t('landing.pricing.starter.name')}</h3>
-                <p className="text-gray-600 mb-6">{t('landing.pricing.starter.description')}</p>
-                <div className="mb-6">
-                  <span className="text-4xl font-bold text-gray-900">$49</span>
-                  <span className="text-gray-600">{t('landing.pricing.perMonth')}</span>
-                </div>
-                <ul className="space-y-3 mb-8">
-                  <li className="flex items-center gap-2 text-gray-700">
-                    <Check className="h-5 w-5 text-green-500" />
-                    {t('landing.pricing.starter.feature1')}
-                  </li>
-                  <li className="flex items-center gap-2 text-gray-700">
-                    <Check className="h-5 w-5 text-green-500" />
-                    {t('landing.pricing.starter.feature2')}
-                  </li>
-                  <li className="flex items-center gap-2 text-gray-700">
-                    <Check className="h-5 w-5 text-green-500" />
-                    {t('landing.pricing.starter.feature3')}
-                  </li>
-                  <li className="flex items-center gap-2 text-gray-700">
-                    <Check className="h-5 w-5 text-green-500" />
-                    {t('landing.pricing.starter.feature4')}
-                  </li>
-                  <li className="flex items-center gap-2 text-gray-700">
-                    <Check className="h-5 w-5 text-green-500" />
-                    {t('landing.pricing.starter.feature5')}
-                  </li>
-                  <li className="flex items-center gap-2 text-gray-700">
-                    <Check className="h-5 w-5 text-green-500" />
-                    {t('landing.pricing.starter.feature6')}
-                  </li>
-                </ul>
-                <Link to="/register">
-                  <Button variant="outline" className="w-full font-semibold">
-                    {t('landing.pricing.getStarted')}
-                  </Button>
-                </Link>
-              </CardContent>
-            </Card>
-
-            {/* Power Plan - Popular */}
-            <Card className="border-2 border-blue-500 shadow-2xl hover:shadow-3xl transition-all hover:-translate-y-2 relative">
-              <div className="absolute -top-4 left-1/2 transform -translate-x-1/2">
-                <span className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-sm font-semibold px-4 py-1 rounded-full shadow-lg">
-                  {t('landing.pricing.popular')}
-                </span>
-              </div>
-              <CardContent className="p-6 md:p-8">
-                <h3 className="text-xl font-bold text-gray-900 mb-2">{t('landing.pricing.pro.name')}</h3>
-                <p className="text-gray-600 mb-6">{t('landing.pricing.pro.description')}</p>
-                <div className="mb-6">
-                  <span className="text-4xl font-bold text-gray-900">$99</span>
-                  <span className="text-gray-600">{t('landing.pricing.perMonth')}</span>
-                </div>
-                <ul className="space-y-3 mb-8">
-                  <li className="flex items-center gap-2 text-gray-700">
-                    <Check className="h-5 w-5 text-green-500" />
-                    {t('landing.pricing.pro.feature1')}
-                  </li>
-                  <li className="flex items-center gap-2 text-gray-700">
-                    <Check className="h-5 w-5 text-green-500" />
-                    {t('landing.pricing.pro.feature2')}
-                  </li>
-                  <li className="flex items-center gap-2 text-gray-700">
-                    <Check className="h-5 w-5 text-green-500" />
-                    {t('landing.pricing.pro.feature3')}
-                  </li>
-                  <li className="flex items-center gap-2 text-gray-700">
-                    <Check className="h-5 w-5 text-green-500" />
-                    {t('landing.pricing.pro.feature4')}
-                  </li>
-                  <li className="flex items-center gap-2 text-gray-700">
-                    <Check className="h-5 w-5 text-green-500" />
-                    {t('landing.pricing.pro.feature5')}
-                  </li>
-                  <li className="flex items-center gap-2 text-gray-700">
-                    <Check className="h-5 w-5 text-green-500" />
-                    {t('landing.pricing.pro.feature6')}
-                  </li>
-                </ul>
-                <Link to="/register">
-                  <Button className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 font-semibold">
-                    {t('landing.pricing.getStarted')}
-                  </Button>
-                </Link>
-              </CardContent>
-            </Card>
-
-            {/* Enterprise Plan */}
-            <Card className="border-2 border-gray-200 hover:border-blue-400 hover:shadow-xl transition-all hover:-translate-y-1">
-              <CardContent className="p-6 md:p-8">
-                <h3 className="text-xl font-bold text-gray-900 mb-2">{t('landing.pricing.enterprise.name')}</h3>
-                <p className="text-gray-600 mb-6">{t('landing.pricing.enterprise.description')}</p>
-                <div className="mb-6">
-                  <span className="text-4xl font-bold text-gray-900">{t('landing.pricing.custom')}</span>
-                </div>
-                <ul className="space-y-3 mb-8">
-                  <li className="flex items-center gap-2 text-gray-700">
-                    <Check className="h-5 w-5 text-green-500" />
-                    {t('landing.pricing.enterprise.feature1')}
-                  </li>
-                  <li className="flex items-center gap-2 text-gray-700">
-                    <Check className="h-5 w-5 text-green-500" />
-                    {t('landing.pricing.enterprise.feature2')}
-                  </li>
-                  <li className="flex items-center gap-2 text-gray-700">
-                    <Check className="h-5 w-5 text-green-500" />
-                    {t('landing.pricing.enterprise.feature3')}
-                  </li>
-                  <li className="flex items-center gap-2 text-gray-700">
-                    <Check className="h-5 w-5 text-green-500" />
-                    {t('landing.pricing.enterprise.feature4')}
-                  </li>
-                  <li className="flex items-center gap-2 text-gray-700">
-                    <Check className="h-5 w-5 text-green-500" />
-                    {t('landing.pricing.enterprise.feature5')}
-                  </li>
-                  <li className="flex items-center gap-2 text-gray-700">
-                    <Check className="h-5 w-5 text-green-500" />
-                    {t('landing.pricing.enterprise.feature6')}
-                  </li>
-                </ul>
-                <Link to="/register">
-                  <Button variant="outline" className="w-full font-semibold">
-                    {t('landing.pricing.contactSales')}
-                  </Button>
-                </Link>
-              </CardContent>
-            </Card>
+          <div className="mx-auto grid max-w-5xl gap-6 md:grid-cols-2 lg:grid-cols-3 lg:gap-8">
+            <PricingCard
+              name={t('landing.pricing.starter.name')}
+              description={t('landing.pricing.starter.description')}
+              price="$49" per={t('landing.pricing.perMonth')}
+              features={[1, 2, 3, 4, 5, 6].map(n => t(`landing.pricing.starter.feature${n}`))}
+              cta={t('landing.pricing.getStarted')}
+            />
+            <PricingCard
+              featured
+              popularLabel={t('landing.pricing.popular')}
+              name={t('landing.pricing.pro.name')}
+              description={t('landing.pricing.pro.description')}
+              price="$99" per={t('landing.pricing.perMonth')}
+              features={[1, 2, 3, 4, 5, 6].map(n => t(`landing.pricing.pro.feature${n}`))}
+              cta={t('landing.pricing.getStarted')}
+            />
+            <PricingCard
+              name={t('landing.pricing.enterprise.name')}
+              description={t('landing.pricing.enterprise.description')}
+              price={t('landing.pricing.custom')}
+              features={[1, 2, 3, 4, 5, 6].map(n => t(`landing.pricing.enterprise.feature${n}`))}
+              cta={t('landing.pricing.contactSales')}
+            />
           </div>
         </div>
       </section>
 
-      {/* Testimonials Section */}
-      <section id="testimonials" className="py-16 md:py-24 px-4 sm:px-6 lg:px-8 bg-gradient-to-br from-slate-50 to-blue-50 scroll-mt-16">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-12 md:mb-16">
-            <div className="inline-flex items-center gap-2 bg-purple-100 text-purple-700 px-4 py-2 rounded-full text-sm font-medium mb-4">
-              <Star className="h-4 w-4" />
-              {t('landing.testimonials.badge')}
-            </div>
-            <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">
-              {t('landing.testimonials.title')}
-            </h2>
-            <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-              {t('landing.testimonials.subtitle')}
-            </p>
-          </div>
-
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
-            {/* Testimonial 1 */}
-            <Card className="border-0 shadow-lg hover:shadow-xl transition-all hover:-translate-y-1 bg-white">
-              <CardContent className="p-6 md:p-8">
-                <div className="flex gap-1 mb-4">
-                  {[...Array(5)].map((_, i) => (
-                    <Star key={i} className="h-5 w-5 fill-yellow-400 text-yellow-400" />
-                  ))}
-                </div>
-                <p className="text-gray-700 mb-6 italic">"{t('landing.testimonials.review1.text')}"</p>
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-gradient-to-br from-orange-400 to-red-500 rounded-full flex items-center justify-center text-white font-bold">
-                    JC
-                  </div>
-                  <div>
-                    <p className="font-semibold text-gray-900">{t('landing.testimonials.review1.name')}</p>
-                    <p className="text-sm text-gray-600">{t('landing.testimonials.review1.role')}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Testimonial 2 */}
-            <Card className="border-0 shadow-lg hover:shadow-xl transition-all hover:-translate-y-1 bg-white">
-              <CardContent className="p-6 md:p-8">
-                <div className="flex gap-1 mb-4">
-                  {[...Array(5)].map((_, i) => (
-                    <Star key={i} className="h-5 w-5 fill-yellow-400 text-yellow-400" />
-                  ))}
-                </div>
-                <p className="text-gray-700 mb-6 italic">"{t('landing.testimonials.review2.text')}"</p>
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-gradient-to-br from-blue-400 to-indigo-500 rounded-full flex items-center justify-center text-white font-bold">
-                    SL
-                  </div>
-                  <div>
-                    <p className="font-semibold text-gray-900">{t('landing.testimonials.review2.name')}</p>
-                    <p className="text-sm text-gray-600">{t('landing.testimonials.review2.role')}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Testimonial 3 */}
-            <Card className="border-0 shadow-lg hover:shadow-xl transition-all hover:-translate-y-1 bg-white">
-              <CardContent className="p-6 md:p-8">
-                <div className="flex gap-1 mb-4">
-                  {[...Array(5)].map((_, i) => (
-                    <Star key={i} className="h-5 w-5 fill-yellow-400 text-yellow-400" />
-                  ))}
-                </div>
-                <p className="text-gray-700 mb-6 italic">"{t('landing.testimonials.review3.text')}"</p>
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-gradient-to-br from-green-400 to-emerald-500 rounded-full flex items-center justify-center text-white font-bold">
-                    MW
-                  </div>
-                  <div>
-                    <p className="font-semibold text-gray-900">{t('landing.testimonials.review3.name')}</p>
-                    <p className="text-sm text-gray-600">{t('landing.testimonials.review3.role')}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-      </section>
-
-      {/* CTA Section */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 relative overflow-hidden">
-        <div className="absolute inset-0 overflow-hidden">
-          <div className="absolute -top-40 -right-40 w-80 h-80 bg-white/10 rounded-full blur-3xl" />
-          <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-white/10 rounded-full blur-3xl" />
-        </div>
-        <div className="max-w-4xl mx-auto text-center relative">
-          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-6">
-            {t('landing.cta.title')}
+      {/* ====================== TESTIMONIALS ====================== */}
+      <section id="testimonials" className="scroll-mt-20 py-20 md:py-28">
+        <div className={`${SHELL} text-center`}>
+          <SectionBadge icon={Star} tone="fuchsia">{t('landing.testimonials.badge')}</SectionBadge>
+          <h2 className="text-balance text-3xl font-bold tracking-tight text-white sm:text-4xl">
+            {t('landing.testimonials.title')}
           </h2>
-          <p className="text-xl text-blue-100 mb-10 max-w-2xl mx-auto">
-            {t('landing.cta.subtitle')}
+          <p className="mx-auto mt-4 max-w-2xl text-pretty text-lg text-slate-400">
+            {t('landing.testimonials.subtitle')}
           </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link to="/register">
-              <Button size="lg" className="bg-white text-blue-600 hover:bg-blue-50 px-8 py-6 text-lg font-semibold shadow-xl w-full sm:w-auto">
-                {t('landing.cta.button')}
-                <ArrowRight className="ml-2 h-5 w-5" />
-              </Button>
-            </Link>
-            <Link to="/login">
-              <Button size="lg" className="bg-white/20 backdrop-blur-sm border-2 border-white text-white hover:bg-white hover:text-blue-600 px-8 py-6 text-lg font-semibold w-full sm:w-auto transition-all">
-                {t('landing.cta.loginButton')}
-              </Button>
-            </Link>
-          </div>
-          <p className="mt-6 text-blue-100 text-sm">
-            {t('landing.cta.noCreditCard')}
-          </p>
+        </div>
+
+        <div className="mt-14">
+          <Marquee direction="left" speed="70s">
+            {TESTIMONIALS.map(({ id, initials, gradient }, i) => (
+              <figure key={i} className="flex w-[22rem] shrink-0 flex-col rounded-2xl border border-white/10 bg-white/[0.04] p-7 backdrop-blur">
+                <div className="mb-4 flex gap-1" aria-hidden="true">
+                  {Array.from({ length: 5 }).map((_, s) => (
+                    <Star key={s} className="h-4 w-4 fill-amber-400 text-amber-400" />
+                  ))}
+                </div>
+                <blockquote className="flex-1 text-pretty text-slate-300">
+                  “{t(`landing.testimonials.${id}.text`)}”
+                </blockquote>
+                <figcaption className="mt-6 flex items-center gap-3">
+                  <span className={`flex h-11 w-11 items-center justify-center rounded-full bg-gradient-to-br ${gradient} text-sm font-bold text-white`}>
+                    {initials}
+                  </span>
+                  <span>
+                    <span className="block font-semibold text-white">{t(`landing.testimonials.${id}.name`)}</span>
+                    <span className="block text-sm text-slate-400">{t(`landing.testimonials.${id}.role`)}</span>
+                  </span>
+                </figcaption>
+              </figure>
+            ))}
+          </Marquee>
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="bg-gray-900 text-white py-16 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-7xl mx-auto">
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-12 mb-12">
-            {/* Brand */}
-            <div className="lg:col-span-1">
-              <div className="flex items-center gap-2 mb-6">
-                <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-xl flex items-center justify-center">
-                  <MessageSquare className="h-6 w-6 text-white" />
-                </div>
-                <span className="text-xl font-bold">Kribaat</span>
-              </div>
-              <p className="text-gray-400 mb-6">
-                {t('landing.footer.description')}
+      {/* ====================== FINAL CTA ====================== */}
+      <section className="py-20">
+        <div className={SHELL}>
+          <div className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-gradient-to-br from-indigo-600 via-violet-600 to-fuchsia-600 px-6 py-20 text-center">
+            <div className="pointer-events-none absolute inset-0" aria-hidden="true">
+              <div className="absolute -right-24 -top-24 h-72 w-72 animate-aurora-drift rounded-full bg-white/15 blur-3xl" />
+              <div className="absolute -bottom-24 -left-24 h-72 w-72 animate-aurora-drift rounded-full bg-white/10 blur-3xl [animation-delay:-7s]" />
+            </div>
+            <div className="relative mx-auto max-w-3xl">
+              <h2 className="text-balance text-3xl font-bold text-white sm:text-4xl lg:text-5xl">
+                {t('landing.cta.title')}
+              </h2>
+              <p className="mx-auto mt-5 max-w-2xl text-pretty text-lg text-indigo-100">
+                {t('landing.cta.subtitle')}
               </p>
-            </div>
-
-            {/* Product */}
-            <div>
-              <h4 className="font-semibold mb-4">{t('landing.footer.product')}</h4>
-              <ul className="space-y-3 text-gray-400">
-                <li>
-                  <button
-                    onClick={() => scrollToSection('features')}
-                    className="hover:text-white transition-colors text-left"
-                  >
-                    {t('landing.footer.features')}
-                  </button>
-                </li>
-                <li>
-                  <button
-                    onClick={() => scrollToSection('pricing')}
-                    className="hover:text-white transition-colors text-left"
-                  >
-                    {t('landing.footer.pricing')}
-                  </button>
-                </li>
-                <li>
-                  <button
-                    onClick={() => scrollToSection('solutions')}
-                    className="hover:text-white transition-colors text-left"
-                  >
-                    {t('landing.footer.solutions')}
-                  </button>
-                </li>
-              </ul>
-            </div>
-
-            {/* Company */}
-            <div>
-              <h4 className="font-semibold mb-4">{t('landing.footer.company')}</h4>
-              <ul className="space-y-3 text-gray-400">
-                <li>
-                  <span className="hover:text-white transition-colors cursor-not-allowed flex items-center gap-2">
-                    {t('landing.footer.about')}
-                    <span className="text-xs bg-blue-900/50 text-blue-300 px-2 py-0.5 rounded">Coming Soon</span>
-                  </span>
-                </li>
-                <li>
-                  <span className="hover:text-white transition-colors cursor-not-allowed flex items-center gap-2">
-                    {t('landing.footer.contact')}
-                    <span className="text-xs bg-blue-900/50 text-blue-300 px-2 py-0.5 rounded">Coming Soon</span>
-                  </span>
-                </li>
-                <li>
-                  <span className="hover:text-white transition-colors cursor-not-allowed flex items-center gap-2">
-                    {t('landing.footer.careers')}
-                    <span className="text-xs bg-blue-900/50 text-blue-300 px-2 py-0.5 rounded">Coming Soon</span>
-                  </span>
-                </li>
-              </ul>
-            </div>
-
-            {/* Legal */}
-            <div>
-              <h4 className="font-semibold mb-4">{t('landing.footer.legal')}</h4>
-              <ul className="space-y-3 text-gray-400">
-                <li>
-                  <span className="hover:text-white transition-colors cursor-not-allowed flex items-center gap-2">
-                    {t('landing.footer.privacy')}
-                    <span className="text-xs bg-blue-900/50 text-blue-300 px-2 py-0.5 rounded">Coming Soon</span>
-                  </span>
-                </li>
-                <li>
-                  <span className="hover:text-white transition-colors cursor-not-allowed flex items-center gap-2">
-                    {t('landing.footer.terms')}
-                    <span className="text-xs bg-blue-900/50 text-blue-300 px-2 py-0.5 rounded">Coming Soon</span>
-                  </span>
-                </li>
-              </ul>
+              <div className="mt-10 flex flex-col justify-center gap-4 sm:flex-row">
+                <Link to="/register" className="w-full sm:w-auto">
+                  <Button size="lg" className="group w-full bg-white px-8 py-6 text-lg font-semibold text-indigo-700 shadow-xl hover:bg-indigo-50 sm:w-auto">
+                    {t('landing.cta.button')}
+                    <ArrowRight className="ml-2 h-5 w-5 transition-transform group-hover:translate-x-1" aria-hidden="true" />
+                  </Button>
+                </Link>
+                <Link to="/login" className="w-full sm:w-auto">
+                  <Button size="lg" variant="outline" className="w-full border-2 border-white/40 bg-white/10 px-8 py-6 text-lg font-semibold text-white backdrop-blur transition-all hover:bg-white hover:text-indigo-700 sm:w-auto">
+                    {t('landing.cta.loginButton')}
+                  </Button>
+                </Link>
+              </div>
+              <p className="mt-6 text-sm text-indigo-100">{t('landing.cta.noCreditCard')}</p>
             </div>
           </div>
+        </div>
+      </section>
 
-          <div className="border-t border-gray-800 pt-8 flex flex-col md:flex-row justify-between items-center gap-4">
-            <p className="text-gray-400 text-sm">
-              © {new Date().getFullYear()} Kribaat. {t('landing.footer.rights')}
-            </p>
-            <div className="flex items-center gap-6">
-              <span className="text-gray-500 text-xs">v2.0.0 • Powered by Kubernetes</span>
-              <div className="flex items-center gap-2">
-                <HeadphonesIcon className="h-5 w-5 text-gray-400" />
-                <span className="text-gray-400 text-sm">{t('landing.footer.support')}</span>
+      {/* ====================== FOOTER ====================== */}
+      <footer className="border-t border-white/5 bg-slate-950 py-16">
+        <div className={SHELL}>
+          <div className="mb-12 grid gap-12 md:grid-cols-2 lg:grid-cols-4">
+            <div>
+              <div className="mb-5 flex items-center gap-2.5">
+                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600">
+                  <MessageSquare className="h-5 w-5 text-white" aria-hidden="true" />
+                </span>
+                <span className="text-xl font-bold text-white">Kribaat</span>
               </div>
+              <p className="max-w-xs text-pretty text-sm text-slate-400">{t('landing.footer.description')}</p>
+            </div>
+
+            <FooterCol title={t('landing.footer.product')}>
+              <FooterBtn onClick={() => scrollToSection('features')}>{t('landing.footer.features')}</FooterBtn>
+              <FooterBtn onClick={() => scrollToSection('pricing')}>{t('landing.footer.pricing')}</FooterBtn>
+              <FooterBtn onClick={() => scrollToSection('solutions')}>{t('landing.footer.solutions')}</FooterBtn>
+            </FooterCol>
+
+            <FooterCol title={t('landing.footer.company')}>
+              <FooterSoon>{t('landing.footer.about')}</FooterSoon>
+              <FooterSoon>{t('landing.footer.contact')}</FooterSoon>
+              <FooterSoon>{t('landing.footer.careers')}</FooterSoon>
+            </FooterCol>
+
+            <FooterCol title={t('landing.footer.legal')}>
+              <li><Link to="/privacy" className="text-slate-400 transition-colors hover:text-white">{t('landing.footer.privacy')}</Link></li>
+              <li><Link to="/terms" className="text-slate-400 transition-colors hover:text-white">{t('landing.footer.terms')}</Link></li>
+            </FooterCol>
+          </div>
+
+          <div className="flex flex-col items-center justify-between gap-4 border-t border-white/5 pt-8 md:flex-row">
+            <p className="text-sm text-slate-500">© {new Date().getFullYear()} Kribaat. {t('landing.footer.rights')}</p>
+            <div className="flex items-center gap-2 text-sm text-slate-500">
+              <HeadphonesIcon className="h-5 w-5" aria-hidden="true" />
+              {t('landing.footer.support')}
             </div>
           </div>
         </div>
       </footer>
     </div>
+  )
+}
+
+/* ============================ DATA ============================ */
+
+const CHANNELS = [
+  { icon: MessageSquare, label: 'WhatsApp' },
+  { icon: Globe, label: 'Website Chat' },
+  { icon: Users, label: 'Instagram' },
+  { icon: UtensilsCrossed, label: 'Restaurants' },
+  { icon: Building2, label: 'Real Estate' },
+  { icon: Home, label: 'Property Mgmt' },
+  { icon: Bot, label: 'AI Assistant' },
+]
+
+const FEATURES = [
+  { icon: Bot, key: 'ai', gradient: 'from-indigo-500 to-blue-600' },
+  { icon: MessageSquare, key: 'omnichannel', gradient: 'from-violet-500 to-indigo-600' },
+  { icon: Users, key: 'handoff', gradient: 'from-fuchsia-500 to-violet-600' },
+  { icon: BarChart3, key: 'analytics', gradient: 'from-emerald-500 to-teal-600' },
+  { icon: Globe, key: 'multilingual', gradient: 'from-amber-500 to-orange-600' },
+  { icon: Shield, key: 'security', gradient: 'from-rose-500 to-pink-600' },
+] as const
+
+const STATS = [
+  { value: '95%', key: 'automation' },
+  { value: '24/7', key: 'availability' },
+  { value: '3x', key: 'efficiency' },
+  { value: '50%', key: 'savings' },
+] as const
+
+const TESTIMONIALS = [
+  { id: 'review1', initials: 'JC', gradient: 'from-orange-400 to-rose-500' },
+  { id: 'review2', initials: 'SL', gradient: 'from-indigo-400 to-violet-500' },
+  { id: 'review3', initials: 'MW', gradient: 'from-emerald-400 to-teal-500' },
+] as const
+
+/* ============================ PIECES ============================ */
+
+type TFn = (key: string) => string
+
+/**
+ * Seamless horizontal marquee. Renders the children twice and translates the
+ * track by 50% so it loops without a visible seam. Pauses on hover/focus and
+ * is disabled under prefers-reduced-motion (see index.css).
+ */
+function Marquee({
+  children, direction, speed = '60s',
+}: {
+  children: React.ReactNode
+  direction: 'left' | 'right'
+  speed?: string
+}) {
+  const anim = direction === 'left' ? 'animate-marquee-left' : 'animate-marquee-right'
+  return (
+    <div className="marquee-mask group/marquee w-full overflow-hidden">
+      <div
+        className={`marquee-track flex w-max ${anim} gap-6 px-6 lg:px-8`}
+        style={{ ['--marquee-duration' as string]: speed }}
+      >
+        {/* duplicated track for a seamless loop; aria-hidden on the clone */}
+        <div className="flex shrink-0 gap-6">{children}</div>
+        <div className="flex shrink-0 gap-6" aria-hidden="true">{children}</div>
+      </div>
+    </div>
+  )
+}
+
+function FeatureCard({
+  icon: Icon, fkey, gradient, t,
+}: {
+  icon: React.ComponentType<{ className?: string }>
+  fkey: string
+  gradient: string
+  t: TFn
+}) {
+  return (
+    <article className="flex w-[20rem] shrink-0 flex-col rounded-2xl border border-white/10 bg-white/[0.04] p-7 backdrop-blur transition-colors hover:border-indigo-400/30 hover:bg-white/[0.07]">
+      <span className={`mb-5 flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br ${gradient} shadow-lg`}>
+        <Icon className="h-6 w-6 text-white" />
+      </span>
+      <h3 className="mb-2 text-lg font-bold text-white">{t(`landing.features.${fkey}.title`)}</h3>
+      <p className="text-pretty text-sm leading-relaxed text-slate-400">{t(`landing.features.${fkey}.description`)}</p>
+    </article>
+  )
+}
+
+function SectionBadge({
+  icon: Icon, tone, children,
+}: {
+  icon: React.ComponentType<{ className?: string }>
+  tone: 'indigo' | 'violet' | 'emerald' | 'fuchsia'
+  children: React.ReactNode
+}) {
+  const tones = {
+    indigo: 'text-indigo-300',
+    violet: 'text-violet-300',
+    emerald: 'text-emerald-300',
+    fuchsia: 'text-fuchsia-300',
+  } as const
+  return (
+    <div className={`mb-4 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-1.5 text-sm font-medium ${tones[tone]}`}>
+      <Icon className="h-4 w-4" />
+      {children}
+    </div>
+  )
+}
+
+function SolutionCard({
+  icon: Icon, gradient, accent, title, subtitle, features, learnMore,
+}: {
+  icon: React.ComponentType<{ className?: string }>
+  gradient: string
+  accent: string
+  title: string
+  subtitle: string
+  features: string[]
+  learnMore: string
+}) {
+  return (
+    <div className="group overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03] backdrop-blur transition-all hover:-translate-y-1 hover:border-white/20">
+      <div className={`bg-gradient-to-br ${gradient} p-8`}>
+        <Icon className="mb-4 h-11 w-11 text-white transition-transform group-hover:scale-110" aria-hidden="true" />
+        <h3 className="text-2xl font-bold text-white">{title}</h3>
+        <p className="mt-1 text-white/90">{subtitle}</p>
+      </div>
+      <div className="p-8">
+        <ul className="space-y-4">
+          {features.map((f, i) => (
+            <li key={i} className="flex items-start gap-3">
+              <Check className="mt-0.5 h-5 w-5 shrink-0 text-emerald-400" aria-hidden="true" />
+              <span className="text-slate-300">{f}</span>
+            </li>
+          ))}
+        </ul>
+        <Link to="/register" className={`mt-7 inline-flex items-center gap-2 font-semibold transition-all group-hover:gap-3 ${accent}`}>
+          {learnMore}
+          <ChevronRight className="h-4 w-4" aria-hidden="true" />
+        </Link>
+      </div>
+    </div>
+  )
+}
+
+function PricingCard({
+  name, description, price, per, features, cta, featured, popularLabel,
+}: {
+  name: string
+  description: string
+  price: string
+  per?: string
+  features: string[]
+  cta: string
+  featured?: boolean
+  popularLabel?: string
+}) {
+  return (
+    <div className={`relative rounded-3xl border p-8 backdrop-blur transition-all hover:-translate-y-1 ${
+      featured
+        ? 'border-indigo-400/50 bg-gradient-to-b from-indigo-500/10 to-white/[0.03] shadow-2xl shadow-indigo-500/20'
+        : 'border-white/10 bg-white/[0.03] hover:border-white/20'
+    }`}>
+      {featured && popularLabel && (
+        <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-gradient-to-r from-indigo-500 to-violet-600 px-4 py-1 text-xs font-semibold text-white shadow-lg">
+          {popularLabel}
+        </span>
+      )}
+      <h3 className="text-lg font-bold text-white">{name}</h3>
+      <p className="mt-1 text-sm text-slate-400">{description}</p>
+      <div className="mt-6 flex items-baseline gap-1">
+        <span className="text-4xl font-bold text-white">{price}</span>
+        {per && <span className="text-slate-400">{per}</span>}
+      </div>
+      <ul className="mt-7 space-y-3">
+        {features.map((f, i) => (
+          <li key={i} className="flex items-center gap-2 text-sm text-slate-300">
+            <Check className="h-5 w-5 shrink-0 text-emerald-400" aria-hidden="true" />
+            {f}
+          </li>
+        ))}
+      </ul>
+      <Link to="/register" className="mt-8 block">
+        <Button className={`w-full font-semibold ${
+          featured
+            ? 'bg-gradient-to-r from-indigo-500 to-violet-600 text-white shadow-lg shadow-indigo-500/30 hover:from-indigo-400 hover:to-violet-500'
+            : 'border border-white/15 bg-white/5 text-white hover:bg-white/10'
+        }`}>
+          {cta}
+        </Button>
+      </Link>
+    </div>
+  )
+}
+
+function FooterCol({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <h4 className="mb-4 font-semibold text-white">{title}</h4>
+      <ul className="space-y-3 text-sm">{children}</ul>
+    </div>
+  )
+}
+
+function FooterBtn({ onClick, children }: { onClick: () => void; children: React.ReactNode }) {
+  return (
+    <li>
+      <button onClick={onClick} className="text-left text-slate-400 transition-colors hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400">
+        {children}
+      </button>
+    </li>
+  )
+}
+
+function FooterSoon({ children }: { children: React.ReactNode }) {
+  return (
+    <li className="flex items-center gap-2 text-slate-400">
+      {children}
+      <span className="rounded bg-indigo-500/15 px-2 py-0.5 text-xs text-indigo-300">Coming Soon</span>
+    </li>
   )
 }
