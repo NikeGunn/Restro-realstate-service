@@ -12,6 +12,7 @@ import {
 import { useToast } from '@/hooks/use-toast'
 import { useAuthStore } from '@/store/auth'
 import { contentStudioApi, type BrandKit } from '@/services/content_studio'
+import { parseColor, toPickerHex } from '@/lib/color'
 
 const LANGS = ['zh-TW', 'zh-CN', 'en']
 const WATERMARKS = ['none', 'logo', 'text'] as const
@@ -29,9 +30,13 @@ export function BrandKitPage() {
     watermark_preference: 'none' as BrandKit['watermark_preference'],
   })
   const [colors, setColors] = useState<string[]>([])
-  const [newColor, setNewColor] = useState('#E11D48')
+  const [colorInput, setColorInput] = useState('')
+  const [swatch, setSwatch] = useState('#E11D48')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+
+  // Live parse of whatever the user typed/pasted — null while invalid.
+  const parsedInput = colorInput.trim() ? parseColor(colorInput) : null
 
   useEffect(() => {
     if (!orgId) return
@@ -52,9 +57,15 @@ export function BrandKitPage() {
     return () => { active = false }
   }, [orgId])
 
-  function addColor() {
-    if (colors.length >= 5 || !newColor) return
-    if (!colors.includes(newColor)) setColors([...colors, newColor])
+  function addColor(raw: string) {
+    if (colors.length >= 5) return
+    const hex = parseColor(raw)
+    if (!hex) {
+      toast({ title: t('contentStudio.invalidColor'), variant: 'destructive' })
+      return
+    }
+    if (!colors.includes(hex)) setColors([...colors, hex])
+    setColorInput('')
   }
 
   async function save() {
@@ -119,29 +130,87 @@ export function BrandKitPage() {
             onChange={e => setForm({ ...form, restaurant_name: e.target.value })} />
         </Field>
 
-        {/* Colors */}
+        {/* Colors — paste any format (hex, rgb, hsl, name) from any tool */}
         <div className="space-y-2">
           <Label>{t('contentStudio.brandColors')}</Label>
-          <div className="flex flex-wrap items-center gap-2">
-            {colors.map(c => (
-              <span key={c} className="flex items-center gap-1 rounded-full border bg-muted py-1 pl-1 pr-2 text-xs text-foreground">
-                <span className="h-5 w-5 rounded-full ring-1 ring-border" style={{ backgroundColor: c }} />
-                {c}
-                <button onClick={() => setColors(colors.filter(x => x !== c))} className="text-muted-foreground hover:text-foreground">
-                  <X className="h-3 w-3" />
+
+          {colors.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2">
+              {colors.map(c => (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => { navigator.clipboard?.writeText(c); toast({ title: t('contentStudio.colorCopied', { color: c }) }) }}
+                  className="group flex items-center gap-1.5 rounded-full border bg-muted py-1 pl-1 pr-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted/70"
+                  title={t('contentStudio.clickToCopy')}
+                >
+                  <span className="h-5 w-5 rounded-full ring-1 ring-border" style={{ backgroundColor: c }} />
+                  <span className="tabular-nums">{c}</span>
+                  <span
+                    role="button"
+                    tabIndex={0}
+                    onClick={(e) => { e.stopPropagation(); setColors(colors.filter(x => x !== c)) }}
+                    className="ml-0.5 rounded-full p-0.5 text-muted-foreground hover:bg-background hover:text-destructive"
+                  >
+                    <X className="h-3 w-3" />
+                  </span>
                 </button>
-              </span>
-            ))}
-            {colors.length < 5 && (
-              <div className="flex items-center gap-1">
-                <input type="color" value={newColor} onChange={e => setNewColor(e.target.value)}
-                  className="h-8 w-8 cursor-pointer rounded border bg-transparent" />
-                <Button size="icon" variant="outline" onClick={addColor}>
-                  <Plus className="h-4 w-4" />
-                </Button>
+              ))}
+            </div>
+          )}
+
+          {colors.length < 5 ? (
+            <div className="flex items-center gap-2">
+              {/* Native swatch — picks a color, the input reflects it live */}
+              <label
+                className="relative h-9 w-9 shrink-0 cursor-pointer overflow-hidden rounded-md border ring-1 ring-border"
+                style={{ backgroundColor: parsedInput || swatch }}
+                title={t('contentStudio.pickSwatch')}
+              >
+                <input
+                  type="color"
+                  value={parsedInput ? toPickerHex(parsedInput) : swatch}
+                  onChange={e => { setSwatch(e.target.value); setColorInput(e.target.value) }}
+                  className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                />
+              </label>
+
+              {/* Paste-anything input: hex / rgb / hsl / name */}
+              <div className="relative flex-1">
+                <Input
+                  value={colorInput}
+                  placeholder={t('contentStudio.colorPlaceholder')}
+                  spellCheck={false}
+                  onChange={e => setColorInput(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addColor(colorInput) } }}
+                  className={
+                    colorInput && !parsedInput
+                      ? 'border-destructive pr-9 focus-visible:ring-destructive'
+                      : 'pr-9'
+                  }
+                />
+                {parsedInput && (
+                  <span
+                    className="pointer-events-none absolute right-2.5 top-1/2 h-5 w-5 -translate-y-1/2 rounded-full ring-1 ring-border"
+                    style={{ backgroundColor: parsedInput }}
+                  />
+                )}
               </div>
-            )}
-          </div>
+
+              <Button
+                type="button"
+                variant="outline"
+                disabled={!parsedInput}
+                onClick={() => addColor(colorInput)}
+              >
+                <Plus className="mr-1 h-4 w-4" /> {t('contentStudio.addColor')}
+              </Button>
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground">{t('contentStudio.colorLimitReached')}</p>
+          )}
+
+          <p className="text-xs text-muted-foreground">{t('contentStudio.colorHint')}</p>
         </div>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

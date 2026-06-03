@@ -6,7 +6,7 @@ import { ArrowLeft, Sparkles, Palette } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
+import { AutoTextarea } from '@/components/ui/auto-textarea'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -218,12 +218,16 @@ function FieldInput({ field, required, value, onChange }: {
       </div>
     )
   }
-  if (field.type === 'textarea') {
+  if (field.type === 'number') {
     return (
       <div className="space-y-2">
         {label}
-        <Textarea value={(value as string) || ''} maxLength={field.max_length}
-          onChange={e => onChange(e.target.value)} />
+        <Input
+          type="number"
+          value={(value as string) || ''}
+          maxLength={field.max_length}
+          onChange={e => onChange(e.target.value)}
+        />
       </div>
     )
   }
@@ -236,13 +240,20 @@ function FieldInput({ field, required, value, onChange }: {
       </div>
     )
   }
+  // Every free-text field (both `text` and `textarea`) renders as an
+  // auto-growing, expandable editor so long copy is visible end-to-end —
+  // short single-line fields start compact, longer prompts grow on their own.
+  const isLong = field.type === 'textarea' || (field.max_length ?? 0) > 100
   return (
     <div className="space-y-2">
       {label}
-      <Input
-        type={field.type === 'number' ? 'number' : 'text'}
+      <AutoTextarea
         value={(value as string) || ''}
         maxLength={field.max_length}
+        minRows={isLong ? 3 : 1}
+        maxRows={isLong ? 18 : 6}
+        aria-label={field.label}
+        placeholder={field.label}
         onChange={e => onChange(e.target.value)}
       />
     </div>
