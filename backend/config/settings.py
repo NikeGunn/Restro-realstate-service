@@ -63,6 +63,8 @@ INSTALLED_APPS = [
     'apps.lucky_draw',
     # AI Content Studio (Phase 5) — structured AI image generation
     'apps.content_studio',
+    # AI Credit & Usage Billing (Phase 6) — credit wallet + usage ledger + spend cap
+    'apps.billing',
 ]
 
 MIDDLEWARE = [
@@ -309,6 +311,23 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'apps.content_studio.tasks.cleanup_expired_provider_urls_task',
         'schedule': crontab(hour=3, minute=30),
     },
+    # Billing (Phase 6)
+    'billing-reset-monthly-credits': {
+        'task': 'apps.billing.tasks.reset_monthly_credits_task',
+        'schedule': crontab(hour=0, minute=5, day_of_month=1),  # 1st of month 00:05 UTC
+    },
+    'billing-generate-monthly-summary': {
+        'task': 'apps.billing.tasks.generate_monthly_summary_task',
+        'schedule': crontab(hour=1, minute=0, day_of_month=2),  # 2nd of month
+    },
+    'billing-check-cap-alerts': {
+        'task': 'apps.billing.tasks.check_cap_alerts_task',
+        'schedule': crontab(minute=0, hour='*/6'),  # every 6h
+    },
+    'billing-reconcile-stale-reservations': {
+        'task': 'apps.billing.tasks.reconcile_stale_reservations_task',
+        'schedule': crontab(minute='*/15'),  # every 15 min
+    },
 }
 
 # ──────────────────────────────────────────────────────────────────────
@@ -325,6 +344,19 @@ CRM_INACTIVE_DAYS = config('CRM_INACTIVE_DAYS', default=90, cast=int)
 # Public origin that QR codes / referral links resolve against. Non-secret →
 # belongs in k8s/configmap.yaml (chatplatform-config) in production.
 PUBLIC_BASE_URL = config('PUBLIC_BASE_URL', default='https://kribaat.com')
+
+# ──────────────────────────────────────────────────────────────────────
+# AI Credit & Usage Billing (Phase 6) settings
+# ──────────────────────────────────────────────────────────────────────
+BILLING_SETTINGS = {
+    # A `reserved` UsageEvent older than this (minutes) is presumed orphaned
+    # (crash between provider-success and confirm) and refunded by the sweeper.
+    'RESERVATION_TTL_MINUTES': config('BILLING_RESERVATION_TTL_MINUTES', default=15, cast=int),
+    # USD→HKD conversion used to price provider cost in the org's billing currency.
+    'USD_TO_HKD': config('BILLING_USD_TO_HKD', default=7.8, cast=float),
+    # Notify the org owner (WhatsApp) when the spend cap crosses a threshold.
+    'NOTIFY_OWNER_ON_CAP': config('BILLING_NOTIFY_OWNER_ON_CAP', default=True, cast=bool),
+}
 
 # Redis Cache
 CACHES = {

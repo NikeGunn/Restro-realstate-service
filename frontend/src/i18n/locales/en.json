@@ -124,7 +124,12 @@
     "contentStudio": "Content Studio",
     "studioCreate": "Create",
     "studioHistory": "History",
-    "studioBrandKit": "Brand Kit"
+    "studioBrandKit": "Brand Kit",
+    "billing": "Billing & Usage",
+    "billingDashboard": "Dashboard",
+    "billingUsage": "Usage History",
+    "billingLimits": "Limits",
+    "billingMonthly": "Monthly"
   },
   "inventory": {
     "title": "Inventory",
@@ -1357,5 +1362,81 @@
     "upgradeCta": "Upgrade to Power",
     "backToDashboard": "Back to dashboard",
     "contactHint": "Have a coupon or upgraded already? Open Settings → Plan & Coupons to apply it."
+  },
+  "billing": {
+    "title": "Billing & Usage",
+    "thisMonth": "this month",
+    "heroBody": "You have used {{pct}}% of your monthly AI spend cap.",
+    "heroBlocked": "Your monthly AI spend cap has been reached. Paid AI generation is paused until you raise the limit — your free monthly credits keep working.",
+    "adjustCap": "Adjust cap",
+    "viewUsage": "View usage",
+    "loadError": "Could not load billing data.",
+    "freeCredits": "Free credits",
+    "paidCredits": "Paid credits",
+    "reserved": "Reserved",
+    "inFlight": "In-flight now",
+    "totalAvailable": "Available",
+    "creditsOf": "of {{total}} total",
+    "usedCount": "{{n}} used this month",
+    "spendVsCap": "Spend vs cap",
+    "byModule": "Usage by module",
+    "calls": "calls",
+    "spendBarHint": "{{pct}}% of cap · {{used}} credits used this month",
+    "noUsageYet": "No usage yet this period.",
+    "cap": {
+      "active": "Healthy",
+      "warning_50": "Watch",
+      "warning_80": "Near cap",
+      "blocked": "Cap reached"
+    },
+    "capBanner": {
+      "warning_50": {
+        "title": "Heads up",
+        "body": "You have used over 50% of your monthly AI spend cap."
+      },
+      "warning_80": {
+        "title": "Approaching your cap",
+        "body": "You have used over 80% of your monthly AI spend cap. Consider raising it to avoid interruption."
+      },
+      "blocked": {
+        "title": "Spend cap reached",
+        "body": "Paid AI generation is paused. Raise your cap to continue — free monthly credits still work."
+      }
+    },
+    "usageHistory": "Usage History",
+    "allModules": "All modules",
+    "allStatuses": "All statuses",
+    "noEvents": "No usage events match these filters.",
+    "free": "Free",
+    "eventStatus": {
+      "success": "Success",
+      "reserved": "Reserved",
+      "failed": "Failed",
+      "refunded": "Refunded"
+    },
+    "col": {
+      "date": "Date",
+      "module": "Module",
+      "type": "Type",
+      "credits": "Credits",
+      "cost": "Cost",
+      "status": "Status",
+      "period": "Period"
+    },
+    "pageOf": "Page {{page}} of {{total}}",
+    "limits": "Usage Limits",
+    "monthlyCap": "Monthly AI spend cap",
+    "alertThreshold": "Alert threshold",
+    "capExplainer": "When the cap is reached, paid AI generation is blocked until you raise the limit. Your free monthly credits keep working regardless.",
+    "currentCap": "Current: {{value}}",
+    "alertHint": "We notify the owner when usage crosses this % of the cap.",
+    "ownerOnly": "Only the organization owner can change usage limits.",
+    "limitSaved": "Limits updated.",
+    "monthlySummary": "Monthly Summary",
+    "creditsUsedByMonth": "Credits used by month",
+    "noSummaries": "No monthly summaries yet. They are generated at the start of each month.",
+    "images": "Images",
+    "aiQueries": "AI queries",
+    "billable": "Billable"
   }
 }
