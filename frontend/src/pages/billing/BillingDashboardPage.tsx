@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import {
   Wallet, Coins, Sparkles, TrendingUp, AlertTriangle, ArrowRight,
-  Gauge, Clock, Infinity as InfinityIcon,
+  Gauge, Clock, Infinity as InfinityIcon, CreditCard,
 } from 'lucide-react'
 import {
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartTooltip,
@@ -12,17 +12,34 @@ import {
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { useToast } from '@/hooks/use-toast'
 import { useAuthStore } from '@/store/auth'
 import { billingApi, type UsageSummary } from '@/services/billing'
 import { MODULE_LABELS, MODULE_COLORS, CAP_THEME, hkd } from './format'
 
 export function BillingDashboardPage() {
   const { t } = useTranslation()
+  const { toast } = useToast()
   const orgId = useAuthStore(s => s.currentOrganization?.id)
+  const [searchParams, setSearchParams] = useSearchParams()
 
   const [summary, setSummary] = useState<UsageSummary | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
+
+  // Returning from Stripe Checkout: show the outcome, then strip the params.
+  useEffect(() => {
+    if (searchParams.get('session_id')) {
+      toast({ title: t('payments.successToast'), description: t('payments.successBody') })
+      searchParams.delete('session_id'); searchParams.delete('purchase')
+      setSearchParams(searchParams, { replace: true })
+    } else if (searchParams.get('cancelled')) {
+      toast({ title: t('payments.cancelledToast'), variant: 'destructive' })
+      searchParams.delete('cancelled'); searchParams.delete('purchase')
+      setSearchParams(searchParams, { replace: true })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   useEffect(() => {
     if (!orgId) return
@@ -88,6 +105,11 @@ export function BillingDashboardPage() {
                 : t('billing.heroBody', { pct: Math.round(pct) })}
             </p>
             <div className="mt-5 flex flex-wrap gap-3">
+              <Button asChild size="sm" className="bg-white text-indigo-700 hover:bg-white/90">
+                <Link to="/billing/buy">
+                  <CreditCard className="mr-2 h-4 w-4" /> {t('payments.buyCredits')}
+                </Link>
+              </Button>
               <Button asChild variant="secondary" size="sm">
                 <Link to="/billing/limits">
                   <Gauge className="mr-2 h-4 w-4" /> {t('billing.adjustCap')}

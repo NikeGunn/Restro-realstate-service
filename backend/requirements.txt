@@ -46,6 +46,8 @@ boto3>=1.34,<2.0
 phonenumbers>=8.13,<9.0
 # Phase 2 — QR generation
 qrcode[pil]>=7.4,<8.0
+# Payments — Stripe Checkout for AI credit-pack purchases (Phase 6 top-ups)
+stripe>=8.0,<13.0
 
 # Development
 black>=23.12,<24.0

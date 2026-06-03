@@ -129,7 +129,8 @@
     "billingDashboard": "仪表盘",
     "billingUsage": "用量记录",
     "billingLimits": "限额",
-    "billingMonthly": "月度汇总"
+    "billingMonthly": "月度汇总",
+    "billingBuy": "购买额度"
   },
   "inventory": {
     "title": "库存",
@@ -1438,5 +1439,39 @@
     "images": "图片",
     "aiQueries": "AI 查询",
     "billable": "应计费"
+  },
+  "payments": {
+    "badge": "Stripe 安全结账",
+    "heroTitle": "为您的 AI 额度充值",
+    "heroSubtitle": "购买额度包以继续生成内容。使用银行卡安全付款——付款成功后额度立即到账。",
+    "trust": {
+      "securedByStripe": "由 Stripe 保护",
+      "pciCompliant": "符合 PCI 标准——我们不会看到您的卡号",
+      "instantCredits": "额度即时到账"
+    },
+    "choosePack": "选择额度包",
+    "credits": "额度",
+    "credit": "额度",
+    "bestValue": "最划算",
+    "save": "省 {{pct}}%",
+    "buyNow": "立即购买",
+    "redirecting": "跳转中…",
+    "buyCredits": "购买额度",
+    "ownerOnly": "仅机构所有者可购买额度。",
+    "ownerOnlyHint": "仅机构所有者可购买额度。",
+    "recentPurchases": "最近购买",
+    "receipt": "收据",
+    "status": {
+      "paid": "已支付",
+      "pending": "待处理",
+      "failed": "失败",
+      "expired": "已过期",
+      "refunded": "已退款"
+    },
+    "loadError": "无法加载额度包。",
+    "checkoutFailed": "无法开始结账，请重试。",
+    "successToast": "已收到付款",
+    "successBody": "额度已添加到您的钱包。",
+    "cancelledToast": "付款已取消——未产生费用。"
   }
 }

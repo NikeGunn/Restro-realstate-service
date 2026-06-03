@@ -56,6 +56,11 @@ data:
 
   # Celery settings
   CELERY_CONCURRENCY: "2"
+
+  # Payments (Stripe) — publishable key is NON-SECRET (exposed to browsers).
+  # Secret + webhook keys live in chatplatform-secrets (deploy-secrets job).
+  STRIPE_PUBLISHABLE_KEY: "pk_test_51SozbOLnDeWlHrbRI6I0PHwBjpytdO7QgI3f33JqEaQBTeNlkFLdnvicrrNOzPOGlTnuf7WftLdZjZlkqs33SIIg007d804LgZ"
+  PUBLIC_BASE_URL: "https://kribaat.com"
 ---
 # ConfigMap for frontend (build-time variables)
 apiVersion: v1

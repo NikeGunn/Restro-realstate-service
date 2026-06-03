@@ -47,6 +47,7 @@ import {
   Receipt,
   Gauge,
   CalendarRange,
+  CreditCard,
 } from 'lucide-react'
 
 type NavLeaf = {
@@ -164,6 +165,7 @@ const billingGroup: NavGroup = {
   pathPrefix: '/billing',
   children: [
     { kind: 'leaf', path: '/billing', labelKey: 'nav.billingDashboard', icon: Gauge },
+    { kind: 'leaf', path: '/billing/buy', labelKey: 'nav.billingBuy', icon: CreditCard },
     { kind: 'leaf', path: '/billing/usage', labelKey: 'nav.billingUsage', icon: Receipt },
     { kind: 'leaf', path: '/billing/limits', labelKey: 'nav.billingLimits', icon: Gauge },
     { kind: 'leaf', path: '/billing/monthly', labelKey: 'nav.billingMonthly', icon: CalendarRange },

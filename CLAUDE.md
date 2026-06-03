@@ -354,6 +354,31 @@ The credit wallet + usage ledger + spend-cap layer Phase 5's adapter targets, mo
 - No real payment processing (explicitly out of scope). Self-serve upgrade is still via the `coupons` app + admin plan grant (see `kubernetes/MANAGE_ORG_PLANS.txt`).
 - The dashboard KPIs come from the `/summary/` aggregation endpoint (server-side), not client-side paging — scales fine.
 
+## `payments` app — Stripe credit-pack purchases
+
+### Payments — DONE (2026-06-03, 481/481 backend tests pass, frontend prod build clean)
+
+Real Stripe **test-mode** payments mounted at **`/api/v1/payments/`**. An org owner buys a `CreditPack` → Stripe-hosted Checkout (card data never touches our servers, PCI-compliant) → the `checkout.session.completed` webhook atomically tops up the Phase 6 `UsageCreditBalance.paid_credits_remaining`. Modeled on the FAANG-grade Migalpha payments reference. **NOT a subscription processor** — one-off credit-pack top-ups that wire into the Phase 6 wallet. **Test keys verified live** (created a real `cs_test_…` Checkout Session against the actual Stripe API).
+
+**Models** (`models.py`, migrations `0001`+`0002_seed_packs`, tables `payments_*`): `CreditPack` (admin-seeded SKU: HKD price → N paid credits; 3 seeded — Starter/Growth/Pro). `CreditPurchase` (order + idempotency anchor: status `pending/paid/failed/expired/refunded`, snapshot credits+amount, `stripe_session_id`/`stripe_payment_intent_id` **partial-unique when non-empty**, `credited` **one-way latch**, `usage_event_id`, `refunded_amount_hkd`).
+
+**Services** (`services.py`): `CreditCheckoutService.create_checkout_session` (owner-only; pending purchase first for a stable `client_reference_id`; `idempotency_key` on the Stripe create). `StripeWebhookService` — **layered idempotency**: (1) atomic `cache.add` event-id claim + release-on-failure + mark-processed; (2) `payment_intent`/`session` UNIQUE; (3) `credited` one-way latch in the locked grant txn. Handlers: completed (→ `billing.credit_service.add_paid_credits` under `select_for_update`; replay → `duplicate`; PI-reuse blocked), expired (marks pending, never touches paid), refunded (idempotent on the refunded **delta**, proportional claw-back via `deduct_paid_credits` floored at 0), payment_failed (log only). `StripeRefundService` (owner-only, over-refund guard, idempotency_key).
+
+**Billing wiring** (`billing/services/credit_service.py`, the only balance mutator): `add_paid_credits` (row-locked top-up + `success` UsageEvent) / `deduct_paid_credits` (row-locked claw-back floored at 0 + `refunded` UsageEvent).
+
+**API/security**: `StripeConfigView` (publishable key ONLY), `CreditPackViewSet` (RO members), `CreateCheckoutSessionView` (owner-only + `CheckoutThrottle` 20/min; cross-org → 404), `StripeWebhookView` (**`@csrf_exempt`** — signature verification REPLACES CSRF; missing/empty/forged sig → 400; handler raise → release claim + 500 for Stripe retry), `CreditPurchaseViewSet` (RO OrgScopeMixin), `RefundView` (owner-only). **Admin**: `CreditPurchase` fully read-only (saga-owned). Mgmt cmd `setup_stripe_webhook [--list|--delete]`.
+
+**Secrets/deploy** (wired): `STRIPE_SECRET_KEY` + `STRIPE_WEBHOOK_SECRET` are **GitHub Secrets**, in the `deploy-secrets` job env + `--from-literal` (auto-injected via `envFrom: secretRef: chatplatform-secrets`). `STRIPE_PUBLISHABLE_KEY` (non-secret) + `PUBLIC_BASE_URL` → `k8s/configmap.yaml`. The live prod webhook `https://kribaat.com/api/v1/payments/webhook/` is registered (4 events); its `whsec_` is the GitHub Secret. Raw keys live only in the gitignored `C:\Users\Nautilus\Desktop\RESTRO\kubernetes\kribaat stripe details.txt`, never committed.
+
+**Frontend** (Vercel React best-practices): `services/payments.ts`; `pages/billing/BuyCreditsPage.tsx` (gradient hero + trust row, pack cards with per-credit price + savings% + "Best value" derived during render, Stripe redirect, recent purchases). `BillingDashboardPage` gained a Buy-credits CTA + `?session_id`/`?cancelled` return toast. Sidebar `Buy Credits` leaf; route `/billing/buy`; i18n `payments.*` (22 keys) en/zh-CN/zh-TW.
+
+**Tests** (`apps/payments/tests/`, **31**): `test_security` (no key leak, sig rejection, csrf-exempt, owner-only checkout/refund, cross-org 404, SQL/XSS safety), `test_webhook_saga` (grant-once, replay latch, PI-reuse blocked, event-id single-winner + release-retry, view duplicate dropped, handler-failure releases claim, expired, refund claw-back + idempotent + partial→full), `test_checkout` (mocked create, **threaded concurrent double webhook delivery → credits once**). **481/481 backend green in Docker.** Frontend build clean.
+
+### Payments known limitations / debt
+- **Test mode only** (`sk_test_`/`pk_test_`). Going live = swap for `sk_live_`/`pk_live_`, re-run `setup_stripe_webhook` in live mode for a new `whsec_`, update the 3 secrets/configmap.
+- Refund claw-back is proportional-by-amount (int floor, never negative).
+- React Compiler ("React memory") deferred to a separate PR (React 18.2 + Vite 5; Compiler targets React 19) — components already follow Vercel manual-memoization best-practices.
+
 ## Inventory app — Plane B (resume notes)
 
 The inventory module is the "sealed vault" admin counterpart to the public chatbot. The full design lives in `INVENTORY_CLAUDE_CODE_PROMPT_V2.md` (gitignored, ~1.5k lines, FAANG-grade spec). Read it before extending phase 2+.
