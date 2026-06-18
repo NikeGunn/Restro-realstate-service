@@ -376,7 +376,36 @@
       "dataPoints": "項資料",
       "disclaimer": "回答基於即時庫存資料。置信度低於 70% 時 AI 不會臆測。",
       "upgradeRequired": "需升級至 Power 方案",
-      "powerOnly": "庫存 AI 僅在 Power 方案可用。"
+      "powerOnly": "庫存 AI 僅在 Power 方案可用。",
+      "plan": {
+        "titleWorking": "智能體處理中…",
+        "titleDone": "智能體推理完成",
+        "titleError": "智能體遇到問題",
+        "grounding": "資料依據",
+        "cited": "答案引用的資料",
+        "synthDone": "已根據即時資料生成可靠答案",
+        "synthError": "無法完成此查詢",
+        "stage": {
+          "parse": "解析問題並擷取意圖",
+          "scan": "掃描即時庫存水平",
+          "alerts": "檢查未處理的庫存警示",
+          "movements": "檢視近期庫存異動",
+          "synthesize": "綜合生成可靠答案"
+        },
+        "detail": {
+          "parseDesc": "驗證問題並確定需要查詢的內容。",
+          "scanQuery": "SELECT * FROM inventory_item WHERE org = 你 AND active LIMIT 50",
+          "scanDesc": "讀取最多 50 個活躍商品，並套用有效庫存容差區間（正常 / 偏低 / 緊張 / 負庫存）。",
+          "alertsQuery": "SELECT * FROM stock_alert WHERE org = 你 AND resolved = false LIMIT 10",
+          "alertsDesc": "擷取未處理的低庫存、負庫存與到期警示。",
+          "movementsQuery": "SELECT * FROM stock_movement WHERE org = 你 ORDER BY date DESC LIMIT 20",
+          "movementsDesc": "檢視最近 20 筆台帳異動，分析消耗與補貨趨勢。",
+          "synthDesc": "將可靠脈絡交給模型。置信度低於 70% 時智能體將拒絕猜測。",
+          "running": "查詢中",
+          "queued": "排隊中",
+          "returned": "脈絡已組裝"
+        }
+      }
     },
     "stockTake": {
       "title": "庫存盤點",

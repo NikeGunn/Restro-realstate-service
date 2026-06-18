@@ -376,7 +376,36 @@
       "dataPoints": "data points",
       "disclaimer": "Answers are grounded in your live inventory data. Below 70% confidence the AI declines to guess.",
       "upgradeRequired": "Power plan required",
-      "powerOnly": "Inventory AI is available on the Power plan."
+      "powerOnly": "Inventory AI is available on the Power plan.",
+      "plan": {
+        "titleWorking": "Agent is working…",
+        "titleDone": "Agent finished reasoning",
+        "titleError": "Agent hit a snag",
+        "grounding": "Grounding",
+        "cited": "Data the answer cited",
+        "synthDone": "Grounded answer composed from your live data",
+        "synthError": "Could not complete this query",
+        "stage": {
+          "parse": "Parse the question and extract intent",
+          "scan": "Scan live stock levels",
+          "alerts": "Check open stock alerts",
+          "movements": "Review recent stock movements",
+          "synthesize": "Synthesize a grounded answer"
+        },
+        "detail": {
+          "parseDesc": "Validating the question and isolating what to look up.",
+          "scanQuery": "SELECT * FROM inventory_item WHERE org = you AND active LIMIT 50",
+          "scanDesc": "Reading up to 50 active items with effective-stock tolerance bands (OK / LOW / CRITICAL / NEGATIVE).",
+          "alertsQuery": "SELECT * FROM stock_alert WHERE org = you AND resolved = false LIMIT 10",
+          "alertsDesc": "Pulling open low-stock, negative-stock and expiry alerts.",
+          "movementsQuery": "SELECT * FROM stock_movement WHERE org = you ORDER BY date DESC LIMIT 20",
+          "movementsDesc": "Reviewing the last 20 ledger movements for consumption and restock trends.",
+          "synthDesc": "Feeding the grounded context to the model. Below 70% confidence the agent declines to guess.",
+          "running": "running query",
+          "queued": "queued",
+          "returned": "context assembled"
+        }
+      }
     },
     "stockTake": {
       "title": "Stock-take",

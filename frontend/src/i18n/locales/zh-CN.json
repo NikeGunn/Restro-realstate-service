@@ -376,7 +376,36 @@
       "dataPoints": "项数据",
       "disclaimer": "回答基于实时库存数据。置信度低于 70% 时 AI 不会臆测。",
       "upgradeRequired": "需升级到 Power 套餐",
-      "powerOnly": "库存 AI 仅在 Power 套餐可用。"
+      "powerOnly": "库存 AI 仅在 Power 套餐可用。",
+      "plan": {
+        "titleWorking": "智能体处理中…",
+        "titleDone": "智能体推理完成",
+        "titleError": "智能体遇到问题",
+        "grounding": "数据依据",
+        "cited": "答案引用的数据",
+        "synthDone": "已根据实时数据生成可靠答案",
+        "synthError": "无法完成此查询",
+        "stage": {
+          "parse": "解析问题并提取意图",
+          "scan": "扫描实时库存水平",
+          "alerts": "检查未处理的库存预警",
+          "movements": "查看近期库存变动",
+          "synthesize": "综合生成可靠答案"
+        },
+        "detail": {
+          "parseDesc": "校验问题并确定需要查询的内容。",
+          "scanQuery": "SELECT * FROM inventory_item WHERE org = 你 AND active LIMIT 50",
+          "scanDesc": "读取最多 50 个活跃商品，并应用有效库存容差区间（正常 / 偏低 / 紧张 / 负库存）。",
+          "alertsQuery": "SELECT * FROM stock_alert WHERE org = 你 AND resolved = false LIMIT 10",
+          "alertsDesc": "拉取未处理的低库存、负库存和过期预警。",
+          "movementsQuery": "SELECT * FROM stock_movement WHERE org = 你 ORDER BY date DESC LIMIT 20",
+          "movementsDesc": "查看最近 20 条台账变动，分析消耗与补货趋势。",
+          "synthDesc": "将可靠上下文交给模型。置信度低于 70% 时智能体将拒绝猜测。",
+          "running": "查询中",
+          "queued": "排队中",
+          "returned": "上下文已组装"
+        }
+      }
     },
     "stockTake": {
       "title": "库存盘点",
