@@ -900,10 +900,26 @@
     "nav": {
       "features": "功能特点",
       "solutions": "解决方案",
+      "showcase": "平台概览",
       "pricing": "价格",
       "testimonials": "客户评价",
       "signIn": "登录",
       "getStarted": "免费开始"
+    },
+    "showcase": {
+      "badge": "一个平台，全部功能",
+      "title": "一眼纵览整个平台",
+      "subtitle": "团队所需的每个工作区，登录一次即可协同使用。悬停展开卡片，再用箭头逐张浏览。",
+      "hint": "悬停可抬起卡片，或使用箭头浏览卡组。",
+      "surfaces": {
+        "inbox": "统一 AI 收件箱",
+        "analytics": "实时分析",
+        "crm": "客户 CRM",
+        "luckyDraw": "幸运抽奖活动",
+        "studio": "AI 内容工作室",
+        "inventory": "库存与配方",
+        "billing": "积分与账单"
+      }
     },
     "hero": {
       "badge": "AI智能通信",

@@ -900,10 +900,26 @@
     "nav": {
       "features": "Features",
       "solutions": "Solutions",
+      "showcase": "Showcase",
       "pricing": "Pricing",
       "testimonials": "Testimonials",
       "signIn": "Sign In",
       "getStarted": "Get Started Free"
+    },
+    "showcase": {
+      "badge": "One platform, every surface",
+      "title": "See the whole platform at a glance",
+      "subtitle": "Every workspace your team needs, working together from a single login. Hover to spread the deck, then use the arrows to flip through.",
+      "hint": "Hover a card to lift it, or use the arrows to browse the deck.",
+      "surfaces": {
+        "inbox": "Unified AI Inbox",
+        "analytics": "Live Analytics",
+        "crm": "Customer CRM",
+        "luckyDraw": "Lucky Draw Campaigns",
+        "studio": "AI Content Studio",
+        "inventory": "Inventory & Recipes",
+        "billing": "Credits & Billing"
+      }
     },
     "hero": {
       "badge": "AI-Powered Communication",

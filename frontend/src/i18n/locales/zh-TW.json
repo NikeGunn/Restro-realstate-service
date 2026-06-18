@@ -833,10 +833,26 @@
     "nav": {
       "features": "功能特點",
       "solutions": "解決方案",
+      "showcase": "平台總覽",
       "pricing": "價格",
       "testimonials": "客戶評價",
       "signIn": "登入",
       "getStarted": "免費開始"
+    },
+    "showcase": {
+      "badge": "一個平台，全部功能",
+      "title": "一眼縱覽整個平台",
+      "subtitle": "團隊所需的每個工作區，登入一次即可協同使用。將游標移上去展開卡片，再用箭頭逐張瀏覽。",
+      "hint": "將游標移上去可抬起卡片，或使用箭頭瀏覽卡組。",
+      "surfaces": {
+        "inbox": "統一 AI 收件匣",
+        "analytics": "即時分析",
+        "crm": "客戶 CRM",
+        "luckyDraw": "幸運抽獎活動",
+        "studio": "AI 內容工作室",
+        "inventory": "庫存與配方",
+        "billing": "點數與帳單"
+      }
     },
     "hero": {
       "badge": "AI智能通訊",

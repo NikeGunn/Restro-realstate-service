@@ -2,11 +2,13 @@ import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
+import CardFanCarousel, { type CardItem } from '@/components/ui/card-fan-carousel'
 import { LanguageSwitcher } from '@/components/LanguageSwitcher'
 import {
   MessageSquare, Bot, Users, Zap, Building2, UtensilsCrossed, Home,
   BarChart3, Shield, Globe, Clock, HeadphonesIcon, ChevronRight,
   Star, Check, ArrowRight, Menu, X, Sparkles,
+  LayoutDashboard, Gift, Image as ImageIcon, Wallet, Boxes,
 } from 'lucide-react'
 
 /* ------------------------------------------------------------------ *
@@ -40,7 +42,7 @@ export function LandingPage() {
     setMobileMenuOpen(false)
   }
 
-  const navItems = ['features', 'solutions', 'pricing', 'testimonials'] as const
+  const navItems = ['features', 'solutions', 'showcase', 'pricing', 'testimonials'] as const
 
   return (
     // `dark` scopes shadcn tokens (LanguageSwitcher dropdown, Buttons, focus
@@ -328,6 +330,45 @@ export function LandingPage() {
         </div>
       </section>
 
+      {/* ====================== SHOWCASE (interactive card fan) ====================== */}
+      <section id="showcase" className="relative scroll-mt-20 overflow-hidden py-20 md:py-28">
+        {/* decorative glow behind the fan */}
+        <div className="pointer-events-none absolute inset-0" aria-hidden="true">
+          <div className="absolute left-1/2 top-1/3 h-[30rem] w-[30rem] -translate-x-1/2 animate-aurora-drift rounded-full bg-violet-600/15 blur-[140px]" />
+        </div>
+
+        <div className={`${SHELL} relative text-center`}>
+          <SectionBadge icon={Sparkles} tone="violet">{t('landing.showcase.badge')}</SectionBadge>
+          <h2 className="text-balance text-3xl font-bold tracking-tight text-white sm:text-4xl">
+            {t('landing.showcase.title')}
+          </h2>
+          <p className="mx-auto mt-4 max-w-2xl text-pretty text-lg text-slate-400">
+            {t('landing.showcase.subtitle')}
+          </p>
+        </div>
+
+        {/* The fan itself: drag a card to the top, hover to spread, paginate with arrows. */}
+        <div className="relative mt-10">
+          <CardFanCarousel cards={SHOWCASE_CARDS} />
+        </div>
+
+        {/* Caption strip naming the surfaces the cards represent. */}
+        <div className={`${SHELL} relative mt-6`}>
+          <ul className="mx-auto flex max-w-4xl flex-wrap items-center justify-center gap-3">
+            {SHOWCASE_SURFACES.map(({ icon: Icon, key }) => (
+              <li
+                key={key}
+                className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-medium text-slate-300 backdrop-blur transition-colors hover:border-violet-400/40 hover:text-white"
+              >
+                <Icon className="h-4 w-4 text-violet-300" aria-hidden="true" />
+                {t(`landing.showcase.surfaces.${key}`)}
+              </li>
+            ))}
+          </ul>
+          <p className="mt-6 text-center text-sm text-slate-500">{t('landing.showcase.hint')}</p>
+        </div>
+      </section>
+
       {/* ====================== STATS ====================== */}
       <section className="py-8">
         <div className={SHELL}>
@@ -523,6 +564,35 @@ const FEATURES = [
   { icon: BarChart3, key: 'analytics', gradient: 'from-emerald-500 to-teal-600' },
   { icon: Globe, key: 'multilingual', gradient: 'from-amber-500 to-orange-600' },
   { icon: Shield, key: 'security', gradient: 'from-rose-500 to-pink-600' },
+] as const
+
+/**
+ * Showcase fan cards. Each card depicts one product surface using a stable
+ * Unsplash photo (id-pinned, portrait crop so it sits well in the 2:3 card).
+ * Ordered so the platform story reads center-out: the AI inbox sits in the
+ * middle slot, with the verticals and growth tools fanning to either side.
+ */
+const UNSPLASH = (id: string) =>
+  `https://images.unsplash.com/${id}?auto=format&fit=crop&w=600&h=900&q=80`
+
+const SHOWCASE_CARDS: CardItem[] = [
+  { imgUrl: UNSPLASH('photo-1551434678-e076c223a692'), alt: 'Real-time analytics dashboard' },
+  { imgUrl: UNSPLASH('photo-1556742502-ec7c0e9f34b1'), alt: 'AI credit wallet and billing' },
+  { imgUrl: UNSPLASH('photo-1414235077428-338989a2e8c0'), alt: 'Restaurant bookings and menu' },
+  { imgUrl: UNSPLASH('photo-1531746790731-6c087fecd65a'), alt: 'Unified AI inbox' },
+  { imgUrl: UNSPLASH('photo-1560518883-ce09059eeffa'), alt: 'Real estate listings and leads' },
+  { imgUrl: UNSPLASH('photo-1607082348824-0a96f2a4b9da'), alt: 'AI content studio image generation' },
+  { imgUrl: UNSPLASH('photo-1556745753-b2904692b3cd'), alt: 'Inventory and recipe management' },
+]
+
+const SHOWCASE_SURFACES = [
+  { icon: Bot, key: 'inbox' },
+  { icon: LayoutDashboard, key: 'analytics' },
+  { icon: Users, key: 'crm' },
+  { icon: Gift, key: 'luckyDraw' },
+  { icon: ImageIcon, key: 'studio' },
+  { icon: Boxes, key: 'inventory' },
+  { icon: Wallet, key: 'billing' },
 ] as const
 
 const STATS = [
