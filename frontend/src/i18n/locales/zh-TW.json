@@ -749,6 +749,8 @@
       "alcoholBrandPlaceholder": "例如：絕對伏特加、海尼根",
       "soldOut": "售罄",
       "filterAll": "全部",
+      "noFilterMatches": "沒有符合此篩選的項目",
+      "noFilterMatchesDesc": "目前沒有此類型的項目。請嘗試其他篩選或新增一個。",
       "promoRuleSaved": "促銷規則已儲存",
       "promoRuleDeleted": "促銷規則已移除",
       "managePromo": "促銷規則",

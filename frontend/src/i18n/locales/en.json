@@ -797,6 +797,8 @@
       "alcoholBrandPlaceholder": "e.g., Absolut, Heineken",
       "soldOut": "Sold Out",
       "filterAll": "All",
+      "noFilterMatches": "No items match this filter",
+      "noFilterMatchesDesc": "No items of this type exist yet. Try another filter or add one.",
       "promoRuleSaved": "Promo rule saved",
       "promoRuleDeleted": "Promo rule removed",
       "managePromo": "Promo Rule",

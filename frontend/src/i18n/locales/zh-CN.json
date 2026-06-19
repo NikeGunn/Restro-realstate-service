@@ -797,6 +797,8 @@
       "alcoholBrandPlaceholder": "例如：绝对伏特加、喜力",
       "soldOut": "售罄",
       "filterAll": "全部",
+      "noFilterMatches": "没有符合此筛选的项目",
+      "noFilterMatchesDesc": "目前没有此类型的项目。请尝试其他筛选或新增一个。",
       "promoRuleSaved": "促销规则已保存",
       "promoRuleDeleted": "促销规则已移除",
       "managePromo": "促销规则",

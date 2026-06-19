@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Plus, Edit, Trash, ChevronDown, ChevronRight, Percent } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -87,6 +87,36 @@ export function MenuPage() {
 
   // Item-type filter chip ('' = all)
   const [typeFilter, setTypeFilter] = useState<MenuItemType | ''>('')
+
+  // Derive the visible categories from the active type filter.
+  // When a filter is active we (1) narrow each category's items to the type,
+  // (2) drop categories that end up empty, and (3) carry the matched count so
+  // the header badge reflects the filter — without mutating server state.
+  const displayCategories = useMemo(() => {
+    if (!typeFilter) {
+      return categories.map(c => ({ category: c, items: c.items ?? [] }))
+    }
+    return categories
+      .map(c => ({
+        category: c,
+        items: (c.items ?? []).filter(item => item.item_type === typeFilter),
+      }))
+      .filter(c => c.items.length > 0)
+  }, [categories, typeFilter])
+
+  // Total matches across all categories — drives the "nothing matches" state.
+  const totalMatches = useMemo(
+    () => displayCategories.reduce((sum, c) => sum + c.items.length, 0),
+    [displayCategories],
+  )
+
+  // While a filter is active, every shown category is auto-expanded so the
+  // matching items are visible without a manual click. With no filter we honor
+  // the user's manual expand/collapse choices.
+  const isExpanded = useCallback(
+    (categoryId: string) => (typeFilter ? true : expandedCategories.has(categoryId)),
+    [typeFilter, expandedCategories],
+  )
 
   // Promo Rule Dialog State
   const [promoDialogOpen, setPromoDialogOpen] = useState(false)
@@ -431,9 +461,14 @@ export function MenuPage() {
             {t('restaurant.menu.addFirstCategory')}
           </Button>
         </Card>
+      ) : typeFilter && totalMatches === 0 ? (
+        <Card className="p-8 text-center">
+          <h3 className="text-lg font-semibold mb-2">{t('restaurant.menu.noFilterMatches')}</h3>
+          <p className="text-muted-foreground">{t('restaurant.menu.noFilterMatchesDesc')}</p>
+        </Card>
       ) : (
         <div className="space-y-4">
-          {categories.map(category => (
+          {displayCategories.map(({ category, items }) => (
             <Card key={category.id} className={!category.is_active ? 'opacity-60' : ''}>
               <CardHeader className="py-3">
                 <div className="flex items-center justify-between">
@@ -441,13 +476,15 @@ export function MenuPage() {
                     className="flex items-center gap-2 cursor-pointer flex-1"
                     onClick={() => toggleCategory(category.id)}
                   >
-                    {expandedCategories.has(category.id) ? (
+                    {isExpanded(category.id) ? (
                       <ChevronDown className="h-5 w-5" />
                     ) : (
                       <ChevronRight className="h-5 w-5" />
                     )}
                     <CardTitle className="text-lg">{category.name}</CardTitle>
-                    <Badge variant="outline">{category.items_count} {t('restaurant.menu.items')}</Badge>
+                    <Badge variant="outline">
+                      {typeFilter ? items.length : category.items_count} {t('restaurant.menu.items')}
+                    </Badge>
                     {!category.is_active && <Badge variant="secondary">Inactive</Badge>}
                   </div>
                   <div className="flex gap-2">
@@ -468,17 +505,15 @@ export function MenuPage() {
                 )}
               </CardHeader>
 
-              {expandedCategories.has(category.id) && category.items && (
+              {isExpanded(category.id) && (
                 <CardContent className="border-t pt-4">
-                  {category.items.length === 0 ? (
+                  {items.length === 0 ? (
                     <p className="text-center text-muted-foreground py-4">
                       {t('restaurant.menu.noItemsYet')}
                     </p>
                   ) : (
                     <div className="space-y-3">
-                      {category.items
-                        .filter(item => !typeFilter || item.item_type === typeFilter)
-                        .map(item => (
+                      {items.map(item => (
                         <div
                           key={item.id}
                           className={`flex items-start justify-between p-3 rounded-lg border ${
