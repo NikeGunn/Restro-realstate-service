@@ -37,7 +37,7 @@ spec:
       restartPolicy: OnFailure
       containers:
         - name: migrate
-          image: nemo2092/chatplatform-backend:69e9cf6
+          image: nemo2092/chatplatform-backend:5d1e588
           imagePullPolicy: IfNotPresent
           command:
             - python
