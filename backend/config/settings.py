@@ -127,6 +127,11 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
+# Project-level static dir (holds the embeddable widget.js). Without this in
+# STATICFILES_DIRS, collectstatic's finders only look inside each app's
+# static/ subdir and silently skip backend/static/widget.js — which made
+# /api/v1/widget/widget.js serve the 85-byte "file not found" stub in prod.
+STATICFILES_DIRS = [BASE_DIR / 'static']
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 # Media files
