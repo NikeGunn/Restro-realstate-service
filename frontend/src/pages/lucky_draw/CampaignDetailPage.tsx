@@ -246,6 +246,7 @@ function QrTab({ campaignId }: { campaignId: string }) {
   const [codes, setCodes] = useState<LuckyDrawQRCode[]>([])
   const [loading, setLoading] = useState(true)
   const [label, setLabel] = useState('')
+  const [posterBusy, setPosterBusy] = useState<string | null>(null)
 
   const refresh = useCallback(async () => {
     setLoading(true)
@@ -261,6 +262,27 @@ function QrTab({ campaignId }: { campaignId: string }) {
       refresh()
     } catch (e) {
       toast({ title: t('common.error'), description: String(e), variant: 'destructive' })
+    }
+  }
+
+  // The poster endpoint is auth-gated, so we fetch it through axios (Bearer
+  // attached) as a blob and trigger a download — opening it as a plain link 401s.
+  const downloadPoster = async (qr: LuckyDrawQRCode) => {
+    setPosterBusy(qr.id)
+    let url: string | null = null
+    try {
+      url = await luckyDrawApi.fetchPosterObjectUrl(campaignId, qr.id)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `poster-${qr.label || qr.id}.png`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+    } catch (e) {
+      toast({ title: t('common.error'), description: String(e), variant: 'destructive' })
+    } finally {
+      if (url) URL.revokeObjectURL(url)
+      setPosterBusy(null)
     }
   }
 
@@ -296,11 +318,10 @@ function QrTab({ campaignId }: { campaignId: string }) {
                       </Button>
                     </a>
                   )}
-                  <a href={luckyDrawApi.posterUrl(campaignId, qr.id)} target="_blank" rel="noreferrer">
-                    <Button variant="outline" size="sm">
-                      <Download className="h-4 w-4 mr-1" />{t('luckyDraw.qr.poster')}
-                    </Button>
-                  </a>
+                  <Button variant="outline" size="sm" disabled={posterBusy === qr.id}
+                    onClick={() => downloadPoster(qr)}>
+                    <Download className="h-4 w-4 mr-1" />{t('luckyDraw.qr.poster')}
+                  </Button>
                 </div>
               </CardContent>
             </Card>
