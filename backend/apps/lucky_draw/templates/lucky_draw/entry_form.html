@@ -4,50 +4,128 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-  <title>Lucky Draw</title>
+  <title>🎰 Lucky Draw</title>
   <style>
-    :root { --brand:#6366F1; --bg:#0f172a; --card:#ffffff; --muted:#6b7280; }
-    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    /* ── Hong Kong neon-night theme ──────────────────────────────────── */
+    :root {
+      --neon-pink:#ff2d95; --neon-cyan:#00e5ff; --neon-purple:#a855f7;
+      --gold:#ffd54a; --jade:#1de9b6; --ink:#0a0414; --muted:#9aa0b4;
+    }
+    * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
     body {
-      margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Noto Sans TC","PingFang TC",sans-serif;
-      background:linear-gradient(160deg,#1e1b4b,#0f172a); color:#111827; min-height:100vh;
+      margin:0; color:#f8fafc; min-height:100vh; overflow-x:hidden;
+      font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Noto Sans TC","PingFang TC",sans-serif;
+      background:
+        radial-gradient(1200px 600px at 15% -10%, rgba(255,45,149,.35), transparent 60%),
+        radial-gradient(1000px 700px at 110% 10%, rgba(0,229,255,.30), transparent 55%),
+        radial-gradient(900px 900px at 50% 120%, rgba(168,85,247,.30), transparent 60%),
+        linear-gradient(160deg,#160726,#0a0414 70%);
+      background-attachment:fixed;
     }
-    .wrap { max-width:480px; margin:0 auto; padding:20px 16px 48px; }
-    .lang { text-align:right; margin-bottom:8px; }
-    .lang button { background:rgba(255,255,255,.15); color:#fff; border:0; border-radius:999px;
-      padding:6px 12px; margin-left:6px; font-size:13px; cursor:pointer; }
-    .lang button.active { background:var(--brand); }
-    .hero { text-align:center; color:#fff; padding:8px 0 18px; }
-    .hero .org { font-size:14px; opacity:.8; }
-    .hero h1 { font-size:26px; margin:6px 0 4px; }
-    .hero .win { font-size:20px; font-weight:700; color:#fde047; }
-    .card { background:var(--card); border-radius:18px; padding:20px; box-shadow:0 20px 40px rgba(0,0,0,.35); }
-    label { display:block; font-size:14px; font-weight:600; margin:14px 0 6px; }
+    /* faint neon "rain" grid for that Kowloon-alley feel */
+    body::before {
+      content:""; position:fixed; inset:0; pointer-events:none; opacity:.18;
+      background:
+        repeating-linear-gradient(90deg, rgba(0,229,255,.10) 0 1px, transparent 1px 40px),
+        repeating-linear-gradient(0deg, rgba(255,45,149,.08) 0 1px, transparent 1px 40px);
+      mask:linear-gradient(180deg, transparent, #000 30%, #000 70%, transparent);
+    }
+    .wrap { position:relative; max-width:480px; margin:0 auto; padding:18px 16px 56px; z-index:1; }
+    .lang { text-align:right; margin-bottom:10px; }
+    .lang button {
+      background:rgba(255,255,255,.08); color:#e2e8f0; border:1px solid rgba(255,255,255,.16);
+      border-radius:999px; padding:6px 13px; margin-left:6px; font-size:13px; cursor:pointer;
+      backdrop-filter:blur(6px); transition:.2s;
+    }
+    .lang button.active {
+      background:linear-gradient(90deg,var(--neon-pink),var(--neon-purple));
+      border-color:transparent; color:#fff; box-shadow:0 0 16px rgba(255,45,149,.6);
+    }
+    /* Hero */
+    .hero { text-align:center; padding:6px 0 20px; }
+    .hero .lantern { font-size:38px; line-height:1; filter:drop-shadow(0 0 12px rgba(255,213,74,.7));
+      animation:sway 3.2s ease-in-out infinite; }
+    @keyframes sway { 0%,100%{transform:rotate(-5deg)} 50%{transform:rotate(5deg)} }
+    .hero .org { font-size:13px; letter-spacing:.12em; text-transform:uppercase; color:var(--neon-cyan);
+      text-shadow:0 0 10px rgba(0,229,255,.7); margin-top:6px; }
+    .hero h1 {
+      font-size:28px; margin:8px 14px 6px; font-weight:800; line-height:1.2;
+      color:#fff; text-shadow:0 0 18px rgba(255,45,149,.55), 0 0 4px rgba(0,229,255,.5);
+    }
+    .hero .win {
+      display:inline-block; margin-top:8px; font-size:20px; font-weight:800;
+      background:linear-gradient(90deg,var(--gold),#fff,var(--gold));
+      background-size:200% auto; -webkit-background-clip:text; background-clip:text; color:transparent;
+      animation:shine 3s linear infinite;
+    }
+    @keyframes shine { to { background-position:200% center; } }
+    /* Glass card */
+    .card {
+      position:relative; background:rgba(20,12,38,.62); border:1px solid rgba(255,255,255,.12);
+      border-radius:22px; padding:22px; backdrop-filter:blur(16px) saturate(140%);
+      box-shadow:0 24px 60px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.08);
+    }
+    .card::after { /* neon edge glow */
+      content:""; position:absolute; inset:-1px; border-radius:22px; padding:1px; pointer-events:none;
+      background:linear-gradient(135deg, rgba(255,45,149,.6), rgba(0,229,255,.5), rgba(168,85,247,.5));
+      -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+      -webkit-mask-composite:xor; mask-composite:exclude; opacity:.7;
+    }
+    label { display:block; font-size:13px; font-weight:700; margin:16px 0 7px; color:#cbd5e1;
+      letter-spacing:.02em; }
     input[type=text], input[type=tel], input[type=email] {
-      width:100%; padding:13px 14px; border:1px solid #d1d5db; border-radius:12px; font-size:16px;
+      width:100%; padding:14px 15px; font-size:16px; color:#f8fafc;
+      background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.18); border-radius:13px;
+      transition:.2s; outline:none;
     }
-    .consent { display:flex; gap:10px; align-items:flex-start; margin-top:16px; font-size:13px; color:#374151; }
-    .consent input { margin-top:3px; width:20px; height:20px; }
-    .privacy { font-size:12px; color:var(--muted); margin-top:10px; white-space:pre-wrap; }
-    .btn { width:100%; margin-top:18px; padding:15px; border:0; border-radius:14px; background:var(--brand);
-      color:#fff; font-size:17px; font-weight:700; cursor:pointer; }
-    .btn:disabled { opacity:.6; }
-    .err { color:#dc2626; font-size:13px; margin-top:10px; min-height:18px; }
+    input::placeholder { color:#64748b; }
+    input:focus {
+      border-color:var(--neon-cyan); background:rgba(0,229,255,.08);
+      box-shadow:0 0 0 3px rgba(0,229,255,.18), 0 0 18px rgba(0,229,255,.25);
+    }
+    .consent { display:flex; gap:11px; align-items:flex-start; margin-top:18px; font-size:13px; color:#cbd5e1; }
+    .consent input { margin-top:2px; width:20px; height:20px; accent-color:var(--neon-pink); }
+    .privacy { font-size:12px; color:var(--muted); margin-top:11px; white-space:pre-wrap; line-height:1.5; }
+    .btn {
+      width:100%; margin-top:20px; padding:16px; border:0; border-radius:15px; cursor:pointer;
+      color:#fff; font-size:17px; font-weight:800; letter-spacing:.02em;
+      background:linear-gradient(95deg,var(--neon-pink),var(--neon-purple),var(--neon-cyan));
+      background-size:200% auto; box-shadow:0 10px 30px rgba(255,45,149,.45);
+      transition:.25s; animation:shine 4s linear infinite;
+    }
+    .btn:active { transform:translateY(1px) scale(.99); }
+    .btn:disabled { opacity:.65; }
+    .err { color:#ff6b81; font-size:13px; margin-top:11px; min-height:18px; text-shadow:0 0 8px rgba(255,107,129,.4); }
     .hidden { display:none; }
-    /* Result */
+    /* Result reveal — slot-machine pop + glow */
     .reveal { text-align:center; }
-    .reveal .badge { font-size:64px; font-weight:800; color:var(--brand); margin:6px 0;
-      animation:pop .6s cubic-bezier(.18,.89,.32,1.28); }
-    @keyframes pop { 0%{transform:scale(.3);opacity:0} 100%{transform:scale(1);opacity:1} }
-    .code { font-size:30px; letter-spacing:3px; font-weight:800; background:#f3f4f6; border-radius:12px;
-      padding:12px; margin:14px 0; }
-    .meta { font-size:13px; color:var(--muted); }
-    .wa { background:#25D366; } .share { background:#0ea5e9; margin-top:10px; }
-    .note { font-size:13px; color:#059669; margin-top:12px; }
+    .reveal .badge {
+      font-size:74px; font-weight:900; margin:8px 0; line-height:1;
+      background:linear-gradient(90deg,var(--gold),#fff8d6,var(--gold));
+      -webkit-background-clip:text; background-clip:text; color:transparent;
+      filter:drop-shadow(0 0 26px rgba(255,213,74,.75));
+      animation:pop .7s cubic-bezier(.18,.89,.32,1.28);
+    }
+    @keyframes pop { 0%{transform:scale(.2) rotate(-12deg);opacity:0} 70%{transform:scale(1.12)} 100%{transform:scale(1) rotate(0);opacity:1} }
+    #congrats { font-size:19px; font-weight:800; color:#fff; text-shadow:0 0 14px rgba(255,45,149,.6); }
+    .code {
+      font-size:30px; letter-spacing:5px; font-weight:900; color:var(--ink);
+      background:linear-gradient(90deg,var(--gold),#fff3b0); border-radius:13px;
+      padding:14px; margin:16px 0; box-shadow:0 0 26px rgba(255,213,74,.45); user-select:all;
+    }
+    .meta { font-size:13px; color:#cbd5e1; }
+    .share { margin-top:12px; }
+    .note { font-size:13px; color:var(--jade); margin-top:14px; text-shadow:0 0 10px rgba(29,233,182,.4); }
     .center { text-align:center; }
-    .spinner { display:inline-block; width:22px; height:22px; border:3px solid rgba(255,255,255,.4);
+    .spinner { display:inline-block; width:22px; height:22px; border:3px solid rgba(255,255,255,.35);
       border-top-color:#fff; border-radius:50%; animation:spin .8s linear infinite; vertical-align:middle; }
     @keyframes spin { to { transform:rotate(360deg); } }
+    /* Confetti */
+    #confetti { position:fixed; inset:0; pointer-events:none; z-index:50; }
+    .confetti-pc { position:absolute; width:9px; height:14px; top:-20px; opacity:.95;
+      animation:fall linear forwards; }
+    @keyframes fall { to { transform:translateY(110vh) rotate(720deg); opacity:.9; } }
+    .powered { text-align:center; margin-top:22px; font-size:11px; color:#475569; letter-spacing:.08em; }
   </style>
 </head>
 <body>
@@ -59,6 +137,7 @@
     </div>
 
     <div class="hero">
+      <div class="lantern">🏮</div>
       <div class="org" id="orgName"></div>
       <h1 id="campName"></h1>
       <div class="win" id="winLine"></div>
@@ -120,7 +199,11 @@
         <div style="font-size:18px;font-weight:700;" id="thanksText"></div>
       </div>
     </div>
+
+    <div class="powered">⚡ KRIBAAT</div>
   </div>
+
+  <div id="confetti"></div>
 
   <script>
     var URL_TOKEN = "{{ url_token|escapejs }}";
@@ -242,10 +325,28 @@
         });
     }
 
+    function burstConfetti(){
+      var c = $("confetti"); if (!c) return;
+      var colors = ["#ff2d95","#00e5ff","#a855f7","#ffd54a","#1de9b6","#ffffff"];
+      for (var i=0;i<70;i++){
+        var p = document.createElement("div");
+        p.className = "confetti-pc";
+        p.style.left = Math.random()*100 + "vw";
+        p.style.background = colors[i % colors.length];
+        p.style.animationDuration = (1.8 + Math.random()*1.8) + "s";
+        p.style.animationDelay = (Math.random()*0.5) + "s";
+        p.style.transform = "rotate(" + (Math.random()*360) + "deg)";
+        c.appendChild(p);
+        (function(node){ setTimeout(function(){ node.remove(); }, 4200); })(p);
+      }
+    }
+
     function showResult(d){
       hide("formCard"); show("resultCard");
       if (d.won){
         hide("resultLost"); show("resultWon");
+        burstConfetti();
+        if (navigator.vibrate){ navigator.vibrate([20,40,20]); }
         $("congrats").textContent = t("congrats");
         $("discountPct").textContent = d.discount_percent;
         $("couponLabel").textContent = t("coupon");

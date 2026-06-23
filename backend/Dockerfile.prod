@@ -8,11 +8,15 @@ ENV PYTHONUNBUFFERED=1
 
 WORKDIR /app
 
-# Install system dependencies
+# Install system dependencies.
+# fonts-noto-cjk + fonts-dejavu-core give the Pillow poster generator real CJK
+# (zh-TW/zh-CN) and Latin glyphs — without them HK posters render Chinese as tofu.
 RUN apt-get update && apt-get install -y \
     libpq-dev \
     gcc \
     curl \
+    fonts-noto-cjk \
+    fonts-dejavu-core \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies
