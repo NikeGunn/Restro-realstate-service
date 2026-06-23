@@ -206,8 +206,16 @@ export const luckyDrawApi = {
     return res.data as LuckyDrawQRCode
   },
 
-  posterUrl: (campaignId: string, qrId: string): string =>
-    `${api.defaults.baseURL}${BASE}/campaigns/${campaignId}/qr-codes/${qrId}/poster/`,
+  // Fetch the poster through the authed axios instance (the endpoint requires a
+  // Bearer token, so it can't be opened as a plain <a href> — that yields 401).
+  // Returns an object URL the caller is responsible for revoking after download.
+  fetchPosterObjectUrl: async (campaignId: string, qrId: string): Promise<string> => {
+    const res = await api.get(
+      `${BASE}/campaigns/${campaignId}/qr-codes/${qrId}/poster/`,
+      { responseType: 'blob' },
+    )
+    return URL.createObjectURL(res.data as Blob)
+  },
 
   // ── Entries ────────────────────────────────────────────
   listEntries: async (campaignId: string, params: { status?: EntryStatus; page?: number } = {}): Promise<Paginated<LuckyDrawEntry>> => {
