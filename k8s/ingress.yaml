@@ -79,6 +79,14 @@ spec:
                 name: backend
                 port:
                   number: 8000
+          # Public lucky-draw entry pages (server-rendered HTML, no auth) → backend
+          - path: /public
+            pathType: Prefix
+            backend:
+              service:
+                name: backend
+                port:
+                  number: 8000
           # Everything else → frontend
           - path: /
             pathType: Prefix
@@ -128,6 +136,13 @@ spec:
                 port:
                   number: 8000
           - path: /widget
+            pathType: Prefix
+            backend:
+              service:
+                name: backend
+                port:
+                  number: 8000
+          - path: /public
             pathType: Prefix
             backend:
               service:
