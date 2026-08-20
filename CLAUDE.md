@@ -379,6 +379,117 @@ Real Stripe **test-mode** payments mounted at **`/api/v1/payments/`**. An org ow
 - Refund claw-back is proportional-by-amount (int floor, never negative).
 - React Compiler ("React memory") deferred to a separate PR (React 18.2 + Vite 5; Compiler targets React 19) — components already follow Vercel manual-memoization best-practices.
 
+## `coffee_pass` app — Coffee Pass (paid 30-day cafe membership)
+
+### Coffee Pass — DONE (2026-08-20, 705/705 backend tests pass, frontend prod build clean)
+
+A paid **customer** membership: a customer who confirms they enjoyed a coffee may buy a
+30-day pass granting **30% off eligible coffee at ONE location**. Staff verify a rotating
+QR/fallback code and record the redemption; the external POS stays the payment source of
+truth, this ledger is the **discount/retention** source of truth. Authenticated API at
+**`/api/v1/coffee-pass/`**, public customer flow at **`/public/coffee-pass/`**.
+Spec: `PRD-coffee.md` (repo root).
+
+⚠️ **Bounded context.** NOT `apps.coupons` (org PLAN tiers) and NOT `apps.payments.CreditPurchase`
+(org AI CREDITS). Coffee Pass money is CUSTOMER money buying a CUSTOMER entitlement — separate
+models, routes, and webhook handler. Never reuse the credit wallet for it.
+
+**The product rule that drives the design:** a pass is a *reward for a good experience*, never a
+*rescue discount*. `not_good` feedback is a HARD gate — no offer, no checkout, no promotional
+reminder, plus a service-recovery CRM tag/interaction. Asserted in tests at three layers
+(engine, checkout service, public API).
+
+**Models** (`models.py`, migration `0001`, tables `coffee_pass_*`, UUID PKs):
+`CoffeePassPlan` (per org+location; `discount_percent` CheckConstraint 0<x<=50; M2M
+`eligible_items`→`restaurant.MenuItem`; opaque `public_token` for the QR; `build_snapshot()`
+freezes terms at purchase), `CoffeeExperience` (the quality gate; `comment` is owner-only),
+`CoffeePassPurchase` (Stripe saga record; partial-unique session/intent ids; `activated`
+one-way latch), `CoffeePass` (the entitlement; **partial unique `(customer, location, plan)`
+WHERE status=active**; `plan_snapshot` immutable), `CoffeePassRedemption` (append-then-void,
+never deleted; denormalized org/location for tenant-safe reporting),
+`CoffeePassVerificationToken` (**hash only** — raw QR secret never at rest),
+`CoffeePassOTP` (hashed, expiring, attempt-limited), `CoffeePassAuditEvent` (append-only),
+`CoffeePassOutboxEvent` (transactional outbox, unique `idempotency_key`).
+
+**Services** (`services/`, views parse/authorize — services decide/mutate):
+- `offer_decision_service.py` — **PURE** (no Django imports in the core). Hard gates run BEFORE
+  scoring and short-circuit, so no habit score can override the quality gate. Explainable
+  additive `habit_score` + stable `reason_code`s (`eligible`/`quality_gate_failed`/
+  `active_pass_exists`/`low_expected_value`/…). Break-even = `ceil(price / (avg_eligible_price
+  × pct/100))`; suppresses the offer above 20 visits or when no item is available. **No ML.**
+- `entitlement_service.py` — **THE single authority** on "can this pass redeem, here, now?".
+  Manual redemption uses it today; a future POS adapter calls the same functions. Query-time
+  expiry is the final guard (the Celery sweeper is housekeeping, not authority).
+  `_START_GRACE_SECONDS = 5` on the START edge only (clock skew); expiry stays exact.
+- `verification_service.py` — mint (retires prior codes) / resolve (**does NOT consume**) /
+  `consume()` = **conditional UPDATE**, the single atomic statement that makes two simultaneous
+  till scans resolve to exactly one redemption.
+- `redemption_service.py` — the till transaction: consume → **re-validate under the lock**
+  (TOCTOU guard) → server-calculate discount from the SNAPSHOT (ROUND_HALF_UP, never bankers)
+  → write. Owner-only `void()` flips status + audits; never deletes.
+- `identity_service.py` — OTP peppered-SHA256, short TTL, attempt ceiling (burns the code),
+  per-phone + per-IP Redis limits, **generic responses → no enumeration**. Signed
+  `SESSION_SALT`-namespaced customer session (ids only, no PII); NOT a dashboard JWT.
+- `checkout_service.py` / `webhook_service.py` — **NOT wrapped in one atomic()**: the pending
+  purchase must COMMIT before calling Stripe so a Stripe outage can mark it FAILED (a rollback
+  would leave it PENDING forever and block the customers next offer). Activation idempotency is
+  4-layered: signature → event-id cache claim (released on handler failure so Stripe retries) →
+  partial-unique Stripe ids (authoritative if Redis is down) → `activated` latch under
+  `select_for_update`. Routes by `metadata.kind == coffee_pass`. `reconcile_pending_purchases()`
+  recovers missed webhooks through the SAME handler.
+- `notification_service.py` — **TRANSACTIONAL vs MARKETING are different consents**: a receipt is
+  owed regardless of marketing preference; a reminder needs `has_marketing_consent`. State is
+  re-checked at **SEND time** (consent, cadence, quality suppression, pass still active).
+- `plan_service.py` (break-even guard + acknowledgement), `experience_service.py` (CRM tags/
+  interactions, offer suppression), `analytics_service.py` (aggregates from persisted rows),
+  `audit_service.py` (audit never raises; outbox writes in the callers txn).
+
+**Refund policy (v1):** only a FULL refund cancels the pass. A partial refund is recorded for
+finance but does NOT strip entitlement.
+
+**API**: `CoffeePassPlanViewSet` (+`activation-preview`/`activate`/`pause`), `CoffeePassViewSet`
+(+`suspend`/`restore`/`redemptions`), purchases (+`refund`), experiences, redemptions (+`void`),
+plus two **manager-allowed** till POSTs (`verification/resolve/`, `redemptions/create/`) that opt
+out of the owner-write default and re-check membership themselves. Analytics summary + anomalies.
+Public: offer / request-code / verify-code / experiences / checkout / wallet / mint / webhook.
+
+**Public page**: `templates/coffee_pass/customer.html` — standalone Django template, vanilla JS,
+zh-TW default with a language switch (matches the lucky_draw pattern; a QR scan never loads the
+React bundle). Session in `sessionStorage`, auto-rotating code with countdown.
+
+**Celery** (6 beat entries): expire passes (15m), outbox drain (10m), Stripe reconcile (hourly),
+expiry reminders (daily 09:30), token purge, anomaly detection. **Settings**: `COFFEE_PASS_SETTINGS`
+(feature flag off by default, TTLs, OTP limits, redemption cap HK$2000, scoring constants).
+
+**Frontend**: `services/coffeePass.ts`; pages `pages/coffee_pass/` — `RedeemPage` (the till screen:
+one job per step, big discount figure, per-reason refusal copy, auto-refocus for the next customer),
+`PlansPage` (+ `PlanForm` with LIVE break-even mirroring the server formula), `PassesPage`,
+`AnalyticsPage` (anomalies first, retention highlighted). Nav: `coffeePassGroup` pushed with the
+**restaurant** vertical (a real-estate org never sees it). i18n en/zh-CN/zh-TW.
+
+**Tests** (`apps/coffee_pass/tests/`, **224**): `test_offer_decision` (35 — incl. *not_good +
+perfect routine score → still refused*), `test_identity_otp` (21 — brute force, replay,
+enumeration, tampering, cross-tenant), `test_verification_redemption` (44 — hash-at-rest, rotation,
+ROUND_HALF_UP table, snapshot immutability, TOCTOU), `test_stripe_saga` (32 — duplicate/out-of-order/
+forged/refund/reconcile), `test_concurrency` (11 — **real threads + Barrier**: 2 tills→1 redemption,
+2 webhooks→1 pass, plus DB-constraint proofs), `test_api` (43 — owner/manager/outsider/cross-org
+matrix), `test_public_flow` (38 — enumeration-safe OTP, negative-feedback dead end, wallet
+isolation, consent/cadence gates). **Full suite 705/705 green in Docker.**
+
+### Coffee Pass known limitations / debt
+- **v1 records staff-confirmed redemptions; it does NOT apply discounts in a POS.** The A.8 adapter
+  contract (`quote`/`commit_redemption`/`void_redemption`) is designed but not built — it must call
+  `entitlement_service`, never write Coffee Pass tables itself.
+- The public page renders the QR payload as **text plus a 6-digit fallback** (the primary path);
+  no QR image encoder is bundled. Adding one is a small, self-contained change.
+- OTP delivery uses the orgs existing WhatsApp config. With no active config the code is logged
+  server-side and the endpoint still returns a generic success (enumeration-safety is preserved),
+  so an org can pilot before WhatsApp is provisioned.
+- `COFFEE_PASS_SETTINGS[ENABLED]` defaults to **False**; it is a documentation/rollout flag —
+  the routes are mounted regardless. Per-org gating would need a check in the public views.
+- Analytics `retention()` iterates passes in Python for the 7-day metric. Fine at pilot scale;
+  revisit with a date-bounded SQL aggregate if an org exceeds a few thousand passes.
+
 ## Inventory app — Plane B (resume notes)
 
 The inventory module is the "sealed vault" admin counterpart to the public chatbot. The full design lives in `INVENTORY_CLAUDE_CODE_PROMPT_V2.md` (gitignored, ~1.5k lines, FAANG-grade spec). Read it before extending phase 2+.

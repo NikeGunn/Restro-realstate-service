@@ -1,0 +1,567 @@
+{% load static %}<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>{% if found %}{{ organization_name }} · Coffee Pass{% else %}Not found{% endif %}</title>
+<style>
+  /* Standalone page: a customer scans a QR on an unknown mobile browser, so
+     everything is inlined and nothing depends on the React admin bundle. */
+  :root{
+    --bg:#0F0B08; --surface:#1C1614; --surface-2:#261E1A; --line:#3A2E28;
+    --text:#F5EFE9; --muted:#A99C92; --accent:#C88A4B; --accent-2:#E5A96A;
+    --good:#4ADE80; --bad:#F87171; --radius:16px;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  body{
+    margin:0;background:var(--bg);color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang HK","Noto Sans TC",sans-serif;
+    line-height:1.55;min-height:100vh;padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
+  }
+  .wrap{max-width:480px;margin:0 auto;padding:20px 18px 48px}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:20px;margin-bottom:14px}
+  h1{font-size:22px;margin:0 0 4px;letter-spacing:-.02em}
+  h2{font-size:17px;margin:0 0 12px}
+  .muted{color:var(--muted);font-size:14px;margin:0}
+  .brand{display:flex;align-items:center;gap:10px;margin-bottom:18px}
+  .logo{width:40px;height:40px;border-radius:12px;background:linear-gradient(135deg,var(--accent),var(--accent-2));display:grid;place-items:center;font-size:20px}
+  .price{font-size:34px;font-weight:700;letter-spacing:-.03em}
+  .pill{display:inline-block;background:var(--surface-2);border:1px solid var(--line);border-radius:999px;padding:5px 12px;font-size:13px;color:var(--muted);margin:0 6px 6px 0}
+  button{font:inherit;cursor:pointer;border:none;border-radius:12px;transition:opacity .15s,transform .05s}
+  button:active{transform:scale(.99)}
+  button:disabled{opacity:.5;cursor:not-allowed}
+  .btn{display:block;width:100%;padding:15px;background:linear-gradient(135deg,var(--accent),var(--accent-2));color:#1A1209;font-weight:700;font-size:16px}
+  .btn-ghost{display:block;width:100%;padding:13px;background:transparent;border:1px solid var(--line);color:var(--text);font-size:15px}
+  input,textarea{width:100%;padding:14px;background:var(--surface-2);border:1px solid var(--line);border-radius:12px;color:var(--text);font:inherit;margin-bottom:10px}
+  input:focus,textarea:focus{outline:2px solid var(--accent);outline-offset:1px}
+  .choice{display:flex;gap:10px;margin-bottom:14px}
+  .choice button{flex:1;padding:18px 8px;background:var(--surface-2);border:1px solid var(--line);color:var(--text);font-size:14px;text-align:center}
+  .choice button[aria-pressed="true"]{border-color:var(--accent);background:#2E231B}
+  .choice .emoji{display:block;font-size:26px;margin-bottom:6px}
+  .opts button{width:100%;text-align:left;padding:14px;background:var(--surface-2);border:1px solid var(--line);color:var(--text);margin-bottom:8px;font-size:15px}
+  .opts button[aria-pressed="true"]{border-color:var(--accent);background:#2E231B}
+  .qr{background:#fff;border-radius:14px;padding:16px;display:grid;place-items:center;margin-bottom:12px}
+  .qr canvas,.qr svg{display:block;width:100%;height:auto;max-width:240px}
+  .code{font-size:32px;font-weight:700;letter-spacing:.16em;text-align:center;font-variant-numeric:tabular-nums}
+  .timer{text-align:center;color:var(--muted);font-size:13px;margin-top:6px}
+  .row{display:flex;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid var(--line);font-size:15px}
+  .row:last-child{border-bottom:none}
+  .row span:first-child{color:var(--muted)}
+  .banner{padding:13px 15px;border-radius:12px;font-size:14px;margin-bottom:14px}
+  .banner.err{background:#3B1A1A;border:1px solid #7F2E2E;color:#FCA5A5}
+  .banner.ok{background:#14301F;border:1px solid #2F6B45;color:#86EFAC}
+  .hidden{display:none !important}
+  .spin{width:22px;height:22px;border:3px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:s .8s linear infinite;margin:20px auto}
+  @keyframes s{to{transform:rotate(360deg)}}
+  .lang{text-align:right;margin-bottom:8px}
+  .lang button{background:none;color:var(--muted);font-size:13px;padding:4px 8px}
+  .lang button[aria-pressed="true"]{color:var(--accent);font-weight:600}
+  .legal{font-size:12px;color:var(--muted);margin-top:14px;line-height:1.5}
+  .status{display:inline-block;padding:4px 10px;border-radius:999px;font-size:12px;font-weight:600}
+  .status.active{background:#14301F;color:#86EFAC}
+  .status.expired{background:#332B22;color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+{% if not found %}
+  <div class="card" style="text-align:center">
+    <div class="logo" style="margin:0 auto 14px">☕</div>
+    <h1>Not available</h1>
+    <p class="muted">This Coffee Pass link is not valid. Please ask staff for a current QR code.</p>
+  </div>
+{% else %}
+  <div class="lang">
+    <button data-lang="zh-TW" aria-pressed="true">繁</button>
+    <button data-lang="zh-CN" aria-pressed="false">简</button>
+    <button data-lang="en" aria-pressed="false">EN</button>
+  </div>
+
+  <div class="brand">
+    <div class="logo">☕</div>
+    <div>
+      <h1>{{ organization_name }}</h1>
+      <p class="muted">{{ location_name }}</p>
+    </div>
+  </div>
+
+  <div id="banner" class="banner hidden"></div>
+
+  <!-- 1. Offer / landing -->
+  <section id="s-offer" class="card hidden">
+    <h2 data-t="offerTitle"></h2>
+    <div class="price" id="offer-price"></div>
+    <p class="muted" id="offer-terms"></p>
+    <div id="offer-items" style="margin:14px 0"></div>
+    <p class="muted" id="offer-breakeven" style="margin-bottom:16px"></p>
+    <button class="btn" id="btn-start" data-t="startBtn"></button>
+    <p class="legal" data-t="legal"></p>
+  </section>
+
+  <!-- 2. OTP request -->
+  <section id="s-phone" class="card hidden">
+    <h2 data-t="phoneTitle"></h2>
+    <p class="muted" style="margin-bottom:14px" data-t="phoneHint"></p>
+    <input type="tel" id="phone" inputmode="tel" autocomplete="tel" placeholder="+852 …">
+    <button class="btn" id="btn-send" data-t="sendCode"></button>
+  </section>
+
+  <!-- 3. OTP verify -->
+  <section id="s-code" class="card hidden">
+    <h2 data-t="codeTitle"></h2>
+    <p class="muted" style="margin-bottom:14px" data-t="codeHint"></p>
+    <input type="text" id="code" inputmode="numeric" autocomplete="one-time-code"
+           maxlength="6" placeholder="000000" style="text-align:center;font-size:26px;letter-spacing:.3em">
+    <button class="btn" id="btn-verify" data-t="verify"></button>
+    <button class="btn-ghost" id="btn-back-phone" style="margin-top:8px" data-t="changeNumber"></button>
+  </section>
+
+  <!-- 4. Experience -->
+  <section id="s-feedback" class="card hidden">
+    <h2 data-t="feedbackTitle"></h2>
+    <div class="choice" id="sentiment">
+      <button data-v="good" aria-pressed="false"><span class="emoji">😀</span><span data-t="good"></span></button>
+      <button data-v="okay" aria-pressed="false"><span class="emoji">🙂</span><span data-t="okay"></span></button>
+      <button data-v="not_good" aria-pressed="false"><span class="emoji">😕</span><span data-t="notGood"></span></button>
+    </div>
+    <div id="routine-block" class="hidden">
+      <p class="muted" style="margin-bottom:10px" data-t="routineTitle"></p>
+      <div class="opts" id="routine">
+        <button data-v="work_nearby" aria-pressed="false" data-t="workNearby"></button>
+        <button data-v="study_nearby" aria-pressed="false" data-t="studyNearby"></button>
+        <button data-v="live_nearby" aria-pressed="false" data-t="liveNearby"></button>
+        <button data-v="occasional" aria-pressed="false" data-t="occasional"></button>
+        <button data-v="prefer_not_to_say" aria-pressed="false" data-t="preferNot"></button>
+      </div>
+    </div>
+    <textarea id="comment" rows="3" data-t-ph="commentPh"></textarea>
+    <button class="btn" id="btn-feedback" data-t="submit"></button>
+  </section>
+
+  <!-- 5. Negative acknowledgement — NO offer, ever -->
+  <section id="s-sorry" class="card hidden" style="text-align:center">
+    <div style="font-size:44px;margin-bottom:8px">🙏</div>
+    <h2 data-t="sorryTitle"></h2>
+    <p class="muted" data-t="sorryBody"></p>
+  </section>
+
+  <!-- 6. Purchase -->
+  <section id="s-buy" class="card hidden">
+    <h2 data-t="buyTitle"></h2>
+    <p class="muted" id="buy-copy" style="margin-bottom:14px"></p>
+    <div id="buy-rows"></div>
+    <button class="btn" id="btn-buy" style="margin-top:16px" data-t="buyBtn"></button>
+    <p class="legal" data-t="buyLegal"></p>
+  </section>
+
+  <!-- 7. Not eligible -->
+  <section id="s-noffer" class="card hidden" style="text-align:center">
+    <div style="font-size:40px;margin-bottom:8px">☕</div>
+    <h2 data-t="noOfferTitle"></h2>
+    <p class="muted" id="noffer-reason"></p>
+    <button class="btn-ghost" id="btn-wallet-2" style="margin-top:14px" data-t="viewWallet"></button>
+  </section>
+
+  <!-- 8. Wallet -->
+  <section id="s-wallet" class="hidden">
+    <div id="wallet-list"></div>
+    <button class="btn-ghost" id="btn-refresh" data-t="refresh"></button>
+  </section>
+
+  <!-- 9. Redeem code -->
+  <section id="s-redeem" class="card hidden">
+    <h2 data-t="redeemTitle"></h2>
+    <div class="qr" id="qr"></div>
+    <p class="muted" style="text-align:center;margin-bottom:4px" data-t="orCode"></p>
+    <div class="code" id="fallback"></div>
+    <div class="timer" id="timer"></div>
+    <button class="btn-ghost" id="btn-close-redeem" style="margin-top:14px" data-t="done"></button>
+  </section>
+
+  <div id="loading" class="spin hidden"></div>
+{% endif %}
+</div>
+
+{% if found %}
+<script>
+(function(){
+"use strict";
+
+// ── Config injected by Django ───────────────────────────────────────
+var TOKEN = "{{ public_token|escapejs }}";
+var BASE  = "/public/coffee-pass/" + TOKEN;
+var CHECKOUT_RESULT = "{{ checkout_result|escapejs }}";
+
+// The signed customer session. sessionStorage (not localStorage) so it dies
+// with the tab — a shared phone at a cafe counter must not leak a session.
+var SESSION_KEY = "cp_session_" + TOKEN;
+var session = null;
+try { session = sessionStorage.getItem(SESSION_KEY); } catch(e) {}
+
+var state = { plan:null, sentiment:null, routine:"", lang:"zh-TW", timerId:null };
+
+// ── i18n ────────────────────────────────────────────────────────────
+var T = {
+  "zh-TW":{
+    offerTitle:"咖啡通行證", startBtn:"開始", legal:"購買前需驗證手機號碼。不會自動續期。",
+    phoneTitle:"驗證手機號碼", phoneHint:"我哋會用 WhatsApp send 一個驗證碼俾你。",
+    sendCode:"發送驗證碼", codeTitle:"輸入驗證碼", codeHint:"6 位數字，5 分鐘內有效。",
+    verify:"驗證", changeNumber:"更改號碼",
+    feedbackTitle:"今次咖啡點呀？", good:"好正", okay:"一般", notGood:"唔好",
+    routineTitle:"你會唔會經常喺附近？", workNearby:"喺附近返工", studyNearby:"喺附近讀書",
+    liveNearby:"住喺附近", occasional:"偶爾先嚟", preferNot:"唔想講",
+    commentPh:"想補充啲咩？（可選）", submit:"提交",
+    sorryTitle:"多謝你嘅意見", sorryBody:"我哋好重視今次體驗，店舖團隊會盡快跟進。今次唔會向你推銷任何優惠。",
+    buyTitle:"購買咖啡通行證", buyBtn:"立即購買", buyLegal:"由 Stripe 安全處理付款。不會自動續期。",
+    noOfferTitle:"暫時未有優惠", viewWallet:"查看我的通行證",
+    redeemTitle:"俾店員掃描", orCode:"或者讀出以下號碼", done:"完成", refresh:"重新整理",
+    price:"HK$", saved:"已慳", expires:"有效期至", showCode:"出示優惠碼",
+    active:"生效中", expired:"已過期", noPass:"你未有通行證。",
+    breakeven:"以平均 HK${p} 一杯計，一個月內大約幫襯 {n} 次就回本。",
+    terms:"{pct}% 折扣 · {days} 日 · {loc}",
+    errGeneric:"出咗啲問題，請再試一次。", errCode:"驗證碼錯誤或已過期。",
+    errRate:"嘗試太頻繁，請稍後再試。", okSent:"如果號碼有效，驗證碼已經發送。",
+    okPaid:"付款成功！你嘅通行證已生效。", cancelled:"付款已取消。"
+  },
+  "zh-CN":{
+    offerTitle:"咖啡通行证", startBtn:"开始", legal:"购买前需验证手机号码。不会自动续期。",
+    phoneTitle:"验证手机号码", phoneHint:"我们会通过 WhatsApp 发送验证码。",
+    sendCode:"发送验证码", codeTitle:"输入验证码", codeHint:"6 位数字，5 分钟内有效。",
+    verify:"验证", changeNumber:"更改号码",
+    feedbackTitle:"这次咖啡怎么样？", good:"很好", okay:"一般", notGood:"不好",
+    routineTitle:"你会经常在附近吗？", workNearby:"在附近上班", studyNearby:"在附近读书",
+    liveNearby:"住在附近", occasional:"偶尔才来", preferNot:"不想说",
+    commentPh:"想补充什么？（可选）", submit:"提交",
+    sorryTitle:"感谢你的反馈", sorryBody:"我们非常重视这次体验，门店团队会尽快跟进。这次不会向你推销任何优惠。",
+    buyTitle:"购买咖啡通行证", buyBtn:"立即购买", buyLegal:"由 Stripe 安全处理付款。不会自动续期。",
+    noOfferTitle:"暂时没有优惠", viewWallet:"查看我的通行证",
+    redeemTitle:"给店员扫描", orCode:"或者读出以下号码", done:"完成", refresh:"刷新",
+    price:"HK$", saved:"已省", expires:"有效期至", showCode:"出示优惠码",
+    active:"生效中", expired:"已过期", noPass:"你还没有通行证。",
+    breakeven:"按平均 HK${p} 一杯计算，一个月内大约光顾 {n} 次即可回本。",
+    terms:"{pct}% 折扣 · {days} 天 · {loc}",
+    errGeneric:"出了点问题，请再试一次。", errCode:"验证码错误或已过期。",
+    errRate:"尝试太频繁，请稍后再试。", okSent:"如果号码有效，验证码已经发送。",
+    okPaid:"付款成功！你的通行证已生效。", cancelled:"付款已取消。"
+  },
+  "en":{
+    offerTitle:"Coffee Pass", startBtn:"Get started", legal:"Phone verification required before purchase. No auto-renewal.",
+    phoneTitle:"Verify your number", phoneHint:"We'll send a code to your WhatsApp.",
+    sendCode:"Send code", codeTitle:"Enter the code", codeHint:"6 digits, valid for 5 minutes.",
+    verify:"Verify", changeNumber:"Change number",
+    feedbackTitle:"How was your coffee?", good:"Good", okay:"Okay", notGood:"Not good",
+    routineTitle:"Will you be near here regularly?", workNearby:"Work nearby", studyNearby:"Study nearby",
+    liveNearby:"Live nearby", occasional:"Occasionally", preferNot:"Prefer not to say",
+    commentPh:"Anything to add? (optional)", submit:"Submit",
+    sorryTitle:"Thank you for telling us", sorryBody:"The team takes this seriously and will follow up. We won't offer you anything from this visit.",
+    buyTitle:"Buy your Coffee Pass", buyBtn:"Buy now", buyLegal:"Payment handled securely by Stripe. No auto-renewal.",
+    noOfferTitle:"No offer right now", viewWallet:"View my passes",
+    redeemTitle:"Show this to staff", orCode:"Or read out this code", done:"Done", refresh:"Refresh",
+    price:"HK$", saved:"Saved", expires:"Expires", showCode:"Show code",
+    active:"Active", expired:"Expired", noPass:"You don't have a pass yet.",
+    breakeven:"At an average of HK${p} a cup, you break even after about {n} visits in 30 days.",
+    terms:"{pct}% off · {days} days · {loc}",
+    errGeneric:"Something went wrong. Please try again.", errCode:"That code is wrong or expired.",
+    errRate:"Too many attempts. Please try again later.", okSent:"If that number is valid, a code has been sent.",
+    okPaid:"Payment received. Your pass is active.", cancelled:"Payment cancelled."
+  }
+};
+function t(k){ return (T[state.lang]||T["zh-TW"])[k] || ""; }
+
+// ── DOM helpers ─────────────────────────────────────────────────────
+function $(id){ return document.getElementById(id); }
+function show(id){
+  ["s-offer","s-phone","s-code","s-feedback","s-sorry","s-buy","s-noffer","s-wallet","s-redeem"]
+    .forEach(function(s){ $(s).classList.add("hidden"); });
+  if (id) $(id).classList.remove("hidden");
+  window.scrollTo(0,0);
+}
+function loading(on){ $("loading").classList.toggle("hidden", !on); }
+function banner(msg, kind){
+  var el = $("banner");
+  if (!msg){ el.classList.add("hidden"); return; }
+  el.textContent = msg;
+  el.className = "banner " + (kind === "ok" ? "ok" : "err");
+  el.classList.remove("hidden");
+  if (kind === "ok") setTimeout(function(){ el.classList.add("hidden"); }, 5000);
+}
+function applyLang(){
+  document.querySelectorAll("[data-t]").forEach(function(el){
+    var v = t(el.getAttribute("data-t")); if (v) el.textContent = v;
+  });
+  document.querySelectorAll("[data-t-ph]").forEach(function(el){
+    var v = t(el.getAttribute("data-t-ph")); if (v) el.placeholder = v;
+  });
+  document.documentElement.lang = state.lang;
+}
+
+// ── API ─────────────────────────────────────────────────────────────
+function api(path, opts){
+  opts = opts || {};
+  var headers = {"Content-Type":"application/json"};
+  // The signed session travels in a custom header, never a cookie — this page
+  // is cross-origin-ish and must not rely on ambient credentials.
+  if (session) headers["X-Coffee-Pass-Session"] = session;
+  return fetch(BASE + path, {
+    method: opts.method || "GET",
+    headers: headers,
+    body: opts.body ? JSON.stringify(opts.body) : undefined
+  }).then(function(r){
+    return r.json().catch(function(){ return {}; }).then(function(data){
+      if (!r.ok){
+        var err = new Error(data.detail || "error");
+        err.status = r.status; err.data = data;
+        throw err;
+      }
+      return data;
+    });
+  });
+}
+
+// ── Flow ────────────────────────────────────────────────────────────
+function loadOffer(){
+  loading(true);
+  api("/offer/").then(function(plan){
+    state.plan = plan;
+    $("offer-price").textContent = "HK$" + plan.price_hkd;
+    $("offer-terms").textContent = t("terms")
+      .replace("{pct}", trimPct(plan.discount_percent))
+      .replace("{days}", plan.duration_days)
+      .replace("{loc}", plan.location_name);
+    $("offer-items").innerHTML = (plan.eligible_item_names || [])
+      .map(function(n){ return '<span class="pill">' + esc(n) + "</span>"; }).join("");
+    if (plan.break_even_visits && plan.average_eligible_price){
+      $("offer-breakeven").textContent = t("breakeven")
+        .replace("{p}", plan.average_eligible_price)
+        .replace("{n}", plan.break_even_visits);
+    }
+    // A returning customer with a session goes straight to their wallet.
+    if (session) loadWallet(); else show("s-offer");
+  }).catch(function(){
+    banner(t("errGeneric"));
+  }).finally(function(){ loading(false); });
+}
+
+function sendCode(){
+  var phone = $("phone").value.trim();
+  if (!phone) return;
+  loading(true);
+  api("/auth/request-code/", {method:"POST", body:{phone:phone}})
+    .then(function(){ banner(t("okSent"), "ok"); show("s-code"); $("code").focus(); })
+    .catch(function(e){ banner(e.status === 429 ? t("errRate") : t("errGeneric")); })
+    .finally(function(){ loading(false); });
+}
+
+function verifyCode(){
+  var phone = $("phone").value.trim(), code = $("code").value.trim();
+  if (!code) return;
+  loading(true);
+  api("/auth/verify-code/", {method:"POST", body:{phone:phone, code:code}})
+    .then(function(d){
+      session = d.session;
+      try { sessionStorage.setItem(SESSION_KEY, session); } catch(e){}
+      banner("");
+      // Already a member? Show the wallet instead of selling again.
+      if (d.has_active_pass) loadWallet(); else show("s-feedback");
+    })
+    .catch(function(){ banner(t("errCode")); })
+    .finally(function(){ loading(false); });
+}
+
+function submitFeedback(){
+  if (!state.sentiment) return;
+  loading(true);
+  api("/experiences/", {method:"POST", body:{
+    sentiment: state.sentiment,
+    comment: $("comment").value.trim(),
+    routine_context: state.routine
+  }}).then(function(d){
+    // The SERVER decides. The page only renders the outcome — it never
+    // decides eligibility itself.
+    if (d.service_recovery){ show("s-sorry"); return; }
+    if (d.offer && d.offer.eligible) renderBuy(d.offer);
+    else renderNoOffer(d.offer);
+  }).catch(function(){ banner(t("errGeneric")); })
+    .finally(function(){ loading(false); });
+}
+
+function renderBuy(offer){
+  var p = state.plan;
+  $("buy-rows").innerHTML =
+    row(t("offerTitle"), p.name) +
+    row("", trimPct(p.discount_percent) + "% · " + p.duration_days + "d") +
+    row(t("price").replace("HK$","Price"), "HK$" + p.price_hkd);
+  if (offer && offer.break_even && offer.break_even.break_even_visits){
+    $("buy-copy").textContent = t("breakeven")
+      .replace("{p}", offer.break_even.average_eligible_price)
+      .replace("{n}", offer.break_even.break_even_visits);
+  }
+  show("s-buy");
+}
+
+function renderNoOffer(offer){
+  var reasons = {
+    active_pass_exists:"viewWallet", quality_gate_failed:"noOfferTitle",
+    plan_not_sellable:"noOfferTitle", low_expected_value:"noOfferTitle"
+  };
+  $("noffer-reason").textContent = offer && reasons[offer.reason_code] ? "" : "";
+  show("s-noffer");
+}
+
+function buy(){
+  loading(true);
+  // A client-side idempotency key: a double-tap on a flaky connection must not
+  // open two Stripe sessions.
+  var key = "cp-" + Date.now() + "-" + Math.random().toString(36).slice(2,10);
+  api("/checkout/", {method:"POST", body:{idempotency_key:key}})
+    .then(function(d){ window.location.href = d.checkout_url; })
+    .catch(function(e){
+      loading(false);
+      if (e.status === 409) loadWallet(); else banner(t("errGeneric"));
+    });
+}
+
+function loadWallet(){
+  loading(true);
+  api("/wallet/").then(function(d){
+    var list = $("wallet-list");
+    if (!d.passes || !d.passes.length){
+      list.innerHTML = '<div class="card"><p class="muted">' + esc(t("noPass")) + "</p></div>";
+    } else {
+      list.innerHTML = d.passes.map(walletCard).join("");
+      list.querySelectorAll("[data-pass]").forEach(function(btn){
+        btn.addEventListener("click", function(){ mintCode(btn.getAttribute("data-pass")); });
+      });
+    }
+    show("s-wallet");
+  }).catch(function(e){
+    // A dead session means re-verify, not an error screen.
+    if (e.status === 401){ session = null;
+      try { sessionStorage.removeItem(SESSION_KEY); } catch(err){}
+      show("s-phone");
+    } else banner(t("errGeneric"));
+  }).finally(function(){ loading(false); });
+}
+
+function walletCard(p){
+  var isActive = p.status === "active";
+  return '<div class="card">' +
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">' +
+      "<h2 style='margin:0'>" + esc(p.plan_name || "Coffee Pass") + "</h2>" +
+      '<span class="status ' + (isActive?"active":"expired") + '">' +
+        esc(isActive ? t("active") : t("expired")) + "</span>" +
+    "</div>" +
+    row(t("expires"), fmtDate(p.expires_at)) +
+    row(t("saved"), "HK$" + p.total_saved_hkd) +
+    row("", trimPct(p.discount_percent) + "% · " + esc(p.location_name)) +
+    (isActive ? '<button class="btn" data-pass="' + esc(p.id) + '" style="margin-top:14px">' +
+      esc(t("showCode")) + "</button>" : "") +
+  "</div>";
+}
+
+function mintCode(passId){
+  loading(true);
+  api("/wallet/" + passId + "/verification/", {method:"POST"})
+    .then(function(d){
+      renderQR(d.qr_payload);
+      $("fallback").textContent = d.fallback_code;
+      startTimer(d.ttl_seconds || 90, passId);
+      show("s-redeem");
+    })
+    .catch(function(){ banner(t("errGeneric")); })
+    .finally(function(){ loading(false); });
+}
+
+function startTimer(seconds, passId){
+  clearInterval(state.timerId);
+  var left = seconds;
+  function tick(){
+    $("timer").textContent = left + "s";
+    if (left <= 0){
+      clearInterval(state.timerId);
+      // Auto-rotate: the code is short-lived by design, so refresh rather than
+      // leaving a dead QR on screen at the counter.
+      mintCode(passId);
+      return;
+    }
+    left--;
+  }
+  tick();
+  state.timerId = setInterval(tick, 1000);
+}
+
+// Minimal QR encoder would be heavy; the fallback numeric code always works and
+// staff can type it. We render the opaque payload as text for scanner apps that
+// read plain text, plus the 6-digit fallback which is the primary path.
+function renderQR(payload){
+  $("qr").innerHTML =
+    '<div style="color:#111;font-family:monospace;font-size:10px;word-break:break-all;' +
+    'padding:8px;text-align:center">' + esc(payload) + "</div>";
+}
+
+// ── utils ───────────────────────────────────────────────────────────
+function row(a,b){ return '<div class="row"><span>' + esc(a) + "</span><span>" + esc(b) + "</span></div>"; }
+function esc(s){ return String(s == null ? "" : s).replace(/[&<>"']/g, function(c){
+  return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]; }); }
+function trimPct(v){ return String(parseFloat(v || 0)); }
+function fmtDate(iso){ try { return new Date(iso).toLocaleDateString(); } catch(e){ return ""; } }
+
+// ── wiring ──────────────────────────────────────────────────────────
+document.querySelectorAll(".lang button").forEach(function(b){
+  b.addEventListener("click", function(){
+    state.lang = b.getAttribute("data-lang");
+    document.querySelectorAll(".lang button").forEach(function(x){
+      x.setAttribute("aria-pressed", String(x === b)); });
+    applyLang();
+    if (state.plan) {
+      $("offer-terms").textContent = t("terms")
+        .replace("{pct}", trimPct(state.plan.discount_percent))
+        .replace("{days}", state.plan.duration_days)
+        .replace("{loc}", state.plan.location_name);
+    }
+  });
+});
+
+$("sentiment").addEventListener("click", function(e){
+  var b = e.target.closest("button"); if (!b) return;
+  state.sentiment = b.getAttribute("data-v");
+  this.querySelectorAll("button").forEach(function(x){
+    x.setAttribute("aria-pressed", String(x === b)); });
+  // The habit question is only relevant when an offer is possible at all.
+  $("routine-block").classList.toggle("hidden", state.sentiment === "not_good");
+});
+
+$("routine").addEventListener("click", function(e){
+  var b = e.target.closest("button"); if (!b) return;
+  state.routine = b.getAttribute("data-v");
+  this.querySelectorAll("button").forEach(function(x){
+    x.setAttribute("aria-pressed", String(x === b)); });
+});
+
+$("btn-start").addEventListener("click", function(){ show("s-phone"); $("phone").focus(); });
+$("btn-send").addEventListener("click", sendCode);
+$("btn-verify").addEventListener("click", verifyCode);
+$("btn-back-phone").addEventListener("click", function(){ show("s-phone"); });
+$("btn-feedback").addEventListener("click", submitFeedback);
+$("btn-buy").addEventListener("click", buy);
+$("btn-wallet-2").addEventListener("click", loadWallet);
+$("btn-refresh").addEventListener("click", loadWallet);
+$("btn-close-redeem").addEventListener("click", function(){
+  clearInterval(state.timerId); loadWallet();
+});
+$("code").addEventListener("keyup", function(e){ if (e.key === "Enter") verifyCode(); });
+$("phone").addEventListener("keyup", function(e){ if (e.key === "Enter") sendCode(); });
+
+// ── boot ────────────────────────────────────────────────────────────
+applyLang();
+if (CHECKOUT_RESULT === "success") banner(t("okPaid"), "ok");
+if (CHECKOUT_RESULT === "cancelled") banner(t("cancelled"));
+loadOffer();
+
+})();
+</script>
+{% endif %}
+</body>
+</html>

@@ -64,6 +64,12 @@ import { UsageLimitsPage } from '@/pages/billing/UsageLimitsPage'
 import { MonthlySummaryPage } from '@/pages/billing/MonthlySummaryPage'
 import { BuyCreditsPage } from '@/pages/billing/BuyCreditsPage'
 
+// Coffee Pass — paid 30-day cafe membership
+import { CoffeePassPlansPage } from '@/pages/coffee_pass/PlansPage'
+import { CoffeePassPassesPage } from '@/pages/coffee_pass/PassesPage'
+import { CoffeePassRedeemPage } from '@/pages/coffee_pass/RedeemPage'
+import { CoffeePassAnalyticsPage } from '@/pages/coffee_pass/AnalyticsPage'
+
 // Public pages
 import { LandingPage } from '@/pages/LandingPage'
 import { PrivacyPolicy } from '@/pages/PrivacyPolicy'
@@ -254,6 +260,14 @@ function App() {
           <Route path="/billing/limits" element={<UsageLimitsPage />} />
           <Route path="/billing/monthly" element={<MonthlySummaryPage />} />
           <Route path="/billing/buy" element={<BuyCreditsPage />} />
+
+          {/* Coffee Pass. The PUBLIC customer flow is NOT here — it is a
+              standalone Django page at /public/coffee-pass/<token>/ so a QR
+              scan never loads this admin bundle. */}
+          <Route path="/coffee-pass/redeem" element={<CoffeePassRedeemPage />} />
+          <Route path="/coffee-pass/passes" element={<CoffeePassPassesPage />} />
+          <Route path="/coffee-pass/plans" element={<CoffeePassPlansPage />} />
+          <Route path="/coffee-pass/analytics" element={<CoffeePassAnalyticsPage />} />
         </Route>
       </Routes>
       <Toaster />

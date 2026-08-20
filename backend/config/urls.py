@@ -71,6 +71,12 @@ urlpatterns = [
     # Payments (Stripe) — credit-pack purchases + webhook
     path('api/v1/payments/', include('apps.payments.urls')),
 
+    # Coffee Pass — authenticated owner/staff API
+    path('api/v1/coffee-pass/', include('apps.coffee_pass.urls')),
+
+    # Coffee Pass — PUBLIC customer flow (no auth, throttled, OTP-gated)
+    path('public/coffee-pass/', include('apps.coffee_pass.public_urls')),
+
     # Channel configuration API (Phase 4)
     path('api/channels/', include('apps.channels.urls')),
 

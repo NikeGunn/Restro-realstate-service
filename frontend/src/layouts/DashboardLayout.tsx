@@ -48,6 +48,9 @@ import {
   Gauge,
   CalendarRange,
   CreditCard,
+  Coffee,
+  ScanLine,
+  Ticket,
 } from 'lucide-react'
 
 type NavLeaf = {
@@ -172,6 +175,22 @@ const billingGroup: NavGroup = {
   ],
 }
 
+// Coffee Pass — a RESTAURANT-vertical product (cafes), so it is pushed with the
+// restaurant nav rather than the shared groups. A real-estate org never sees it.
+const coffeePassGroup: NavGroup = {
+  kind: 'group',
+  id: 'coffeePass',
+  labelKey: 'nav.coffeePass',
+  icon: Coffee,
+  pathPrefix: '/coffee-pass',
+  children: [
+    { kind: 'leaf', path: '/coffee-pass/redeem', labelKey: 'nav.coffeePassRedeem', icon: ScanLine },
+    { kind: 'leaf', path: '/coffee-pass/passes', labelKey: 'nav.coffeePassPasses', icon: Ticket },
+    { kind: 'leaf', path: '/coffee-pass/plans', labelKey: 'nav.coffeePassPlans', icon: Coffee },
+    { kind: 'leaf', path: '/coffee-pass/analytics', labelKey: 'nav.coffeePassAnalytics', icon: Gauge },
+  ],
+}
+
 const settingsNavKey: NavLeaf = { kind: 'leaf', path: '/settings', labelKey: 'nav.settings', icon: Settings }
 const channelsNavKey: NavLeaf = { kind: 'leaf', path: '/settings/channels', labelKey: 'nav.channels', icon: Phone }
 
@@ -208,10 +227,12 @@ export function DashboardLayout() {
     const businessType = currentOrganization?.business_type
     if (businessType === 'restaurant') {
       items.push(...restaurantNavKeys)
+      items.push(coffeePassGroup)
     } else if (businessType === 'real_estate') {
       items.push(...realEstateNavKeys)
     } else {
       items.push(...restaurantNavKeys)
+      items.push(coffeePassGroup)
       items.push(...realEstateNavKeys)
     }
 

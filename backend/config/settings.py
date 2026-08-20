@@ -67,6 +67,8 @@ INSTALLED_APPS = [
     'apps.billing',
     # Payments — Stripe Checkout for AI credit-pack purchases (tops up Phase 6)
     'apps.payments',
+    # Coffee Pass — paid 30-day customer membership (customer money, not org money)
+    'apps.coffee_pass',
 ]
 
 MIDDLEWARE = [
@@ -267,6 +269,37 @@ CELERY_TIMEZONE = TIME_ZONE
 from celery.schedules import crontab  # noqa: E402
 
 CELERY_BEAT_SCHEDULE = {
+    # ── Coffee Pass ──────────────────────────────────────────────────
+    # Expiry is housekeeping: entitlement checks already refuse an
+    # out-of-window pass at query time, so a late run cannot let anyone redeem.
+    'coffee-pass-expire': {
+        'task': 'apps.coffee_pass.tasks.expire_passes_task',
+        'schedule': crontab(minute='*/15'),
+    },
+    # Notification delivery. Retries with backoff; never blocks a payment.
+    'coffee-pass-outbox': {
+        'task': 'apps.coffee_pass.tasks.process_outbox_task',
+        'schedule': crontab(minute='*/10'),
+    },
+    # Recovers payments whose webhook never arrived (deploy window/network blip).
+    'coffee-pass-reconcile': {
+        'task': 'apps.coffee_pass.tasks.reconcile_purchases_task',
+        'schedule': crontab(minute=5),
+    },
+    # Queues 3-day reminders; consent + quality are re-checked at SEND time.
+    'coffee-pass-expiry-reminders': {
+        'task': 'apps.coffee_pass.tasks.send_expiry_reminders_task',
+        'schedule': crontab(hour=9, minute=30),
+    },
+    'coffee-pass-purge-tokens': {
+        'task': 'apps.coffee_pass.tasks.purge_expired_tokens_task',
+        'schedule': crontab(hour=3, minute=40),
+    },
+    'coffee-pass-anomalies': {
+        'task': 'apps.coffee_pass.tasks.detect_anomalies_task',
+        'schedule': crontab(hour=7, minute=30),
+    },
+
     'downgrade-expired-plans-daily': {
         'task': 'coupons.downgrade_expired_plans',
         'schedule': crontab(hour=2, minute=15),
@@ -375,6 +408,68 @@ BILLING_SETTINGS = {
 STRIPE_SECRET_KEY = config('STRIPE_SECRET_KEY', default='')
 STRIPE_PUBLISHABLE_KEY = config('STRIPE_PUBLISHABLE_KEY', default='')
 STRIPE_WEBHOOK_SECRET = config('STRIPE_WEBHOOK_SECRET', default='')
+
+# Optional dedicated webhook secret for the Coffee Pass endpoint. When blank the
+# shared STRIPE_WEBHOOK_SECRET is used — that is the normal single-endpoint setup.
+COFFEE_PASS_WEBHOOK_SECRET = config('COFFEE_PASS_WEBHOOK_SECRET', default='')
+
+# ──────────────────────────────────────────────────────────────────────
+# Coffee Pass — paid 30-day repeat-visit membership
+# ──────────────────────────────────────────────────────────────────────
+# Every safety constant is configurable, but the OFFER GATES (quality, consent,
+# tenancy) are code, not config — an owner can tune economics, never safety.
+COFFEE_PASS_SETTINGS = {
+    # Master feature flag. Off by default until a cafe is piloted.
+    'ENABLED': config('COFFEE_PASS_ENABLED', default=False, cast=bool),
+
+    # Verification (the rotating QR shown in the customer wallet).
+    'VERIFICATION_TOKEN_TTL_SECONDS': config(
+        'COFFEE_PASS_TOKEN_TTL', default=90, cast=int),
+
+    # OTP (public customer login).
+    'OTP_TTL_SECONDS': config('COFFEE_PASS_OTP_TTL', default=300, cast=int),
+    'OTP_MAX_ATTEMPTS': config('COFFEE_PASS_OTP_MAX_ATTEMPTS', default=5, cast=int),
+    'OTP_MAX_SENDS_PER_PHONE': config(
+        'COFFEE_PASS_OTP_MAX_PER_PHONE', default=5, cast=int),
+    'OTP_MAX_SENDS_PER_IP': config('COFFEE_PASS_OTP_MAX_PER_IP', default=20, cast=int),
+    'OTP_RATE_WINDOW_SECONDS': 3600,
+
+    # Public customer session lifetime.
+    'SESSION_TTL_SECONDS': config('COFFEE_PASS_SESSION_TTL', default=3600, cast=int),
+
+    # Redemption safety: caps a mistyped subtotal from poisoning every metric.
+    'MAX_ELIGIBLE_SUBTOTAL_HKD': config(
+        'COFFEE_PASS_MAX_SUBTOTAL', default=2000, cast=int),
+
+    # A pending checkout blocks a new offer; release abandoned ones after this.
+    'PENDING_CHECKOUT_TTL_MINUTES': config(
+        'COFFEE_PASS_PENDING_TTL_MINUTES', default=60, cast=int),
+
+    # Notifications.
+    'REMINDER_MIN_INTERVAL_DAYS': config(
+        'COFFEE_PASS_REMINDER_INTERVAL_DAYS', default=7, cast=int),
+    'EXPIRY_REMINDER_DAYS': config('COFFEE_PASS_EXPIRY_REMINDER_DAYS', default=3, cast=int),
+    'OUTBOX_MAX_ATTEMPTS': config('COFFEE_PASS_OUTBOX_MAX_ATTEMPTS', default=5, cast=int),
+
+    # Owner anomaly thresholds (explainable alerts, never opaque scoring).
+    'ALERT_MAX_REDEMPTIONS_PER_CUSTOMER_PER_DAY': 5,
+    'ALERT_MAX_VOIDS_PER_STAFF_PER_WEEK': 20,
+    'ALERT_NEGATIVE_FEEDBACK_PER_WEEK': 3,
+
+    # Offer decision engine. Tunable economics; the hard gates are in code.
+    'SCORING': {
+        'ROUTINE_NEARBY': 60,
+        'ROUTINE_OCCASIONAL': 20,
+        'PRIOR_PASS_REDEEMED': 15,
+        'PRIOR_POSITIVE_EXPERIENCE': 10,
+        'PRIOR_PASS_UNUSED': -25,
+        'NEGATIVE_EXPERIENCE': -40,
+        'THRESHOLD_OFFER': 40,
+        'THRESHOLD_SOFT': 20,
+        'MAX_BREAK_EVEN_VISITS': config(
+            'COFFEE_PASS_MAX_BREAK_EVEN_VISITS', default=20, cast=int),
+    },
+}
 
 # Redis Cache
 CACHES = {
