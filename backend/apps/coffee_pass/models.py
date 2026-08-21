@@ -592,6 +592,26 @@ class CoffeePassOTP(models.Model):
     attempt_count = models.PositiveSmallIntegerField(default=0)
 
     ip_hash = models.CharField(max_length=64, blank=True)
+
+    #: Whether the code actually REACHED the customer.
+    #:
+    #: The endpoint must answer identically for a known and unknown phone, so a
+    #: delivery failure cannot be surfaced in the HTTP response. Recording it
+    #: here is what stops "no WhatsApp config" from being an invisible outage:
+    #: the owner's dashboard reads these rows. Without this the flow looks
+    #: healthy from the outside while no customer can ever log in.
+    delivery_status = models.CharField(
+        max_length=20, default='pending', db_index=True,
+        choices=[
+            ('pending', 'Pending'),
+            ('sent', 'Sent'),
+            ('no_channel', 'No WhatsApp channel configured'),
+            ('failed', 'Delivery failed'),
+        ],
+    )
+    #: Operator-facing reason for a non-'sent' status. Never shown to customers.
+    delivery_detail = models.CharField(max_length=255, blank=True)
+
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -600,6 +620,7 @@ class CoffeePassOTP(models.Model):
         indexes = [
             models.Index(fields=['organization', 'phone', '-created_at']),
             models.Index(fields=['expires_at']),
+            models.Index(fields=['organization', 'delivery_status', '-created_at']),
         ]
 
     def __str__(self):

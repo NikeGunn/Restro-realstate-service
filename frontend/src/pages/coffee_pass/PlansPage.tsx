@@ -21,6 +21,7 @@ import {
 
 import { PlanStatusBadge } from './components/PassStatusBadge'
 import { PlanFormDialog } from './components/PlanForm'
+import { PlanQrDialog } from './components/PlanQrDialog'
 
 export function CoffeePassPlansPage() {
   const { t } = useTranslation()
@@ -32,6 +33,7 @@ export function CoffeePassPlansPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [editing, setEditing] = useState<CoffeePassPlan | null>(null)
+  const [qrPlan, setQrPlan] = useState<CoffeePassPlan | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [busyId, setBusyId] = useState<string | null>(null)
 
@@ -125,11 +127,18 @@ export function CoffeePassPlansPage() {
               onEdit={() => { setEditing(plan); setDialogOpen(true) }}
               onActivate={() => handleActivate(plan)}
               onPause={() => handlePause(plan)}
+              onShowQr={() => setQrPlan(plan)}
               onCopyLink={() => copyQrLink(plan)}
             />
           ))}
         </div>
       )}
+
+      <PlanQrDialog
+        open={qrPlan !== null}
+        plan={qrPlan}
+        onOpenChange={(o) => { if (!o) setQrPlan(null) }}
+      />
 
       <PlanFormDialog
         open={dialogOpen}
@@ -142,13 +151,14 @@ export function CoffeePassPlansPage() {
 }
 
 function PlanCard({
-  plan, busy, onEdit, onActivate, onPause, onCopyLink,
+  plan, busy, onEdit, onActivate, onPause, onShowQr, onCopyLink,
 }: {
   plan: CoffeePassPlan
   busy: boolean
   onEdit: () => void
   onActivate: () => void
   onPause: () => void
+  onShowQr: () => void
   onCopyLink: () => void
 }) {
   const { t } = useTranslation()
@@ -225,12 +235,18 @@ function PlanCard({
           </Button>
         ) : null}
 
-        {/* Only an active plan has a QR worth handing to a customer. */}
+        {/* Only an active plan has a QR worth handing to a customer.
+            Two separate affordances on purpose: copy the link for a chat or an
+            email, open the QR dialog to preview and download something to print. */}
         {plan.status === 'active' && (
-          <Button size="sm" variant="ghost" onClick={onCopyLink} disabled={busy}>
-            <QrCode className="h-3.5 w-3.5 mr-1" />
-            <Copy className="h-3 w-3 mr-1" />{t('coffeePass.plans.copyLink')}
-          </Button>
+          <>
+            <Button size="sm" variant="ghost" onClick={onCopyLink} disabled={busy}>
+              <Copy className="h-3.5 w-3.5 mr-1" />{t('coffeePass.plans.copyLink')}
+            </Button>
+            <Button size="sm" variant="ghost" onClick={onShowQr} disabled={busy}>
+              <QrCode className="h-3.5 w-3.5 mr-1" />{t('coffeePass.plans.qrButton')}
+            </Button>
+          </>
         )}
       </div>
     </Card>

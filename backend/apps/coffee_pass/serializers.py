@@ -100,6 +100,21 @@ class CoffeePassPlanSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError(
                     {'eligible_items': 'All eligible items must belong to this organization.'}
                 )
+
+            # A Coffee Pass may only cover coffee. The dashboard already filters
+            # the picker, but the rule is enforced here too: the picker is a
+            # convenience, this is the invariant. Calls the service helper so the
+            # two definitions can never drift apart.
+            allowed = plan_service.eligible_item_types()
+            non_coffee = [i.name for i in items if i.item_type not in allowed]
+            if non_coffee:
+                raise serializers.ValidationError({
+                    'eligible_items': (
+                        'A Coffee Pass can only cover coffee items. Set the item '
+                        'type to Coffee on the menu, or remove: '
+                        + ', '.join(non_coffee[:5])
+                    )
+                })
         return attrs
 
 

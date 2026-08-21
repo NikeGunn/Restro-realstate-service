@@ -26,7 +26,9 @@ def test_item_type_defaults_to_food(category):
 def test_all_item_type_choices_present():
     values = {c[0] for c in MenuItemType.choices}
     assert values == {
-        'food', 'drink', 'alcohol', 'cocktail',
+        # `coffee` is split out of `drink` because Coffee Pass eligibility keys
+        # off it — see apps.coffee_pass.services.plan_service.
+        'food', 'drink', 'coffee', 'alcohol', 'cocktail',
         'buffet', 'combo', 'promotion', 'addon',
     }
 

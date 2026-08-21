@@ -16,7 +16,7 @@ import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { useToast } from '@/hooks/use-toast'
 
-import { locationsApi, restaurantApi } from '@/services/api'
+import { locationsApi } from '@/services/api'
 import { coffeePassApi, type CoffeePassPlan } from '@/services/coffeePass'
 import { useAuthStore } from '@/store/auth'
 
@@ -52,26 +52,26 @@ export function PlanFormDialog({
   const [acknowledged, setAcknowledged] = useState(false)
   const [saving, setSaving] = useState(false)
 
-  // Load the pickers once per open. Locations and drink items are the two
+  // Load the pickers once per open. Locations and eligible coffee are the two
   // things an owner needs to configure a plan.
+  //
+  // The eligible-item list comes from the SERVER, not from filtering the full
+  // menu here. A client-side filter used to fall back to "show everything" when
+  // it matched nothing, which is how a Coffee Pass ended up discounting a rice
+  // platter in production. An empty list now means "add coffee items first".
   useEffect(() => {
     if (!open || !orgId) return
     let cancelled = false
 
     const load = async () => {
       try {
-        const [locs, items] = await Promise.all([
+        const [locs, eligible] = await Promise.all([
           locationsApi.list(orgId),
-          restaurantApi.items.list({ organization: orgId }),
+          coffeePassApi.eligibleItems(orgId),
         ])
         if (cancelled) return
         setLocations(locs as Location[])
-        // Coffee Pass is a DRINK product — offering food items would make the
-        // break-even promise meaningless.
-        const drinks = (items as MenuItem[]).filter(
-          (i) => !i.item_type || ['drink', 'cocktail', 'alcohol'].includes(i.item_type),
-        )
-        setMenuItems(drinks.length > 0 ? drinks : (items as MenuItem[]))
+        setMenuItems(eligible.results as MenuItem[])
       } catch {
         if (!cancelled) toast({ title: t('coffeePass.plans.loadFailed'),
           variant: 'destructive' })
@@ -262,9 +262,16 @@ export function PlanFormDialog({
             </p>
             <div className="max-h-48 overflow-y-auto border rounded-md divide-y">
               {menuItems.length === 0 ? (
-                <p className="p-3 text-sm text-muted-foreground">
-                  {t('coffeePass.plans.noMenuItems')}
-                </p>
+                // No coffee on the menu. Say so plainly and tell the owner how
+                // to fix it — never quietly fall back to listing food items.
+                <div className="p-3 space-y-1">
+                  <p className="text-sm font-medium">
+                    {t('coffeePass.plans.noCoffeeItems')}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {t('coffeePass.plans.noCoffeeItemsHint')}
+                  </p>
+                </div>
               ) : menuItems.map((item) => (
                 <label
                   key={item.id}

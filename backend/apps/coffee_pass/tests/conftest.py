@@ -130,6 +130,28 @@ def coffee_items(db, category):
 
 
 @pytest.fixture
+def espresso_item(db, category):
+    """An item on the NEW dedicated coffee type (the intended classification)."""
+    return MenuItem.objects.create(
+        category=category, name='Espresso', price=Decimal('28.00'),
+        item_type=MenuItemType.COFFEE, is_available=True,
+    )
+
+
+@pytest.fixture
+def food_item(db, category):
+    """
+    A FOOD item in the same org. The bug this guards: a Coffee Pass was sold
+    against 'Aloo Nimki' and a HK$175 mixed platter because the dashboard filter
+    matched nothing and silently fell back to the whole menu.
+    """
+    return MenuItem.objects.create(
+        category=category, name='Mixed Platter', price=Decimal('175.00'),
+        item_type=MenuItemType.FOOD, is_available=True,
+    )
+
+
+@pytest.fixture
 def foreign_item(db, category_b):
     """An item owned by the OTHER org — must never be attachable to our plan."""
     return MenuItem.objects.create(

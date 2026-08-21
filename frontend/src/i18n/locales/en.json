@@ -812,6 +812,7 @@
       "itemType": {
         "food": "Food",
         "drink": "Drink",
+        "coffee": "Coffee",
         "alcohol": "Alcohol",
         "cocktail": "Cocktail",
         "buffet": "Buffet",
@@ -1597,7 +1598,15 @@
         "eligible_items_required": "Select at least one eligible coffee item",
         "no_available_eligible_items": "None of the selected items are currently available",
         "break_even_too_high": "Customers would need too many visits to break even"
-      }
+      },
+      "noCoffeeItems": "No coffee items on your menu yet",
+      "noCoffeeItemsHint": "Go to Menu and add items with the type \"Coffee\" (or \"Drink\"). Food items can never be covered by a Coffee Pass.",
+      "qrButton": "QR code",
+      "qrTitle": "Coffee Pass QR code",
+      "qrHint": "Print this and put it on the counter or a table card. Customers scan it to buy and to show their code.",
+      "downloadQr": "Download QR",
+      "downloadPoster": "Download poster",
+      "qrFailed": "Could not generate the QR code"
     },
     "passes": {
       "title": "Customer passes",

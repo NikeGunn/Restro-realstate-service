@@ -422,6 +422,21 @@ COFFEE_PASS_SETTINGS = {
     # Master feature flag. Off by default until a cafe is piloted.
     'ENABLED': config('COFFEE_PASS_ENABLED', default=False, cast=bool),
 
+    # Which MenuItem.item_type values a Coffee Pass may discount.
+    #
+    # `coffee` is the intended type; `drink` is tolerated for menus built before
+    # the coffee type existed. FOOD IS DELIBERATELY ABSENT — a pass that
+    # discounts a rice platter is not the product.
+    #
+    # Widening this is a configmap edit, not a redeploy: set
+    # COFFEE_PASS_ELIGIBLE_ITEM_TYPES=coffee,drink,addon in k8s/configmap.yaml
+    # to let a future "pass covers a pastry too" promo work with no code change.
+    'ELIGIBLE_ITEM_TYPES': tuple(
+        t.strip() for t in config(
+            'COFFEE_PASS_ELIGIBLE_ITEM_TYPES', default='coffee,drink',
+        ).split(',') if t.strip()
+    ),
+
     # Verification (the rotating QR shown in the customer wallet).
     'VERIFICATION_TOKEN_TTL_SECONDS': config(
         'COFFEE_PASS_TOKEN_TTL', default=90, cast=int),

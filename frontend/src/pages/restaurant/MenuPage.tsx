@@ -36,7 +36,7 @@ const DIETARY_OPTIONS = [
 ]
 
 const ITEM_TYPES: MenuItemType[] = [
-  'food', 'drink', 'alcohol', 'cocktail', 'buffet', 'combo', 'promotion', 'addon',
+  'food', 'drink', 'coffee', 'alcohol', 'cocktail', 'buffet', 'combo', 'promotion', 'addon',
 ]
 
 const PROMO_TYPES = [
@@ -46,6 +46,7 @@ const PROMO_TYPES = [
 const ITEM_TYPE_BADGE: Record<MenuItemType, string> = {
   food: 'bg-slate-100 text-slate-800',
   drink: 'bg-cyan-100 text-cyan-800',
+  coffee: 'bg-amber-100 text-amber-800',
   alcohol: 'bg-amber-100 text-amber-900',
   cocktail: 'bg-pink-100 text-pink-800',
   buffet: 'bg-purple-100 text-purple-800',

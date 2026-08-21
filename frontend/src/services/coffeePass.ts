@@ -237,6 +237,36 @@ export const coffeePassApi = {
     )
     return data
   },
+  // The menu items a Coffee Pass may cover, decided by the SERVER.
+  //
+  // Never re-filter a full menu on the client: the previous client-side filter
+  // fell back to "show everything" when it matched nothing, which is how food
+  // items became pass-eligible in production. An empty `results` means the org
+  // has no coffee on the menu yet — show that, never a food list.
+  eligibleItems: async (organization: string) => {
+    const { data } = await api.get<{
+      count: number
+      eligible_item_types: string[]
+      results: MenuItemBrief[]
+    }>(`${BASE}/plans/eligible-items/`, { params: { organization } })
+    return data
+  },
+
+  // QR + poster come through the authed axios instance (the endpoints need a
+  // Bearer token, so a plain <a href> would 401). Returns an object URL the
+  // caller must revoke after triggering the download.
+  fetchPlanQrObjectUrl: async (id: string): Promise<string> => {
+    const res = await api.get(`${BASE}/plans/${id}/qr/`, { responseType: 'blob' })
+    return URL.createObjectURL(res.data as Blob)
+  },
+
+  fetchPlanPosterObjectUrl: async (id: string, language = 'zh-TW'): Promise<string> => {
+    const res = await api.get(`${BASE}/plans/${id}/poster/`, {
+      responseType: 'blob', params: { language },
+    })
+    return URL.createObjectURL(res.data as Blob)
+  },
+
   activatePlan: async (id: string) => {
     const { data } = await api.post<CoffeePassPlan>(`${BASE}/plans/${id}/activate/`)
     return data

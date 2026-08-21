@@ -33,7 +33,7 @@ from apps.common.throttling import (
 )
 from apps.common.utils import client_ip
 
-from .models import CoffeePassPlan, PassStatus, PlanStatus
+from .models import CoffeePassOTP, CoffeePassPlan, PassStatus, PlanStatus
 from .serializers import (
     PublicCheckoutSerializer, PublicExperienceSerializer,
     PublicPassSerializer, PublicRequestCodeSerializer, PublicVerifyCodeSerializer,
@@ -125,17 +125,21 @@ class PublicRequestCodeView(PublicBase):
             # Invalid phone etc. -> stay generic, reveal nothing.
             return Response(GENERIC_OTP_RESPONSE)
 
-        _deliver_code(plan, otp.phone, code)
+        _deliver_code(plan, otp, code)
         return Response(GENERIC_OTP_RESPONSE)
 
 
-def _deliver_code(plan, phone, code):
+def _deliver_code(plan, otp, code):
     """
-    Send the OTP over the org's WhatsApp channel.
+    Send the OTP over the org's WhatsApp channel and RECORD the outcome.
 
-    With no active WhatsApp config the code is logged server-side and the caller
-    still sees a generic success. That keeps the endpoint enumeration-safe and
-    lets an org pilot Coffee Pass before WhatsApp is provisioned.
+    The customer-facing response stays generic whatever happens here — that is
+    what keeps the endpoint enumeration-safe. But the outcome is written to the
+    OTP row so the failure is not invisible to the org: with no WhatsApp config
+    every customer login silently dies, the endpoint keeps answering 200, and
+    nobody finds out until someone reads the pod logs.
+
+    Never raises: a delivery problem must not turn into a 500 on a public page.
     """
     from apps.channels.whatsapp_service import WhatsAppService
 
@@ -144,18 +148,45 @@ def _deliver_code(plan, phone, code):
         f'Coffee Pass verification code: {code}\n'
         f'Valid for 5 minutes. Do not share this code.'
     )
+
+    def _record(status_value, detail=''):
+        try:
+            CoffeePassOTP.objects.filter(pk=otp.pk).update(
+                delivery_status=status_value, delivery_detail=detail[:255],
+            )
+        except Exception:
+            logger.warning('Could not record OTP delivery status', exc_info=True)
+
     try:
         service = WhatsAppService.get_for_organization(plan.organization)
         if service is None:
             logger.warning(
-                'Coffee Pass OTP: no WhatsApp config for org %s; code not delivered',
+                'Coffee Pass OTP: no WhatsApp config for org %s; code not delivered. '
+                'Connect WhatsApp in Settings -> Channels.',
                 plan.organization_id,
             )
+            _record('no_channel', 'No active WhatsApp configuration for this organization.')
             return
-        service.send_message(phone, text)
-    except Exception:
+
+        # send_message returns the provider message id, or None on ANY failure
+        # (inactive config, empty token, or an API rejection such as #133010
+        # account-not-registered). It swallows those internally, so a bare
+        # try/except would record a silent failure as a success.
+        message_id = service.send_message(otp.phone, text)
+        if not message_id:
+            logger.warning(
+                'Coffee Pass OTP: WhatsApp send returned no message id for org %s '
+                '(check token, phone_number_id, and Cloud API registration)',
+                plan.organization_id,
+            )
+            _record('failed', 'WhatsApp API did not return a message id.')
+            return
+
+        _record('sent', str(message_id))
+    except Exception as exc:
         # Delivery failure must not leak through the generic response.
         logger.warning('Coffee Pass OTP delivery failed', exc_info=True)
+        _record('failed', f'{type(exc).__name__}: {exc}')
 
 
 class PublicVerifyCodeView(PublicBase):

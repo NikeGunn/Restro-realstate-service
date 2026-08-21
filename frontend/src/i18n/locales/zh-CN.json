@@ -812,6 +812,7 @@
       "itemType": {
         "food": "食品",
         "drink": "饮品",
+        "coffee": "咖啡",
         "alcohol": "酒类",
         "cocktail": "鸡尾酒",
         "buffet": "自助餐",
@@ -1595,7 +1596,15 @@
         "eligible_items_required": "请至少选择一项适用咖啡",
         "no_available_eligible_items": "所选品项目前都不可售",
         "break_even_too_high": "顾客需要来太多次才能回本"
-      }
+      },
+      "noCoffeeItems": "菜单中还没有咖啡项目",
+      "noCoffeeItemsHint": "请前往「菜单」添加类型为「咖啡」（或「饮品」）的项目。咖啡通行证永远不适用于食物。",
+      "qrButton": "二维码",
+      "qrTitle": "咖啡通行证二维码",
+      "qrHint": "打印后放在收银台或桌卡上。顾客扫描即可购买及出示优惠码。",
+      "downloadQr": "下载二维码",
+      "downloadPoster": "下载海报",
+      "qrFailed": "无法生成二维码"
     },
     "passes": {
       "title": "顾客通行证",

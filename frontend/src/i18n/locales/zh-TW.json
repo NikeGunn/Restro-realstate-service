@@ -764,6 +764,7 @@
       "itemType": {
         "food": "食品",
         "drink": "飲品",
+        "coffee": "咖啡",
         "alcohol": "酒類",
         "cocktail": "雞尾酒",
         "buffet": "自助餐",
@@ -1528,7 +1529,15 @@
         "eligible_items_required": "請至少揀一項適用咖啡",
         "no_available_eligible_items": "所揀品項目前都唔可以賣",
         "break_even_too_high": "顧客要嚟太多次先回到本"
-      }
+      },
+      "noCoffeeItems": "菜單仲未有咖啡項目",
+      "noCoffeeItemsHint": "請去「菜單」加入類型為「咖啡」（或「飲品」）嘅項目。咖啡通行證永遠唔適用於食物。",
+      "qrButton": "二維碼",
+      "qrTitle": "咖啡通行證二維碼",
+      "qrHint": "列印出嚟放喺收銀台或枱卡上。顧客掃描即可購買同出示優惠碼。",
+      "downloadQr": "下載二維碼",
+      "downloadPoster": "下載海報",
+      "qrFailed": "無法生成二維碼"
     },
     "passes": {
       "title": "顧客通行證",

@@ -334,7 +334,8 @@ export interface MenuCategory {
 }
 
 export type MenuItemType =
-  | 'food' | 'drink' | 'alcohol' | 'cocktail'
+  // `coffee` is split out of `drink` because Coffee Pass eligibility keys off it.
+  | 'food' | 'drink' | 'coffee' | 'alcohol' | 'cocktail'
   | 'buffet' | 'combo' | 'promotion' | 'addon';
 
 export interface MenuItem {

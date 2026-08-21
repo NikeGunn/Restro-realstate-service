@@ -18,7 +18,9 @@ from __future__ import annotations
 import logging
 import uuid
 
+from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
+from django.utils.text import slugify
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied, ValidationError
@@ -32,18 +34,18 @@ from apps.common.permissions import IsOrgMember, user_role_in_org
 from apps.common.utils import client_ip
 
 from .models import (
-    CoffeeExperience, CoffeePass, CoffeePassPlan, CoffeePassPurchase,
-    CoffeePassRedemption, PassStatus, CoffeePassAuditEvent,
+    CoffeeExperience, CoffeePass, CoffeePassOTP, CoffeePassPlan,
+    CoffeePassPurchase, CoffeePassRedemption, PassStatus, CoffeePassAuditEvent,
 )
 from .serializers import (
-    CoffeeExperienceSerializer, CoffeePassPlanSerializer,
+    CoffeeExperienceSerializer, CoffeePassPlanSerializer, MenuItemBriefSerializer,
     CoffeePassPlanWriteSerializer, CoffeePassPurchaseSerializer,
     CoffeePassRedemptionSerializer, CoffeePassSerializer,
     RedemptionCreateSerializer, RefundSerializer, SuspendSerializer,
     VerificationResolveSerializer, VoidSerializer,
 )
 from .services import (
-    analytics_service, audit_service, plan_service,
+    analytics_service, audit_service, plan_service, qr_service,
     redemption_service, verification_service,
 )
 
@@ -99,6 +101,147 @@ class CoffeePassPlanViewSet(OrgScopeMixin, viewsets.ModelViewSet):
         """Dry-run the activation rules so the owner sees the break-even first."""
         plan = self.get_object()
         return Response(plan_service.check_activation_readiness(plan))
+
+    @action(detail=False, methods=['get'], url_path='channel-health')
+    def channel_health(self, request):
+        """
+        Can this org actually deliver a login code to a customer?
+
+        The public OTP endpoint must answer identically for a known and unknown
+        phone, so it can never report a delivery failure. That makes "no
+        WhatsApp config" an invisible outage: customers scan, request a code,
+        and nothing arrives, while every HTTP response says 200. This endpoint
+        is where the owner finds out — before a pilot, not after.
+        """
+        organization_id = request.query_params.get('organization')
+        if not organization_id:
+            raise ValidationError({'organization': 'This query parameter is required.'})
+        if user_role_in_org(request.user, organization_id) is None:
+            return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        from apps.channels.models import WhatsAppConfig
+
+        config = WhatsAppConfig.objects.filter(
+            organization_id=organization_id, is_active=True,
+        ).first()
+
+        # Recent delivery outcomes are the empirical answer — a config can exist
+        # and still be rejected by Meta (expired token, number not registered).
+        recent = list(
+            CoffeePassOTP.objects
+            .filter(organization_id=organization_id)
+            .order_by('-created_at')
+            .values('delivery_status', 'delivery_detail', 'created_at')[:20]
+        )
+        failures = [r for r in recent if r['delivery_status'] in ('no_channel', 'failed')]
+
+        return Response({
+            'whatsapp_configured': config is not None,
+            'whatsapp_verified': bool(getattr(config, 'is_verified', False)),
+            'can_deliver_codes': config is not None,
+            'recent_attempts': len(recent),
+            'recent_failures': len(failures),
+            'last_failure_reason': failures[0]['delivery_detail'] if failures else '',
+            # A stable code the dashboard can translate, rather than parsing prose.
+            # 'failing' means the MOST RECENT attempt failed — an old failure
+            # followed by successes is a fixed problem, not a current one.
+            'status': (
+                'no_channel' if config is None
+                else 'failing' if recent and recent[0]['delivery_status'] in (
+                    'no_channel', 'failed')
+                else 'ok'
+            ),
+        })
+
+    @action(detail=False, methods=['get'], url_path='eligible-items')
+    def eligible_items(self, request):
+        """
+        The menu items a Coffee Pass plan may cover, for the plan picker.
+
+        The dashboard must NOT decide this by filtering the full menu itself —
+        that is how food ended up on a coffee plan: a client-side filter that
+        matched nothing silently fell back to showing everything. The server
+        owns the definition; the UI renders what it is given, and an empty list
+        means "add coffee items first", never "show all items".
+        """
+        organization_id = request.query_params.get('organization')
+        if not organization_id:
+            raise ValidationError({'organization': 'This query parameter is required.'})
+        if user_role_in_org(request.user, organization_id) is None:
+            # Same 404-not-403 posture as the rest of the app: never confirm
+            # that an org id exists to someone outside it.
+            return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        items = plan_service.eligible_item_queryset(organization_id)
+        return Response({
+            'count': items.count(),
+            'eligible_item_types': sorted(plan_service.eligible_item_types()),
+            'results': MenuItemBriefSerializer(items, many=True).data,
+        })
+
+    @action(detail=True, methods=['get'])
+    def qr(self, request, pk=None):
+        """
+        The plan's QR as a PNG, ready to print and stand on a table.
+
+        Read-only and member-visible (a manager printing a replacement card is
+        the till job, not an owner-only privilege). `get_object()` is org-scoped
+        by the mixin, so a cross-org id 404s before any image work happens.
+        """
+        plan = self.get_object()
+        return self._render_qr_png(
+            plan,
+            builder=lambda: qr_service.generate_qr_image(
+                qr_service.get_plan_entry_url(plan)
+            ),
+            suffix='qr',
+        )
+
+    @action(detail=True, methods=['get'])
+    def poster(self, request, pk=None):
+        """A printable counter card (1200x1800 PNG) with the QR embedded."""
+        plan = self.get_object()
+        language = request.query_params.get('language', 'zh-TW')
+        return self._render_qr_png(
+            plan,
+            builder=lambda: qr_service.generate_poster(plan, language=language),
+            suffix='poster',
+        )
+
+    def _render_qr_png(self, plan, builder, suffix):
+        """
+        Shared image response path for `qr` and `poster`.
+
+        Image generation is the one place in this app that depends on optional
+        native libraries (qrcode/Pillow/fonts). A failure here must produce a
+        clean JSON error the UI can show — never a 500 HTML page that a browser
+        would try to download as a .png.
+        """
+        try:
+            png = builder()
+        except qr_service.QRGenerationError as exc:
+            logger.warning('Coffee Pass %s generation refused for plan %s: %s',
+                           suffix, plan.id, exc)
+            return Response({'detail': str(exc)},
+                            status=status.HTTP_422_UNPROCESSABLE_ENTITY)
+        except Exception:
+            logger.exception('Coffee Pass %s generation failed for plan %s',
+                             suffix, plan.id)
+            return Response({'detail': 'Image generation failed.'},
+                            status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        response = HttpResponse(png, content_type='image/png')
+        # A slugified name keeps the downloaded file identifiable; the id keeps
+        # it unique when two plans share a name. slugify() drops CJK entirely,
+        # so fall back to the id rather than emitting "-qr.png".
+        stem = slugify(plan.name) or 'coffee-pass'
+        response['Content-Disposition'] = (
+            f'attachment; filename="{stem}-{suffix}-{plan.id}.png"'
+        )
+        # Cards get reprinted often and the image is deterministic per plan,
+        # but it must never be cached by a shared proxy across tenants.
+        response['Cache-Control'] = 'private, max-age=300'
+        return response
 
     @action(detail=True, methods=['post'])
     def activate(self, request, pk=None):

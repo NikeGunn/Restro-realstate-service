@@ -69,6 +69,10 @@ class MenuItemType(models.TextChoices):
     """
     FOOD = 'food', 'Food'
     DRINK = 'drink', 'Drink'
+    #: Coffee is split out of DRINK because Coffee Pass eligibility keys off it:
+    #: a membership that discounts "any drink" would also discount soft drinks
+    #: and juice, which is not the product. See apps.coffee_pass.
+    COFFEE = 'coffee', 'Coffee'
     ALCOHOL = 'alcohol', 'Alcohol'
     COCKTAIL = 'cocktail', 'Cocktail'
     BUFFET = 'buffet', 'Buffet'

@@ -33,6 +33,52 @@ def _max_break_even():
     return scoring.get('MAX_BREAK_EVEN_VISITS', DEFAULT_SCORING['MAX_BREAK_EVEN_VISITS'])
 
 
+#: Fallback when settings carry no override. `coffee` is the intended type;
+#: `drink` is tolerated for menus built before the coffee type existed. FOOD IS
+#: DELIBERATELY ABSENT — a pass that discounts a rice platter is not the product,
+#: and that is exactly the bug this rule exists to prevent.
+DEFAULT_ELIGIBLE_ITEM_TYPES = ('coffee', 'drink')
+
+
+def eligible_item_types() -> frozenset:
+    """
+    THE definition of "what a Coffee Pass may discount" — one function used by
+    the write validators, the dashboard picker endpoint, and the tests, so those
+    can never disagree.
+
+    Driven by COFFEE_PASS_SETTINGS['ELIGIBLE_ITEM_TYPES'] (env
+    COFFEE_PASS_ELIGIBLE_ITEM_TYPES), so widening eligibility later — e.g. a
+    promo where a pass also covers a pastry — is a configmap edit rather than a
+    code change. Read at call time, never cached at import, so a settings
+    override in a test or a restarted pod takes effect immediately.
+    """
+    configured = getattr(settings, 'COFFEE_PASS_SETTINGS', {}).get(
+        'ELIGIBLE_ITEM_TYPES'
+    )
+    # An empty/blank override would silently make every item ineligible and
+    # brick plan creation, so treat it as "unset" and fall back to the default.
+    return frozenset(configured or DEFAULT_ELIGIBLE_ITEM_TYPES)
+
+
+def eligible_item_queryset(organization_id):
+    """
+    Every menu item in an org that a Coffee Pass plan is allowed to cover.
+
+    Used by the API so the dashboard picker and the activation guard can never
+    disagree about what counts as coffee.
+    """
+    from apps.restaurant.models import MenuItem
+
+    return (
+        MenuItem.objects
+        .filter(
+            category__organization_id=organization_id,
+            item_type__in=eligible_item_types(),
+        )
+        .order_by('name')
+    )
+
+
 def validate_tenancy(plan) -> None:
     """
     A plan must be internally consistent before it can exist:
@@ -53,6 +99,24 @@ def validate_tenancy(plan) -> None:
             raise ValidationError(
                 {'eligible_items': 'All eligible items must belong to this organization.'}
             )
+
+        # A Coffee Pass may only ever discount coffee. Enforced HERE rather than
+        # only in the dashboard picker, because a filter in the UI is a
+        # convenience and this is an invariant: it must hold for the API, the
+        # admin, a script, and a stale browser tab alike.
+        non_coffee = list(
+            plan.eligible_items
+            .exclude(item_type__in=eligible_item_types())
+            .values_list('name', flat=True)[:5]
+        )
+        if non_coffee:
+            raise ValidationError({
+                'eligible_items': (
+                    'A Coffee Pass can only cover coffee items. Change the item '
+                    'type to Coffee on the menu, or remove: '
+                    + ', '.join(non_coffee)
+                )
+            })
 
 
 def compute_break_even(plan):
