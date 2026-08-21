@@ -1606,7 +1606,13 @@
       "qrHint": "Print this and put it on the counter or a table card. Customers scan it to buy and to show their code.",
       "downloadQr": "Download QR",
       "downloadPoster": "Download poster",
-      "qrFailed": "Could not generate the QR code"
+      "qrFailed": "Could not generate the QR code",
+      "posterLanguage": "Poster language (the QR image itself has no text)",
+      "posterLang": {
+        "zh-TW": "繁體",
+        "zh-CN": "简体",
+        "en": "English"
+      }
     },
     "passes": {
       "title": "Customer passes",

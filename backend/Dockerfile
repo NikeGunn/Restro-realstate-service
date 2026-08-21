@@ -5,10 +5,17 @@ ENV PYTHONUNBUFFERED=1
 
 WORKDIR /app
 
-# Install system dependencies
+# Install system dependencies.
+#
+# The font packages mirror Dockerfile.prod on purpose. Without them Pillow's
+# truetype() calls all fail and silently fall back to a tiny fixed-size bitmap
+# font, so generated posters look broken in dev while being perfect in prod —
+# a "dev red / prod green" gap that costs real debugging time.
 RUN apt-get update && apt-get install -y \
     libpq-dev \
     gcc \
+    fonts-noto-cjk \
+    fonts-dejavu-core \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies

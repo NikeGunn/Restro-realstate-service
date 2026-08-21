@@ -115,14 +115,43 @@ _LATIN_FONT_CANDIDATES = [
 ]
 
 
-def _load_font(size):
-    """Best-effort font load; never raises, so a poster always renders."""
-    for path in _CJK_FONT_CANDIDATES + _LATIN_FONT_CANDIDATES:
+def _has_cjk(text):
+    """True if the string contains any Han/Kana/Hangul codepoint."""
+    return any(
+        0x2E80 <= ord(ch) <= 0x9FFF       # CJK radicals through unified ideographs
+        or 0xAC00 <= ord(ch) <= 0xD7AF    # Hangul syllables
+        or 0xF900 <= ord(ch) <= 0xFAFF    # CJK compatibility ideographs
+        or 0xFF00 <= ord(ch) <= 0xFF65    # full-width forms
+        for ch in text or ''
+    )
+
+
+def _load_font(size, prefer_cjk=True):
+    """
+    Best-effort font load; never raises, so a poster always renders.
+
+    Font ORDER matters for legibility, not just for coverage. Noto CJK draws
+    Latin glyphs much smaller than DejaVu at the same point size, so an English
+    poster rendered with the CJK face comes out tiny and cramped — it fits, so
+    `_fit_text` never shrinks it, and nobody reads it from across a cafe.
+    Latin-only copy therefore asks for the Latin face FIRST; anything containing
+    CJK must use the CJK face or it renders as tofu.
+    """
+    order = (
+        _CJK_FONT_CANDIDATES + _LATIN_FONT_CANDIDATES if prefer_cjk
+        else _LATIN_FONT_CANDIDATES + _CJK_FONT_CANDIDATES
+    )
+    for path in order:
         try:
             return ImageFont.truetype(path, size)
         except Exception:
             continue
     return ImageFont.load_default()
+
+
+def _font_for(text, size):
+    """Pick the face that renders `text` most legibly at `size`."""
+    return _load_font(size, prefer_cjk=_has_cjk(text))
 
 
 def _strip_emoji(text):
@@ -226,36 +255,37 @@ def generate_poster(plan, language='zh-TW'):
                            outline=_CARAMEL + (200,), width=5)
 
     # Decorative cup mark (drawn, not an emoji — emoji render as tofu).
-    cx, cy = W // 2, 150
+    # Sits at y=170 so the steam arcs above it clear the border at y=28.
+    cx, cy = W // 2, 170
     draw.rounded_rectangle([cx - 52, cy - 34, cx + 34, cy + 46], radius=16,
                            outline=_ESPRESSO + (255,), width=7)
     draw.arc([cx + 22, cy - 16, cx + 78, cy + 28], start=-70, end=70,
              fill=_ESPRESSO + (255,), width=7)
     for dx in (-26, 0, 26):
-        draw.arc([cx + dx - 12, cy - 92, cx + dx + 12, cy - 52],
+        draw.arc([cx + dx - 12, cy - 86, cx + dx + 12, cy - 54],
                  start=200, end=340, fill=_MUTED + (255,), width=5)
 
     # Organization + location.
     org_name = _strip_emoji(getattr(plan.organization, 'name', ''))[:40]
-    org_font = _fit_text(draw, org_name, _load_font, W - 260, 46)
+    org_font = _fit_text(draw, org_name, lambda sz: _font_for(org_name, sz), W - 260, 46)
     _centered_text(draw, W, 250, org_name, org_font, fill=_ESPRESSO)
 
     loc_name = _strip_emoji(getattr(plan.location, 'name', ''))[:40]
     if loc_name:
-        loc_font = _fit_text(draw, loc_name, _load_font, W - 300, 32)
+        loc_font = _fit_text(draw, loc_name, lambda sz: _font_for(loc_name, sz), W - 300, 32)
         _centered_text(draw, W, 312, loc_name, loc_font, fill=_MUTED)
 
     # Eyebrow.
-    eyebrow_font = _load_font(34)
+    eyebrow_font = _font_for(copy['eyebrow'], 34)
     _centered_text(draw, W, 384, copy['eyebrow'], eyebrow_font, fill=_CARAMEL)
 
     # Headline discount.
     headline = copy['headline'].format(pct=pct)
-    head_font = _fit_text(draw, headline, _load_font, W - 200, 76)
+    head_font = _fit_text(draw, headline, lambda sz: _font_for(headline, sz), W - 200, 76)
     _centered_text(draw, W, 442, headline, head_font, fill=_ESPRESSO)
 
     sub = copy['sub'].format(days=days)
-    sub_font = _fit_text(draw, sub, _load_font, W - 260, 38)
+    sub_font = _fit_text(draw, sub, lambda sz: _font_for(sub, sz), W - 260, 38)
     _centered_text(draw, W, 546, sub, sub_font, fill=_MUTED)
 
     # QR on a white card.
@@ -272,16 +302,16 @@ def generate_poster(plan, language='zh-TW'):
     img.paste(qr_img, (qx, qy))
 
     # CTA pill.
-    cta_font = _load_font(48)
+    cta_font = _font_for(copy['cta'], 48)
     cta_y = 1470
     draw.rounded_rectangle([190, cta_y - 26, W - 190, cta_y + 82], radius=54,
                            fill=_ESPRESSO + (255,))
     _centered_text(draw, W, cta_y, copy['cta'], cta_font, fill=_CREAM)
 
     # Terms line.
-    terms_font = _load_font(28)
+    terms_font = _font_for(copy['terms'], 28)
     _centered_text(draw, W, 1640, copy['terms'], terms_font, fill=_MUTED)
-    _centered_text(draw, W, 1692, 'KRIBAAT', _load_font(26), fill=_CARAMEL)
+    _centered_text(draw, W, 1692, 'KRIBAAT', _load_font(26, prefer_cjk=False), fill=_CARAMEL)
 
     buf = io.BytesIO()
     img.convert('RGB').save(buf, format='PNG')

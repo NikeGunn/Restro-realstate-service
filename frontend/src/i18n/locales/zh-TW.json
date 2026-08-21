@@ -1537,7 +1537,13 @@
       "qrHint": "列印出嚟放喺收銀台或枱卡上。顧客掃描即可購買同出示優惠碼。",
       "downloadQr": "下載二維碼",
       "downloadPoster": "下載海報",
-      "qrFailed": "無法生成二維碼"
+      "qrFailed": "無法生成二維碼",
+      "posterLanguage": "海報語言（二維碼圖片本身冇文字）",
+      "posterLang": {
+        "zh-TW": "繁體",
+        "zh-CN": "简体",
+        "en": "English"
+      }
     },
     "passes": {
       "title": "顧客通行證",

@@ -1604,7 +1604,13 @@
       "qrHint": "打印后放在收银台或桌卡上。顾客扫描即可购买及出示优惠码。",
       "downloadQr": "下载二维码",
       "downloadPoster": "下载海报",
-      "qrFailed": "无法生成二维码"
+      "qrFailed": "无法生成二维码",
+      "posterLanguage": "海报语言（二维码图片本身没有文字）",
+      "posterLang": {
+        "zh-TW": "繁體",
+        "zh-CN": "简体",
+        "en": "English"
+      }
     },
     "passes": {
       "title": "顾客通行证",

@@ -91,6 +91,28 @@ class TestQRService:
         plan.eligible_items.set(coffee_items)
         assert qr_service.generate_poster(plan).startswith(PNG_MAGIC)
 
+    def test_a_real_scalable_font_is_available(self):
+        """
+        Guards a dev/prod gap that already bit once: with no font packages
+        installed, every truetype() call fails and Pillow falls back to a tiny
+        fixed-size bitmap face. Posters then render unreadably small in dev
+        while being perfect in prod. A real font must scale with `size`.
+        """
+        small = qr_service._load_font(12)
+        large = qr_service._load_font(72)
+        assert small is not None and large is not None
+        # The bitmap fallback ignores `size`, so both would be the same object
+        # shape and report identical metrics.
+        assert getattr(large, 'size', None) == 72, (
+            'No scalable TrueType font available — install fonts-dejavu-core '
+            'and fonts-noto-cjk (see backend/Dockerfile).'
+        )
+
+    def test_latin_copy_prefers_the_latin_face(self):
+        """Noto CJK draws Latin much smaller; English copy must not use it."""
+        assert qr_service._has_cjk('30% off your coffee') is False
+        assert qr_service._has_cjk('會員可享 30% 折扣') is True
+
     @override_settings(PUBLIC_BASE_URL='https://cafe.example.com/')
     def test_entry_url_honors_configured_origin_without_double_slash(self, draft_plan):
         url = qr_service.get_plan_entry_url(draft_plan)

@@ -10,6 +10,19 @@ import { useToast } from '@/hooks/use-toast'
 
 import { coffeePassApi, type CoffeePassPlan } from '@/services/coffeePass'
 
+/** The poster languages the backend renders (see coffee_pass qr_service). */
+const POSTER_LANGUAGES = ['zh-TW', 'zh-CN', 'en'] as const
+type PosterLanguage = (typeof POSTER_LANGUAGES)[number]
+
+/** Map the dashboard locale onto a poster language, defaulting to the HK norm. */
+function resolvePosterLanguage(locale: string): PosterLanguage {
+  const match = POSTER_LANGUAGES.find(
+    (l) => l.toLowerCase() === (locale || '').toLowerCase(),
+  )
+  if (match) return match
+  return (locale || '').toLowerCase().startsWith('en') ? 'en' : 'zh-TW'
+}
+
 /**
  * Generate, preview, and download a plan's QR code.
  *
@@ -28,13 +41,20 @@ export function PlanQrDialog({
   plan: CoffeePassPlan | null
   onOpenChange: (open: boolean) => void
 }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const { toast } = useToast()
 
   const [previewUrl, setPreviewUrl] = useState<string>('')
   const [loading, setLoading] = useState(false)
   const [downloading, setDownloading] = useState<'qr' | 'poster' | null>(null)
   const [failed, setFailed] = useState(false)
+
+  // Poster language. Defaults to the dashboard language so an English-speaking
+  // owner gets an English card, but all three stay one click away — a cafe may
+  // well want to print zh-TW for the counter and English for a tourist menu.
+  const [posterLanguage, setPosterLanguage] = useState<PosterLanguage>(
+    () => resolvePosterLanguage(i18n.language),
+  )
 
   // Track the live object URL so cleanup never depends on render order.
   const previewRef = useRef<string>('')
@@ -89,11 +109,12 @@ export function PlanQrDialog({
     try {
       url = kind === 'qr'
         ? await coffeePassApi.fetchPlanQrObjectUrl(plan.id)
-        : await coffeePassApi.fetchPlanPosterObjectUrl(plan.id)
+        : await coffeePassApi.fetchPlanPosterObjectUrl(plan.id, posterLanguage)
 
       const link = document.createElement('a')
       link.href = url
-      link.download = `${plan.name || 'coffee-pass'}-${kind}.png`
+      const suffix = kind === 'poster' ? `poster-${posterLanguage}` : 'qr'
+      link.download = `${plan.name || 'coffee-pass'}-${suffix}.png`
       document.body.appendChild(link)
       link.click()
       link.remove()
@@ -151,6 +172,28 @@ export function PlanQrDialog({
             <p className="text-[11px] font-mono break-all text-muted-foreground">
               {publicUrl}
             </p>
+          </div>
+
+          {/* Poster language. The plain QR carries no words, so this applies
+              to the poster only — saying so avoids "why didn't my QR change?" */}
+          <div className="space-y-1.5">
+            <p className="text-xs font-medium">
+              {t('coffeePass.plans.posterLanguage')}
+            </p>
+            <div className="grid grid-cols-3 gap-1.5">
+              {POSTER_LANGUAGES.map((lang) => (
+                <Button
+                  key={lang}
+                  type="button"
+                  size="sm"
+                  variant={posterLanguage === lang ? 'default' : 'outline'}
+                  onClick={() => setPosterLanguage(lang)}
+                  disabled={downloading !== null}
+                >
+                  {t(`coffeePass.plans.posterLang.${lang}`)}
+                </Button>
+              ))}
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-2">
