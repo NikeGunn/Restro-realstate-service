@@ -1,0 +1,34 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node -e \"const i=JSON.parse(require('fs').readFileSync(0,'utf8'));const t=i.tool_input||{};const p=t.file_path||t.path||'';const hardBlocked=[/(^|[\\\\\\\\\\/])\\.env\\.production$/i,/k8s[\\\\\\\\\\/].*secrets?\\.ya?ml$/i,/\\.pem$/i];const hit=hardBlocked.find(r=>r.test(p));if(hit){console.error('Refusing to write to '+p+' (matches '+hit+'). Production secrets must never be edited by Claude.');process.exit(2)}\""
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node -e \"const i=JSON.parse(require('fs').readFileSync(0,'utf8'));const c=(i.tool_input&&i.tool_input.command)||'';if(/git\\s+add\\s+(-A|-a|--all|\\.)(?:\\s|$)/.test(c)){console.error('Avoid git add -A/. — stage files by name to avoid sweeping in gitignored secrets or debug scripts.');process.exit(2)}\""
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node -e \"console.log('Repo notes: production deploys via GitHub Actions → ArgoCD (do not edit k8s/*/deployment.yaml image tags or run redeploy.ps1). Frontend type-check is npm run build:check (npm run build skips tsc). Product scope is locked by agent.md — no POS/CRM/payments/delivery features.')\""
+          }
+        ]
+      }
+    ]
+  }
+}
