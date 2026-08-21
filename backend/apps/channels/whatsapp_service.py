@@ -482,6 +482,93 @@ class WhatsAppService:
             logger.exception(error_detail)
             return None
     
+    def send_template(
+        self,
+        to: str,
+        template_name: str,
+        language_code: str = "en",
+        body_params: Optional[list] = None,
+        button_params: Optional[list] = None,
+        button_sub_type: str = "url",
+    ) -> Optional[str]:
+        """
+        Send a pre-approved WhatsApp message TEMPLATE.
+
+        This is the ONLY message type Meta delivers outside the 24-hour customer
+        service window. A free-form text message to a number that has not messaged
+        the business in the last 24h is ACCEPTED by the Graph API (you get a 200 and
+        a wamid) and then silently dropped — it never reaches the handset. So any
+        message that must reach a cold number (OTP codes above all) has to go out
+        as a template, not as text.
+
+        `body_params` fill the template's {{1}}, {{2}}, ... placeholders in order.
+        `button_params` fill URL/copy-code button variables — an Authentication
+        template's one-tap copy button takes the code as its parameter.
+
+        Returns the provider message id, or None on failure.
+        """
+        if not self.config.is_active:
+            logger.error(f"❌ WhatsApp config is_active=False for {self.organization.name}")
+            return None
+        if not self.config.access_token or not self.config.phone_number_id:
+            logger.error(f"❌ WhatsApp credentials incomplete for {self.organization.name}")
+            return None
+
+        components = []
+        if body_params:
+            components.append({
+                "type": "body",
+                "parameters": [{"type": "text", "text": str(p)} for p in body_params],
+            })
+        if button_params:
+            # Meta requires sub_type + index on button components. An
+            # Authentication template's one-tap button is "copy_code"; a
+            # marketing template's dynamic link button is "url". Sending the
+            # wrong sub_type gets the message rejected outright, so the caller
+            # picks it rather than this method guessing.
+            components.append({
+                "type": "button",
+                "sub_type": button_sub_type,
+                "index": "0",
+                "parameters": [{"type": "text", "text": str(p)} for p in button_params],
+            })
+
+        payload = {
+            "messaging_product": "whatsapp",
+            "recipient_type": "individual",
+            "to": to,
+            "type": "template",
+            "template": {
+                "name": template_name,
+                "language": {"code": language_code},
+                **({"components": components} if components else {}),
+            },
+        }
+
+        url = f"{self.GRAPH_API_URL}/{self.config.phone_number_id}/messages"
+        headers = {
+            "Authorization": f"Bearer {self.config.access_token}",
+            "Content-Type": "application/json",
+        }
+
+        try:
+            response = requests.post(url, json=payload, headers=headers, timeout=30)
+            response.raise_for_status()
+            message_id = response.json().get('messages', [{}])[0].get('id')
+            logger.info(
+                f"WhatsApp template '{template_name}' sent to {to}: {message_id}"
+            )
+            return message_id
+        except requests.exceptions.RequestException as e:
+            detail = f"Failed to send WhatsApp template '{template_name}': {e}"
+            if getattr(e, 'response', None) is not None:
+                try:
+                    detail += f" | API Response: {e.response.json()}"
+                except Exception:
+                    detail += f" | API Response: {e.response.text}"
+            logger.error(detail)
+            return None
+
     def send_interactive_buttons(
         self, 
         to: str, 

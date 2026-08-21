@@ -61,6 +61,22 @@ data:
   # Secret + webhook keys live in chatplatform-secrets (deploy-secrets job).
   STRIPE_PUBLISHABLE_KEY: "pk_test_51SozbOLnDeWlHrbRI6I0PHwBjpytdO7QgI3f33JqEaQBTeNlkFLdnvicrrNOzPOGlTnuf7WftLdZjZlkqs33SIIg007d804LgZ"
   PUBLIC_BASE_URL: "https://kribaat.com"
+
+  # Coffee Pass — customer login OTP delivery.
+  #
+  # WhatsApp only delivers a FREE-FORM text to a number that messaged the
+  # business within the last 24 hours. A first-time customer scanning the QR is
+  # never inside that window: Meta accepts the text (HTTP 200 + a wamid) and
+  # then silently drops it, so the send looks successful and no code arrives.
+  # A pre-approved Authentication template is the only message type that
+  # reaches a cold number, so this key is what makes customer login work at all.
+  #
+  # Must match the template name EXACTLY as approved in Meta Business Manager
+  # -> WhatsApp Manager -> Message templates (category: Authentication).
+  # If the template is rejected or renamed, OTP delivery is recorded as
+  # 'failed' and surfaces on the plans/channel-health endpoint.
+  COFFEE_PASS_OTP_TEMPLATE: "coffee_pass_otp"
+  COFFEE_PASS_OTP_TEMPLATE_LANG: "en"
 ---
 # ConfigMap for frontend (build-time variables)
 apiVersion: v1

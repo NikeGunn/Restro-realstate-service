@@ -442,6 +442,31 @@ COFFEE_PASS_SETTINGS = {
         'COFFEE_PASS_TOKEN_TTL', default=90, cast=int),
 
     # OTP (public customer login).
+    #
+    # DELIVERY MODE — the single most important setting in this block.
+    #
+    # A free-form WhatsApp text only reaches a number that messaged the business
+    # within the last 24 hours. Meta ACCEPTS a text to any other number (HTTP 200
+    # + a wamid) and then drops it, so the send looks successful while no code
+    # ever arrives. A brand-new customer is BY DEFINITION outside that window,
+    # which makes text delivery useless for OTP.
+    #
+    # A pre-approved Authentication template is the only thing Meta delivers to a
+    # cold number. Create one in Meta Business Manager -> WhatsApp Manager ->
+    # Message templates (category: Authentication, with the copy-code button),
+    # then set COFFEE_PASS_OTP_TEMPLATE to its name.
+    #
+    # Leave the template name empty ONLY for local dev against a phone whose 24h
+    # window you have opened by hand.
+    'OTP_TEMPLATE_NAME': config('COFFEE_PASS_OTP_TEMPLATE', default=''),
+    'OTP_TEMPLATE_LANGUAGE': config('COFFEE_PASS_OTP_TEMPLATE_LANG', default='en'),
+
+    # Whether the approved template carries the one-tap copy-code button. Set
+    # false if the template was built with the body variable only — Meta rejects
+    # a message carrying a component the template does not declare.
+    'OTP_TEMPLATE_HAS_BUTTON': config(
+        'COFFEE_PASS_OTP_TEMPLATE_HAS_BUTTON', default=True, cast=bool),
+
     'OTP_TTL_SECONDS': config('COFFEE_PASS_OTP_TTL', default=300, cast=int),
     'OTP_MAX_ATTEMPTS': config('COFFEE_PASS_OTP_MAX_ATTEMPTS', default=5, cast=int),
     'OTP_MAX_SENDS_PER_PHONE': config(

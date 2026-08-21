@@ -18,6 +18,7 @@ from __future__ import annotations
 import logging
 import uuid
 
+from django.conf import settings
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 from django.utils.text import slugify
@@ -135,10 +136,22 @@ class CoffeePassPlanViewSet(OrgScopeMixin, viewsets.ModelViewSet):
         )
         failures = [r for r in recent if r['delivery_status'] in ('no_channel', 'failed')]
 
+        # An active WhatsApp config is necessary but NOT sufficient. Without a
+        # pre-approved Authentication template every code goes out as free-form
+        # text, which Meta only delivers inside a number's 24-hour customer
+        # service window. A new customer is never inside that window, so codes
+        # are accepted and silently dropped for everyone except whichever handset
+        # the operator happened to test from. Reporting that as 'ok' is precisely
+        # how a total OTP outage stayed invisible.
+        cp_settings = getattr(settings, 'COFFEE_PASS_SETTINGS', {})
+        template_name = cp_settings.get('OTP_TEMPLATE_NAME', '')
+
         return Response({
             'whatsapp_configured': config is not None,
             'whatsapp_verified': bool(getattr(config, 'is_verified', False)),
-            'can_deliver_codes': config is not None,
+            'otp_template_configured': bool(template_name),
+            'otp_template_name': template_name,
+            'can_deliver_codes': config is not None and bool(template_name),
             'recent_attempts': len(recent),
             'recent_failures': len(failures),
             'last_failure_reason': failures[0]['delivery_detail'] if failures else '',
@@ -149,6 +162,7 @@ class CoffeePassPlanViewSet(OrgScopeMixin, viewsets.ModelViewSet):
                 'no_channel' if config is None
                 else 'failing' if recent and recent[0]['delivery_status'] in (
                     'no_channel', 'failed')
+                else 'no_template' if not template_name
                 else 'ok'
             ),
         })

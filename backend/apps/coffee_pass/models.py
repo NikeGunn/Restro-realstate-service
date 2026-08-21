@@ -605,6 +605,12 @@ class CoffeePassOTP(models.Model):
         choices=[
             ('pending', 'Pending'),
             ('sent', 'Sent'),
+            # Accepted by the Graph API as free-form text with no Authentication
+            # template configured. Meta returns a message id for these and then
+            # drops the message unless the number is inside its 24h customer
+            # service window, so acceptance is NOT proof of delivery. Recording
+            # them as 'sent' is what hid a total OTP outage behind a healthy log.
+            ('unverified', 'Accepted, delivery not guaranteed (no template)'),
             ('no_channel', 'No WhatsApp channel configured'),
             ('failed', 'Delivery failed'),
         ],

@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import logging
 
+from django.conf import settings
 from django.db import transaction
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
@@ -133,21 +134,33 @@ def _deliver_code(plan, otp, code):
     """
     Send the OTP over the org's WhatsApp channel and RECORD the outcome.
 
+    WHY A TEMPLATE AND NOT A TEXT — the bug this function exists to prevent:
+
+    Meta only delivers a free-form text message inside the 24-hour customer
+    service window, which opens when THAT number messages the business. Send a
+    text to any other number and the Graph API still answers 200 with a message
+    id — then drops it. The send looks perfectly healthy and the code never
+    arrives. A first-time Coffee Pass customer is always outside that window, so
+    text delivery is guaranteed to fail for exactly the people who need to log
+    in. (The one number it appears to work for is whichever handset the operator
+    tested from, because that handset opened its own window by chatting.)
+
+    A pre-approved Authentication template is the only message type Meta delivers
+    to a cold number, so that is the path when one is configured. Text is kept as
+    an explicit, clearly-labelled dev fallback.
+
     The customer-facing response stays generic whatever happens here — that is
     what keeps the endpoint enumeration-safe. But the outcome is written to the
-    OTP row so the failure is not invisible to the org: with no WhatsApp config
-    every customer login silently dies, the endpoint keeps answering 200, and
-    nobody finds out until someone reads the pod logs.
+    OTP row so the failure is not invisible to the org.
 
     Never raises: a delivery problem must not turn into a 500 on a public page.
     """
     from apps.channels.whatsapp_service import WhatsAppService
 
-    text = (
-        f'☕ {plan.organization.name}\n'
-        f'Coffee Pass verification code: {code}\n'
-        f'Valid for 5 minutes. Do not share this code.'
-    )
+    cp_settings = getattr(settings, 'COFFEE_PASS_SETTINGS', {})
+    template_name = cp_settings.get('OTP_TEMPLATE_NAME', '')
+    template_lang = cp_settings.get('OTP_TEMPLATE_LANGUAGE', 'en')
+    template_has_button = cp_settings.get('OTP_TEMPLATE_HAS_BUTTON', True)
 
     def _record(status_value, detail=''):
         try:
@@ -168,10 +181,51 @@ def _deliver_code(plan, otp, code):
             _record('no_channel', 'No active WhatsApp configuration for this organization.')
             return
 
-        # send_message returns the provider message id, or None on ANY failure
-        # (inactive config, empty token, or an API rejection such as #133010
-        # account-not-registered). It swallows those internally, so a bare
-        # try/except would record a silent failure as a success.
+        if template_name:
+            # Authentication templates carry the code twice: once in the body
+            # ({{1}}) and once as the one-tap copy-code button parameter.
+            message_id = service.send_template(
+                to=otp.phone,
+                template_name=template_name,
+                language_code=template_lang,
+                body_params=[code],
+                # A template built WITHOUT the one-tap copy button must not be
+                # sent a button component — Meta rejects the whole message for
+                # a component the template does not declare.
+                button_params=[code] if template_has_button else None,
+                button_sub_type='copy_code',
+            )
+            if not message_id:
+                logger.warning(
+                    "Coffee Pass OTP: template '%s' failed for org %s. Check the "
+                    'template is APPROVED in WhatsApp Manager, that its name and '
+                    'language code match COFFEE_PASS_OTP_TEMPLATE / _LANG, and that '
+                    'its variable count matches (body {{1}} + copy-code button).',
+                    template_name, plan.organization_id,
+                )
+                _record('failed', f"Template '{template_name}' rejected by WhatsApp API.")
+                return
+            _record('sent', str(message_id))
+            return
+
+        # ── No template configured: dev-only free-form text ──────────────────
+        #
+        # Recorded as 'unverified', NEVER as 'sent'. The Graph API returning a
+        # message id here proves only that Meta accepted the message, not that it
+        # was delivered — outside the 24h window it is dropped silently. Calling
+        # that 'sent' is what made this outage invisible in the first place.
+        logger.warning(
+            'Coffee Pass OTP: no Authentication template configured for org %s; '
+            'falling back to free-form text. This ONLY reaches numbers that '
+            'messaged the business in the last 24h and will silently fail for '
+            'every new customer. Set COFFEE_PASS_OTP_TEMPLATE.',
+            plan.organization_id,
+        )
+        text = (
+            f'☕ {plan.organization.name}\n'
+            f'Coffee Pass verification code: {code}\n'
+            f'Valid for 5 minutes. Do not share this code.'
+        )
         message_id = service.send_message(otp.phone, text)
         if not message_id:
             logger.warning(
@@ -182,7 +236,11 @@ def _deliver_code(plan, otp, code):
             _record('failed', 'WhatsApp API did not return a message id.')
             return
 
-        _record('sent', str(message_id))
+        _record(
+            'unverified',
+            'Accepted as free-form text with no template configured — delivered '
+            'only if this number messaged the business within 24h.',
+        )
     except Exception as exc:
         # Delivery failure must not leak through the generic response.
         logger.warning('Coffee Pass OTP delivery failed', exc_info=True)
