@@ -23,6 +23,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { formatMoney } from '@/lib/money'
 import { useToast } from '@/hooks/use-toast'
 import { realEstateApi, organizationsApi } from '@/services/api'
 import type { PropertyListing, Organization } from '@/types'
@@ -233,14 +234,10 @@ export function PropertiesPage() {
     }
   }
 
-  const formatPrice = (price: number | null, listingType: string) => {
+  const formatPrice = (price: number | string | null, listingType: string, country?: string) => {
     if (!price) return 'Price TBD'
-    const formatted = new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      maximumFractionDigits: 0,
-    }).format(price)
-    return listingType === 'rent' ? `${formatted}/mo` : formatted
+    const formatted = formatMoney(price, country)
+    return listingType === 'rent' || listingType === 'lease' ? `${formatted}/mo` : formatted
   }
 
   if (organizations.length === 0 && !loading) {
@@ -334,7 +331,7 @@ export function PropertiesPage() {
                 <div className="mb-2">
                   <h3 className="font-semibold text-lg line-clamp-1">{property.title}</h3>
                   <p className="text-2xl font-bold text-primary">
-                    {formatPrice(property.price, property.listing_type)}
+                    {formatPrice(property.price, property.listing_type, property.country)}
                   </p>
                 </div>
 

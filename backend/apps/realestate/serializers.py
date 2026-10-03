@@ -274,7 +274,18 @@ class AppointmentCreateSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError({
                     'appointment_date': "Appointment cannot be in the past."
                 })
-        
+
+        # Tenant isolation: every related object must belong to the same organization.
+        org = data.get('organization')
+        for field in ('lead', 'property_listing', 'location', 'conversation'):
+            obj = data.get(field)
+            if obj is not None and org is not None and obj.organization_id != org.id:
+                raise serializers.ValidationError({field: 'Does not belong to this organization.'})
+
+        duration = data.get('duration_minutes')
+        if duration is not None and not (15 <= duration <= 480):
+            raise serializers.ValidationError({'duration_minutes': 'Must be between 15 and 480 minutes.'})
+
         return data
 
 

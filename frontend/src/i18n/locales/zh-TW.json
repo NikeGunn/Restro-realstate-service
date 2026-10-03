@@ -137,7 +137,8 @@
     "coffeePassRedeem": "核銷",
     "coffeePassPasses": "通行證",
     "coffeePassPlans": "方案",
-    "coffeePassAnalytics": "分析"
+    "coffeePassAnalytics": "分析",
+    "appointments": "預約"
   },
   "inventory": {
     "title": "庫存",
@@ -866,6 +867,106 @@
       "markContacted": "標記為已聯繫",
       "qualify": "驗證",
       "convert": "轉化"
+    },
+    "appointments": {
+      "title": "預約",
+      "subtitle": "睇樓、視像睇樓同諮詢——包括 AI 助手幫你約嘅行程。",
+      "new": "新增預約",
+      "today": "今日",
+      "tomorrow": "聽日",
+      "min": "分鐘",
+      "noOrg": "請揀選機構以查看預約。",
+      "searchPlaceholder": "搜尋姓名、電話、編號或物業",
+      "allStatuses": "所有狀態",
+      "noMatch": "冇符合搜尋條件嘅預約。",
+      "unknownLead": "未知客戶",
+      "noProperty": "未連結物業",
+      "bookedByAi": "AI 預約",
+      "stats": {
+        "today": "今日",
+        "next7": "未來 7 日",
+        "completion": "完成率（30日）",
+        "noShow": "失約率（30日）"
+      },
+      "view": {
+        "upcoming": "即將進行",
+        "today": "今日",
+        "past": "過去",
+        "all": "全部"
+      },
+      "empty": {
+        "upcoming": "暫時冇即將進行嘅預約。聊天入面嘅新預約會自動顯示喺度。",
+        "today": "今日冇安排。",
+        "past": "暫時冇過去嘅預約。",
+        "all": "暫時冇預約。"
+      },
+      "status": {
+        "scheduled": "已安排",
+        "confirmed": "已確認",
+        "completed": "已完成",
+        "cancelled": "已取消",
+        "no_show": "失約",
+        "rescheduled": "已改期"
+      },
+      "type": {
+        "viewing": "睇樓",
+        "virtual_tour": "視像睇樓",
+        "consultation": "諮詢",
+        "meeting": "會面",
+        "follow_up": "跟進"
+      },
+      "action": {
+        "confirm": "確認",
+        "complete": "完成",
+        "noShow": "失約",
+        "cancel": "取消"
+      },
+      "dialog": {
+        "cancel": {
+          "title": "取消呢個預約？",
+          "body": "{{name}} · {{code}} · {{when}}。系統唔會自動通知客戶。",
+          "noteLabel": "原因（可選）",
+          "notePlaceholder": "例如：客戶要求改期"
+        },
+        "complete": {
+          "title": "標記為已完成",
+          "body": "{{name}} · {{code}} · {{when}}",
+          "noteLabel": "結果（可選）",
+          "notePlaceholder": "例如：鍾意個單位，想同另一半再睇多次"
+        },
+        "no_show": {
+          "title": "標記為失約？",
+          "body": "{{name}} 冇出席 {{when}} 嘅預約 {{code}}。"
+        }
+      },
+      "form": {
+        "subtitle": "為現有潛在客戶安排睇樓或會面。",
+        "lead": "潛在客戶",
+        "leadPlaceholder": "揀選潛在客戶",
+        "noLeads": "暫時冇潛在客戶——請先喺潛在客戶頁面新增。",
+        "property": "物業",
+        "noProperty": "不指定物業",
+        "type": "類型",
+        "duration": "時長（分鐘）",
+        "date": "日期",
+        "time": "時間",
+        "meetingLocation": "會面地點（可選）",
+        "notes": "備註",
+        "submit": "建立預約",
+        "errLead": "請揀選潛在客戶。",
+        "errWhen": "請揀選日期同時間。",
+        "errPast": "預約時間必須喺將來。",
+        "errDuration": "時長須為 15–480 分鐘。"
+      },
+      "toast": {
+        "confirm": "預約 {{code}} 已確認",
+        "cancel": "預約 {{code}} 已取消",
+        "complete": "預約 {{code}} 已完成",
+        "no_show": "{{code}} 已標記為失約",
+        "created": "預約 {{code}} 已建立",
+        "copied": "已複製 {{code}}",
+        "failed": "操作失敗"
+      }
     }
   },
   "landing": {

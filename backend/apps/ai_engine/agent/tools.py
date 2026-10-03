@@ -21,24 +21,76 @@ from . import memory as agent_memory
 
 logger = logging.getLogger(__name__)
 
-HK_TZ = ZoneInfo('Asia/Hong_Kong')
 VIEWING_START = time(10, 0)
 VIEWING_END = time(19, 0)
 MAX_DAYS_AHEAD = 90
 SEARCH_LIMIT = 5
-WHOLE_TERRITORY = {'hong kong', 'hongkong', 'hk', 'h.k.', '香港', '全港', 'anywhere', 'any', 'all', 'everywhere', 'all areas'}
+GENERIC_ANYWHERE = {'anywhere', 'any', 'all', 'everywhere', 'all areas', 'any area', 'kahi pani', 'jaha pani', 'जहाँ पनि'}
+
+# Per-market conventions, chosen from the org's primary location country. Data-driven so
+# a Nepal agency, a Hong Kong agency and anyone else each get the right money/time/words.
+MARKETS = {
+    'nepal': {
+        'name': 'Nepal', 'tz': 'Asia/Kathmandu', 'currency': 'Rs', 'lakh_crore': True,
+        'territory': {'nepal', 'whole nepal', 'all nepal', 'नेपाल', 'nepal bhari', 'sabai thau'},
+    },
+    'hong kong': {
+        'name': 'Hong Kong', 'tz': 'Asia/Hong_Kong', 'currency': 'HK$', 'lakh_crore': False,
+        'territory': {'hong kong', 'hongkong', 'hk', 'h.k.', '香港', '全港'},
+    },
+}
+DEFAULT_MARKET = {'name': '', 'tz': 'UTC', 'currency': '$', 'lakh_crore': False, 'territory': set()}
 
 
-def hk_now() -> datetime:
-    return datetime.now(HK_TZ)
+def market_for(organization) -> Dict[str, Any]:
+    from apps.accounts.models import Location
+
+    loc = (Location.objects.filter(organization=organization, is_active=True)
+           .order_by('-is_primary').values('country', 'timezone').first()) or {}
+    country = (loc.get('country') or '').strip().lower()
+    market = dict(MARKETS.get(country, DEFAULT_MARKET))
+    tz = loc.get('timezone') or ''
+    # The location's own zone wins — unless it is the untouched model default
+    # (America/New_York) on a market we know, e.g. a Nepal branch never edited.
+    if tz and (country not in MARKETS or tz != 'America/New_York'):
+        try:
+            ZoneInfo(tz)
+            market['tz'] = tz
+        except Exception:
+            logger.warning("Invalid timezone %r on location for org %s", tz, organization)
+    return market
 
 
-def _money(value) -> str:
-    return f"{int(value):,}" if value == int(value) else f"{value:,.2f}"
+def _group_lakh(n: int) -> str:
+    """18500000 -> '1,85,00,000' (South Asian digit grouping)."""
+    s = str(abs(n))
+    if len(s) <= 3:
+        return s
+    head, tail = s[:-3], s[-3:]
+    parts = []
+    while len(head) > 2:
+        parts.insert(0, head[-2:])
+        head = head[:-2]
+    if head:
+        parts.insert(0, head)
+    return ','.join(parts + [tail])
 
 
-def _listing_summary(p: PropertyListing) -> Dict[str, Any]:
-    price = f"HK${_money(p.price)}"
+def format_money(value, market: Dict[str, Any]) -> str:
+    amount = int(value) if value == int(value) else float(value)
+    cur = market['currency']
+    if market.get('lakh_crore') and isinstance(amount, int):
+        text = f"{cur} {_group_lakh(amount)}"
+        if amount >= 10_000_000:
+            text += f" ({amount / 10_000_000:g} crore)"
+        elif amount >= 100_000:
+            text += f" ({amount / 100_000:g} lakh)"
+        return text
+    return f"{cur}{amount:,}" if isinstance(amount, int) else f"{cur}{amount:,.2f}"
+
+
+def _listing_summary(p: PropertyListing, market: Dict[str, Any]) -> Dict[str, Any]:
+    price = format_money(p.price, market)
     if p.listing_type in ('rent', 'lease'):
         price += f"/{p.rent_period or 'month'}".replace('monthly', 'month')
     return {
@@ -60,6 +112,8 @@ class RealEstateTools:
     def __init__(self, conversation):
         self.conversation = conversation
         self.organization = conversation.organization
+        self.market = market_for(self.organization)
+        self.tz = ZoneInfo(self.market['tz'])
         self.actions: List[Dict[str, Any]] = []   # successful side-effects this turn
         self.escalation: Dict[str, Any] = {}
 
@@ -81,8 +135,8 @@ class RealEstateTools:
         if property_type:
             qs = qs.filter(property_type=property_type.lower())
         area = (area or '').strip()
-        if area.lower() in WHOLE_TERRITORY:
-            area = ''  # "anywhere in Hong Kong" is not a district filter
+        if area.lower() in GENERIC_ANYWHERE | self.market['territory']:
+            area = ''  # "anywhere in Nepal" is not a district filter
         if area:
             qs = qs.filter(Q(city__icontains=area) | Q(neighborhood__icontains=area)
                            | Q(address_line1__icontains=area) | Q(title__icontains=area)
@@ -99,10 +153,10 @@ class RealEstateTools:
         total = qs.count()
         ordering = {'price_asc': ('price',), 'price_desc': ('-price',), 'newest': ('-created_at',)}.get(
             sort, ('-is_featured', 'price'))
-        results = [_listing_summary(p) for p in qs.order_by(*ordering)[:SEARCH_LIMIT]]
+        results = [_listing_summary(p, self.market) for p in qs.order_by(*ordering)[:SEARCH_LIMIT]]
         criteria = ', '.join(str(v) for v in (listing_type, property_type, area,
                              f"min {min_bedrooms} bed" if min_bedrooms else '',
-                             f"max HK${int(max_price):,}" if max_price else '', keywords) if v)
+                             f"max {format_money(max_price, self.market)}" if max_price else '', keywords) if v)
         if criteria:
             self._remember(f"Searched for: {criteria}")
         out = {'ok': True, 'total_matches': total, 'results': results}
@@ -115,7 +169,7 @@ class RealEstateTools:
         p = self._active_listings().filter(reference_number__iexact=(reference or '').strip()).first()
         if not p:
             return {'ok': False, 'error': f'No active listing with reference {reference!r}.'}
-        data = _listing_summary(p)
+        data = _listing_summary(p, self.market)
         data.update({
             'description': p.description,
             'address': f"{p.address_line1}, {p.neighborhood or p.city}",
@@ -134,7 +188,7 @@ class RealEstateTools:
         appts = Appointment.objects.filter(
             organization=self.organization, lead__phone=phone,
             status__in=[Appointment.Status.SCHEDULED, Appointment.Status.CONFIRMED],
-            appointment_date__gte=hk_now().date(),
+            appointment_date__gte=self.now().date(),
         ).select_related('property_listing').order_by('appointment_date', 'appointment_time')[:5]
         return {'ok': True, 'appointments': [self._appt(a) for a in appts]}
 
@@ -166,7 +220,7 @@ class RealEstateTools:
         self.actions.append({'tool': 'save_lead', 'lead_id': str(lead.id)})
         bits = [f"Wants to {lead.intent}"]
         if lead.budget_max:
-            bits.append(f"budget up to HK${int(lead.budget_max):,}")
+            bits.append(f"budget up to {format_money(lead.budget_max, self.market)}")
         if lead.preferred_areas:
             bits.append("areas: " + ", ".join(lead.preferred_areas))
         if lead.timeline:
@@ -192,8 +246,8 @@ class RealEstateTools:
             return {'ok': False, 'error': 'date must be YYYY-MM-DD and time HH:MM (24h).'}
         if weekday and weekday.strip().lower()[:3] != d.strftime('%a').lower():
             return {'ok': False, 'error': f'{d.isoformat()} is a {d:%A}, not {weekday}. Re-check the CALENDAR and pass the correct date.'}
-        now = hk_now()
-        if datetime.combine(d, t, HK_TZ) < now + timedelta(hours=1):
+        now = self.now()
+        if datetime.combine(d, t, self.tz) < now + timedelta(hours=1):
             return {'ok': False, 'error': f'That time is in the past or under 1 hour away (now {now:%Y-%m-%d %H:%M}). Ask for a later slot.'}
         if d > now.date() + timedelta(days=MAX_DAYS_AHEAD):
             return {'ok': False, 'error': f'We book up to {MAX_DAYS_AHEAD} days ahead.'}
@@ -254,6 +308,9 @@ class RealEstateTools:
         return {'ok': True, 'note': 'A human agent has been notified. Tell the customer an agent will reply shortly.'}
 
     # --------------------------------------------------------------- helpers
+    def now(self) -> datetime:
+        return datetime.now(self.tz)
+
     def _remember(self, fact: str, display_name: str = ''):
         try:
             agent_memory.remember(self.organization, 'customer', agent_memory.customer_key(self.conversation),
@@ -306,9 +363,9 @@ TOOL_SCHEMAS = [
     _fn('search_properties', 'Search this agency\'s ACTIVE listings. Call before recommending or quoting any property.', {
         'listing_type': {'type': 'string', 'enum': ['sale', 'rent']},
         'property_type': {'type': 'string', 'enum': [c for c, _ in PropertyListing.PropertyType.choices]},
-        'area': {'type': 'string', 'description': 'District or neighbourhood, e.g. "Wan Chai"'},
-        'min_price': {'type': 'number', 'description': 'HKD (monthly rent for rentals)'},
-        'max_price': {'type': 'number', 'description': 'HKD (monthly rent for rentals)'},
+        'area': {'type': 'string', 'description': 'City, area or tole, e.g. "Baneshwor", "Lalitpur", "Pokhara Lakeside"'},
+        'min_price': {'type': 'number', 'description': 'Plain number in local currency (monthly rent for rentals). 1 lakh = 100000, 1 crore = 10000000'},
+        'max_price': {'type': 'number', 'description': 'Plain number in local currency (monthly rent for rentals). 1 lakh = 100000, 1 crore = 10000000'},
         'min_bedrooms': {'type': 'integer'},
         'keywords': {'type': 'string', 'description': 'e.g. "sea view pet"'},
         'sort': {'type': 'string', 'enum': ['best_match', 'price_asc', 'price_desc', 'newest'],

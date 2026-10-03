@@ -137,7 +137,8 @@
     "coffeePassRedeem": "Redeem",
     "coffeePassPasses": "Passes",
     "coffeePassPlans": "Plans",
-    "coffeePassAnalytics": "Analytics"
+    "coffeePassAnalytics": "Analytics",
+    "appointments": "Appointments"
   },
   "inventory": {
     "title": "Inventory",
@@ -933,6 +934,106 @@
       "markContacted": "Mark as Contacted",
       "qualify": "Qualify",
       "convert": "Convert"
+    },
+    "appointments": {
+      "title": "Appointments",
+      "subtitle": "Viewings, video tours and consultations — including those booked by your AI assistant.",
+      "new": "New appointment",
+      "today": "Today",
+      "tomorrow": "Tomorrow",
+      "min": "min",
+      "noOrg": "Select an organization to see appointments.",
+      "searchPlaceholder": "Search name, phone, code or property",
+      "allStatuses": "All statuses",
+      "noMatch": "No appointments match your search.",
+      "unknownLead": "Unknown customer",
+      "noProperty": "No property linked",
+      "bookedByAi": "Booked by AI",
+      "stats": {
+        "today": "Today",
+        "next7": "Next 7 days",
+        "completion": "Completion rate (30d)",
+        "noShow": "No-show rate (30d)"
+      },
+      "view": {
+        "upcoming": "Upcoming",
+        "today": "Today",
+        "past": "Past",
+        "all": "All"
+      },
+      "empty": {
+        "upcoming": "No upcoming appointments. New bookings from chat appear here automatically.",
+        "today": "Nothing scheduled for today.",
+        "past": "No past appointments yet.",
+        "all": "No appointments yet."
+      },
+      "status": {
+        "scheduled": "Scheduled",
+        "confirmed": "Confirmed",
+        "completed": "Completed",
+        "cancelled": "Cancelled",
+        "no_show": "No-show",
+        "rescheduled": "Rescheduled"
+      },
+      "type": {
+        "viewing": "Viewing",
+        "virtual_tour": "Video tour",
+        "consultation": "Consultation",
+        "meeting": "Meeting",
+        "follow_up": "Follow-up"
+      },
+      "action": {
+        "confirm": "Confirm",
+        "complete": "Complete",
+        "noShow": "No-show",
+        "cancel": "Cancel"
+      },
+      "dialog": {
+        "cancel": {
+          "title": "Cancel this appointment?",
+          "body": "{{name}} · {{code}} · {{when}}. The customer is not notified automatically.",
+          "noteLabel": "Reason (optional)",
+          "notePlaceholder": "e.g. Customer asked to reschedule"
+        },
+        "complete": {
+          "title": "Mark as completed",
+          "body": "{{name}} · {{code}} · {{when}}",
+          "noteLabel": "Outcome (optional)",
+          "notePlaceholder": "e.g. Liked the unit, wants a second viewing with partner"
+        },
+        "no_show": {
+          "title": "Mark as no-show?",
+          "body": "{{name}} did not attend {{code}} on {{when}}."
+        }
+      },
+      "form": {
+        "subtitle": "Schedule a viewing or meeting for an existing lead.",
+        "lead": "Lead",
+        "leadPlaceholder": "Choose a lead",
+        "noLeads": "No leads yet — add one on the Leads page.",
+        "property": "Property",
+        "noProperty": "No specific property",
+        "type": "Type",
+        "duration": "Duration (min)",
+        "date": "Date",
+        "time": "Time",
+        "meetingLocation": "Meeting point (optional)",
+        "notes": "Notes",
+        "submit": "Create appointment",
+        "errLead": "Choose a lead.",
+        "errWhen": "Pick a date and time.",
+        "errPast": "The appointment must be in the future.",
+        "errDuration": "Duration must be 15–480 minutes."
+      },
+      "toast": {
+        "confirm": "Appointment {{code}} confirmed",
+        "cancel": "Appointment {{code}} cancelled",
+        "complete": "Appointment {{code}} completed",
+        "no_show": "{{code}} marked as no-show",
+        "created": "Appointment {{code}} created",
+        "copied": "Copied {{code}}",
+        "failed": "Action failed"
+      }
     }
   },
   "landing": {

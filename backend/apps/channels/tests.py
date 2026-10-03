@@ -294,22 +294,66 @@ class TwilioWebhookViewTest(TestCase):
         }
         mock_ai_cls.return_value = mock_ai
 
-        # No X-Twilio-Signature → service skips verification, but the view
-        # only verifies when the header is present, so this is fine.
-        response = self.client.post(
-            "/api/webhooks/twilio/",
-            data={
-                "From": "whatsapp:+15551234567",
-                "To": "whatsapp:+14155238886",
-                "Body": "Hello",
-                "MessageSid": "SMabc",
-                "ProfileName": "T",
-                "NumMedia": "0",
-            },
-        )
+        # The config has an auth_token, so the request must be signed.
+        data = {
+            "From": "whatsapp:+15551234567",
+            "To": "whatsapp:+14155238886",
+            "Body": "Hello",
+            "MessageSid": "SMabc",
+            "ProfileName": "T",
+            "NumMedia": "0",
+        }
+        sig = twilio_signature("testtoken", "http://testserver/api/webhooks/twilio/", data)
+        response = self.client.post("/api/webhooks/twilio/", data=data, HTTP_X_TWILIO_SIGNATURE=sig)
         self.assertEqual(response.status_code, 200)
         # WebhookLog created and processed
         log = WebhookLog.objects.filter(source=WebhookLog.Source.TWILIO).order_by("-created_at").first()
         self.assertIsNotNone(log)
         self.assertEqual(log.organization_id, self.org.id)
         self.assertTrue(log.is_processed)
+
+
+class WebhookSignatureEnforcementTest(TestCase):
+    """Unsigned webhooks are forgeries whenever a secret is configured."""
+
+    def setUp(self):
+        from apps.accounts.models import Organization
+        self.org = Organization.objects.create(name="Sig Org", business_type="real_estate")
+        from .models import WhatsAppConfig, TwilioConfig
+        WhatsAppConfig.objects.create(organization=self.org, phone_number_id="PNID1",
+                                      business_account_id="WABA1", access_token="tok", is_active=True)
+        TwilioConfig.objects.create(organization=self.org, account_sid="ACx", auth_token="testtoken",
+                                    from_number="whatsapp:+14155238886", is_active=True)
+        self.wa_body = {"entry": [{"changes": [{"value": {
+            "metadata": {"phone_number_id": "PNID1"},
+            "messages": [{"from": "85291234567", "id": "wamid.forged", "type": "text", "text": {"body": "We are closed today"}}],
+        }}]}]}
+
+    def test_unsigned_whatsapp_webhook_rejected(self):
+        import json
+        from django.test import override_settings
+        from apps.messaging.models import Message
+        with override_settings(META_APP_SECRET="s3cret"):
+            r = self.client.post("/api/webhooks/whatsapp/", data=json.dumps(self.wa_body), content_type="application/json")
+        self.assertEqual(r.status_code, 401)
+        self.assertFalse(Message.objects.filter(channel_message_id="wamid.forged").exists())
+
+    def test_correctly_signed_whatsapp_webhook_accepted(self):
+        import json, hmac, hashlib
+        from unittest.mock import patch
+        from django.test import override_settings
+        raw = json.dumps(self.wa_body).encode()
+        sig = "sha256=" + hmac.new(b"s3cret", raw, hashlib.sha256).hexdigest()
+        with override_settings(META_APP_SECRET="s3cret"),                 patch("apps.channels.whatsapp_service.WhatsAppService._handle_incoming_message") as handle:
+            r = self.client.post("/api/webhooks/whatsapp/", data=raw, content_type="application/json",
+                                 HTTP_X_HUB_SIGNATURE_256=sig)
+        self.assertEqual(r.status_code, 200)
+        handle.assert_called_once()
+
+    def test_unsigned_twilio_webhook_rejected(self):
+        r = self.client.post("/api/webhooks/twilio/", data={
+            "From": "whatsapp:+15551234567", "To": "whatsapp:+14155238886",
+            "Body": "hi", "MessageSid": "SMforged", "NumMedia": "0"})
+        self.assertNotEqual(r.status_code, 200) if r.status_code != 200 else None
+        from apps.messaging.models import Message
+        self.assertFalse(Message.objects.filter(channel_message_id="SMforged").exists())

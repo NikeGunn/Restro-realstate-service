@@ -72,6 +72,20 @@ class LocationCreateSerializer(serializers.ModelSerializer):
             'postal_code', 'country', 'email', 'phone', 'timezone', 'is_primary'
         ]
 
+    def validate_name(self, value):
+        value = (value or '').strip()
+        if not value:
+            raise serializers.ValidationError('Name is required.')
+        return value
+
+    def validate_timezone(self, value):
+        from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+        try:
+            ZoneInfo(value)
+        except (ZoneInfoNotFoundError, ValueError):
+            raise serializers.ValidationError(f'Unknown timezone "{value}". Use an IANA name like Asia/Hong_Kong.')
+        return value
+
 
 class OrganizationSerializer(serializers.ModelSerializer):
     """Serializer for Organization model."""
@@ -88,6 +102,18 @@ class OrganizationSerializer(serializers.ModelSerializer):
             'is_power_plan'
         ]
         read_only_fields = ['id', 'widget_key', 'plan', 'plan_expires_at', 'created_at', 'updated_at', 'is_power_plan']
+
+    def validate_name(self, value):
+        value = (value or '').strip()
+        if not value:
+            raise serializers.ValidationError('Name is required.')
+        return value
+
+    def validate_widget_color(self, value):
+        import re
+        if value and not re.fullmatch(r'#[0-9A-Fa-f]{6}', value):
+            raise serializers.ValidationError('Use a hex colour like #3B82F6.')
+        return value
 
     def get_locations_count(self, obj):
         return obj.locations.filter(is_active=True).count()

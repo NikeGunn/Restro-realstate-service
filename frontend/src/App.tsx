@@ -24,6 +24,7 @@ import { BookingsPage } from '@/pages/restaurant/BookingsPage'
 // Real Estate pages
 import { PropertiesPage } from '@/pages/realestate/PropertiesPage'
 import { LeadsPage } from '@/pages/realestate/LeadsPage'
+import { AppointmentsPage } from '@/pages/realestate/AppointmentsPage'
 
 // Inventory pages
 import { ItemsPage } from '@/pages/inventory/ItemsPage'
@@ -96,10 +97,13 @@ function AppInitializer() {
         ])
         setUser(user)
         if (organizations.length > 0) {
-          // Only update if store is stale/empty to avoid resetting a manually-chosen org
-          if (!currentOrganization) {
-            setCurrentOrganization(organizations[0])
-          }
+          // Keep the manually-chosen org, but always replace the persisted copy with the
+          // fresh server one — a stale cached business_type/name/plan would otherwise
+          // stick until logout (e.g. after an org switches vertical).
+          const fresh = currentOrganization
+            ? organizations.find((o: { id: string }) => o.id === currentOrganization.id)
+            : undefined
+          setCurrentOrganization(fresh ?? organizations[0])
         } else {
           setCurrentOrganization(null)
         }
@@ -218,6 +222,7 @@ function App() {
           {/* Real Estate Routes */}
           <Route path="/realestate/properties" element={<PropertiesPage />} />
           <Route path="/realestate/leads" element={<LeadsPage />} />
+          <Route path="/realestate/appointments" element={<AppointmentsPage />} />
 
           {/* Inventory Routes (Plane B — admin only, enforced by backend) */}
           <Route path="/inventory" element={<InventoryDashboardPage />} />

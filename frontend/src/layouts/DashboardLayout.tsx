@@ -51,6 +51,7 @@ import {
   Coffee,
   ScanLine,
   Ticket,
+  CalendarCheck,
 } from 'lucide-react'
 
 type NavLeaf = {
@@ -88,6 +89,7 @@ const restaurantNavKeys: NavLeaf[] = [
 const realEstateNavKeys: NavLeaf[] = [
   { kind: 'leaf', path: '/realestate/properties', labelKey: 'nav.properties', icon: Building2 },
   { kind: 'leaf', path: '/realestate/leads', labelKey: 'nav.leads', icon: Users },
+  { kind: 'leaf', path: '/realestate/appointments', labelKey: 'nav.appointments', icon: CalendarCheck },
 ]
 
 /**

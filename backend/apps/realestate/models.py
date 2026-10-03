@@ -26,6 +26,7 @@ class PropertyListing(models.Model):
     class PropertyType(models.TextChoices):
         HOUSE = 'house', 'House'
         APARTMENT = 'apartment', 'Apartment'
+        ROOM = 'room', 'Room'
         CONDO = 'condo', 'Condo'
         TOWNHOUSE = 'townhouse', 'Townhouse'
         LAND = 'land', 'Land'

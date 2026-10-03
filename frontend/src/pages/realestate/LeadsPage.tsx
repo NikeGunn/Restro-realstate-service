@@ -22,6 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { formatMoney } from '@/lib/money'
 import { useToast } from '@/hooks/use-toast'
 import { realEstateApi, organizationsApi } from '@/services/api'
 import type { Lead, Organization, LeadStats } from '@/types'
@@ -44,14 +45,6 @@ const SOURCE_LABELS: Record<string, string> = {
   other: '📝 Other',
 }
 
-const BUDGET_RANGES = [
-  { value: '0-250000', label: 'Under $250K' },
-  { value: '250000-500000', label: '$250K - $500K' },
-  { value: '500000-750000', label: '$500K - $750K' },
-  { value: '750000-1000000', label: '$750K - $1M' },
-  { value: '1000000+', label: '$1M+' },
-]
-
 const INITIAL_FORM = {
   first_name: '',
   last_name: '',
@@ -71,6 +64,7 @@ export function LeadsPage() {
   const { toast } = useToast()
   const [organizations, setOrganizations] = useState<Organization[]>([])
   const [selectedOrgId, setSelectedOrgId] = useState<string>('')
+  const orgCountry = organizations.find((o) => o.id === selectedOrgId)?.locations?.find((l) => l.is_primary)?.country
   const [leads, setLeads] = useState<Lead[]>([])
   const [stats, setStats] = useState<LeadStats | null>(null)
   const [loading, setLoading] = useState(true)
@@ -384,8 +378,8 @@ export function LeadsPage() {
                     </div>
 
                     <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
-                      {lead.budget_min && lead.budget_max && (
-                        <span>💰 ${(lead.budget_min / 1000).toFixed(0)}K - ${(lead.budget_max / 1000).toFixed(0)}K</span>
+                      {(lead.budget_min || lead.budget_max) && (
+                        <span>💰 {[lead.budget_min, lead.budget_max].filter(Boolean).map((v) => formatMoney(v, orgCountry)).join(' – ')}</span>
                       )}
                       {lead.preferred_property_type && (
                         <span>🏠 {lead.preferred_property_type}</span>

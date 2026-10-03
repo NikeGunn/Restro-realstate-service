@@ -4,6 +4,7 @@ Handles incoming webhooks from WhatsApp and Instagram.
 Includes Manager Number management endpoints.
 """
 import json
+from django.conf import settings
 import logging
 from django.http import HttpResponse, JsonResponse
 from django.views import View
@@ -108,10 +109,11 @@ class WhatsAppWebhookView(View):
                 try:
                     service = WhatsAppService(config)
                     
-                    # Verify signature in production
-                    if signature:
+                    # Signed by Meta whenever an app secret is configured — an unsigned
+                    # POST is a forgery (it could inject customer or manager messages).
+                    if signature or getattr(settings, 'META_APP_SECRET', ''):
                         if not service.verify_webhook_signature(request.body, signature):
-                            error_msg = "WhatsApp webhook signature verification failed"
+                            error_msg = "WhatsApp webhook signature missing or invalid"
                             logger.error(f"❌ {error_msg}")
                             webhook_log.error_message = error_msg
                             webhook_log.save()
@@ -231,9 +233,9 @@ class InstagramWebhookView(View):
                     service = InstagramService(config)
                     
                     # Verify signature in production
-                    if signature:
+                    if signature or getattr(settings, 'META_APP_SECRET', ''):
                         if not service.verify_webhook_signature(request.body, signature):
-                            error_msg = "Instagram webhook signature verification failed"
+                            error_msg = "Instagram webhook signature missing or invalid"
                             logger.error(f"❌ {error_msg}")
                             webhook_log.error_message = error_msg
                             webhook_log.save()
@@ -344,7 +346,7 @@ class TwilioWebhookView(View):
 
             # Verify signature when present
             signature = request.headers.get('X-Twilio-Signature', '')
-            if signature:
+            if signature or service.config.auth_token:
                 # Use the URL Twilio actually called. Honour proxy headers.
                 proto = request.headers.get('X-Forwarded-Proto') or request.scheme
                 host = request.headers.get('X-Forwarded-Host') or request.get_host()
@@ -373,6 +375,15 @@ class TwilioWebhookView(View):
             return HttpResponse('OK', status=200)
 
 
+def _require_owner(user, org_id):
+    """Channel credentials control who speaks for the business — owners only."""
+    from rest_framework.exceptions import PermissionDenied
+    if not OrganizationMembership.objects.filter(
+        user=user, organization_id=org_id, role=OrganizationMembership.Role.OWNER,
+    ).exists():
+        raise PermissionDenied("Only the organization owner can change channel credentials.")
+
+
 class TwilioConfigViewSet(viewsets.ModelViewSet):
     """ViewSet for managing Twilio WhatsApp configuration."""
     serializer_class = TwilioConfigSerializer
@@ -385,20 +396,21 @@ class TwilioConfigViewSet(viewsets.ModelViewSet):
         ).values_list('organization_id', flat=True)
         return TwilioConfig.objects.filter(organization_id__in=org_ids)
 
+    def perform_destroy(self, instance):
+        _require_owner(self.request.user, instance.organization_id)
+        instance.delete()
+
     def perform_create(self, serializer):
         org_id = self.request.data.get('organization')
-        if not OrganizationMembership.objects.filter(
-            user=self.request.user,
-            organization_id=org_id
-        ).exists():
-            from rest_framework.exceptions import PermissionDenied
-            raise PermissionDenied("Not a member of this organization")
+        _require_owner(self.request.user, org_id)
 
         config = serializer.save()
         self._auto_verify(config)
 
     def perform_update(self, serializer):
-        config = serializer.save()
+        _require_owner(self.request.user, serializer.instance.organization_id)
+        # A config can never be moved to another organization.
+        config = serializer.save(organization=serializer.instance.organization)
         if any(f in serializer.validated_data for f in ('account_sid', 'auth_token', 'from_number')):
             self._auto_verify(config)
 
@@ -522,14 +534,13 @@ class WhatsAppConfigViewSet(viewsets.ModelViewSet):
         ).values_list('organization_id', flat=True)
         return WhatsAppConfig.objects.filter(organization_id__in=org_ids)
     
+    def perform_destroy(self, instance):
+        _require_owner(self.request.user, instance.organization_id)
+        instance.delete()
+
     def perform_create(self, serializer):
         org_id = self.request.data.get('organization')
-        if not OrganizationMembership.objects.filter(
-            user=self.request.user,
-            organization_id=org_id
-        ).exists():
-            from rest_framework.exceptions import PermissionDenied
-            raise PermissionDenied("Not a member of this organization")
+        _require_owner(self.request.user, org_id)
         
         # WhatsApp is available on both Basic and Power plans
         # No plan restriction needed for WhatsApp
@@ -541,7 +552,9 @@ class WhatsAppConfigViewSet(viewsets.ModelViewSet):
     
     def perform_update(self, serializer):
         """Auto-verify credentials when token or phone ID is updated."""
-        config = serializer.save()
+        _require_owner(self.request.user, serializer.instance.organization_id)
+        # A config can never be moved to another organization.
+        config = serializer.save(organization=serializer.instance.organization)
         
         # Check if critical fields were updated
         if 'access_token' in serializer.validated_data or 'phone_number_id' in serializer.validated_data:
@@ -706,14 +719,13 @@ class InstagramConfigViewSet(viewsets.ModelViewSet):
         ).values_list('organization_id', flat=True)
         return InstagramConfig.objects.filter(organization_id__in=org_ids)
     
+    def perform_destroy(self, instance):
+        _require_owner(self.request.user, instance.organization_id)
+        instance.delete()
+
     def perform_create(self, serializer):
         org_id = self.request.data.get('organization')
-        if not OrganizationMembership.objects.filter(
-            user=self.request.user,
-            organization_id=org_id
-        ).exists():
-            from rest_framework.exceptions import PermissionDenied
-            raise PermissionDenied("Not a member of this organization")
+        _require_owner(self.request.user, org_id)
         
         # Instagram requires Power plan
         org = Organization.objects.get(id=org_id)
@@ -728,7 +740,8 @@ class InstagramConfigViewSet(viewsets.ModelViewSet):
     
     def perform_update(self, serializer):
         """Auto-verify credentials when token or business ID is updated."""
-        config = serializer.save()
+        _require_owner(self.request.user, serializer.instance.organization_id)
+        config = serializer.save(organization=serializer.instance.organization)
         
         # Check if critical fields were updated
         if 'access_token' in serializer.validated_data or 'instagram_business_id' in serializer.validated_data:

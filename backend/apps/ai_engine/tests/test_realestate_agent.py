@@ -12,7 +12,7 @@ import pytest
 
 from apps.accounts.models import Location, Organization
 from apps.ai_engine.agent import memory as agent_memory
-from apps.ai_engine.agent.tools import RealEstateTools, hk_now
+from apps.ai_engine.agent.tools import RealEstateTools, format_money
 from apps.ai_engine.agent.verifier import verify_reply
 from apps.ai_engine.models import AgentMemory
 from apps.ai_engine.services import AIService
@@ -25,7 +25,8 @@ pytestmark = pytest.mark.django_db
 @pytest.fixture
 def org():
     o = Organization.objects.create(name='Acme Realty', business_type='real_estate')
-    Location.objects.create(organization=o, name='HQ', is_primary=True, is_active=True)
+    Location.objects.create(organization=o, name='HQ', is_primary=True, is_active=True,
+                            country='Hong Kong', timezone='Asia/Hong_Kong')
     return o
 
 
@@ -82,14 +83,14 @@ def test_gate_allows_booking_claim_after_tool():
 # --------------------------------------------------------------------- tools
 def test_book_viewing_rejects_out_of_hours_and_past(conv, listing):
     tools = RealEstateTools(conv)
-    tomorrow = (hk_now() + timedelta(days=1)).date().isoformat()
+    tomorrow = (RealEstateTools(conv).now() + timedelta(days=1)).date().isoformat()
     assert not tools.book_viewing(date=tomorrow, time='23:00', property_reference=listing.reference_number)['ok']
     assert not tools.book_viewing(date='2020-01-01', time='15:00')['ok']
     assert Appointment.objects.count() == 0
 
 
 def test_book_viewing_creates_appointment_and_memory(conv, listing):
-    tomorrow = (hk_now() + timedelta(days=1)).date().isoformat()
+    tomorrow = (RealEstateTools(conv).now() + timedelta(days=1)).date().isoformat()
     res = RealEstateTools(conv).book_viewing(date=tomorrow, time='15:00', name='Priya Sharma',
                                              property_reference=listing.reference_number)
     assert res['ok'] and res['appointment']['confirmation_code'].startswith('APT')
@@ -117,7 +118,7 @@ def test_hallucinated_booking_never_reaches_customer(conv, listing):
 
 
 def test_tool_loop_books_then_confirms(conv, listing):
-    tomorrow = (hk_now() + timedelta(days=1)).date().isoformat()
+    tomorrow = (RealEstateTools(conv).now() + timedelta(days=1)).date().isoformat()
     first = _msg(tool_calls=[_call('book_viewing', {'date': tomorrow, 'time': '15:00', 'name': 'Priya',
                                                     'property_reference': listing.reference_number})])
 
@@ -166,7 +167,7 @@ def test_gate_accepts_customer_stated_millions():
 
 
 def test_book_viewing_rejects_weekday_mismatch(conv, listing):
-    day = (hk_now() + timedelta(days=3)).date()
+    day = (RealEstateTools(conv).now() + timedelta(days=3)).date()
     wrong = (day + timedelta(days=1)).strftime('%A')
     res = RealEstateTools(conv).book_viewing(date=day.isoformat(), time='11:00', weekday=wrong, name='Priya')
     assert not res['ok'] and 'not' in res['error']
@@ -211,3 +212,34 @@ def test_vague_budget_turn_never_dead_ends(conv, listing):
     out = svc.process_message('I want cheap rooms i am student')
     assert out['metadata']['verified'] is True
     assert 'HK$32,000' in out['content'] and 'HK$15,000' not in out['content']
+
+
+# ------------------------------------------------------------- Nepal market
+@pytest.fixture
+def nepal_conv():
+    o = Organization.objects.create(name='Ghar Jagga', business_type='real_estate')
+    Location.objects.create(organization=o, name='KTM', is_primary=True, is_active=True, country='Nepal')
+    PropertyListing.objects.create(organization=o, title='Room near TU', description='x', listing_type='rent',
+                                   property_type='room', price=Decimal('6000'), address_line1='a', city='Kirtipur',
+                                   state='Bagmati', postal_code='0')
+    return Conversation.objects.create(organization=o, channel=Channel.WHATSAPP, customer_phone='9779812345678')
+
+
+def test_nepal_market_uses_npr_and_kathmandu_time(nepal_conv):
+    tools = RealEstateTools(nepal_conv)
+    assert tools.market['currency'] == 'Rs' and tools.market['tz'] == 'Asia/Kathmandu'
+    assert tools.search_properties(area='Nepal')['results'][0]['price'] == 'Rs 6,000/month'
+
+
+def test_lakh_crore_formatting():
+    from apps.ai_engine.agent.tools import MARKETS
+    assert format_money(Decimal('38500000'), MARKETS['nepal']) == 'Rs 3,85,00,000 (3.85 crore)'
+    assert format_money(Decimal('250000'), MARKETS['nepal']) == 'Rs 2,50,000 (2.5 lakh)'
+
+
+def test_gate_understands_npr_lakh_crore():
+    ev = ['"price": "Rs 3,85,00,000 (3.85 crore)"', '"price": "Rs 6,000/month"']
+    assert verify_reply("The house is Rs 3.85 crore and the room Rs 6,000/month.", ev, []).ok
+    assert not verify_reply("Room only Rs 4,000 per month!", ev, []).ok
+    assert not verify_reply("Land is 2 crore.", ev, []).ok
+    assert verify_reply("Your budget of 15 hajar is noted; 50 lakh too.", ev + ['budget 50 lakh'], []).ok

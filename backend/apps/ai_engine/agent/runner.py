@@ -21,7 +21,7 @@ from django.conf import settings
 from apps.messaging.models import MessageSender
 
 from . import memory as agent_memory
-from .tools import TOOL_SCHEMAS, RealEstateTools, hk_now
+from .tools import TOOL_SCHEMAS, RealEstateTools
 from .verifier import salvage, verify_reply
 
 logger = logging.getLogger(__name__)
@@ -54,7 +54,8 @@ class RealEstateAgent:
     def _system_prompt(self, language: str) -> str:
         from apps.ai_engine.language_service import LanguageService
 
-        now = hk_now()
+        now = self.tools.now()
+        market = self.tools.market
         appts = self.tools.get_my_appointments()
         self.has_appointments = bool(appts.get('appointments'))
         appt_text = "\n".join(
@@ -68,6 +69,7 @@ class RealEstateAgent:
             business_name=self.organization.name,
             channel=str(self.conversation.channel or 'website'),
             language_name=LanguageService.get_language_display_name(language),
+            market=market['name'] or 'the local market', currency=market['currency'], timezone=market['tz'],
             now_local=now.strftime('%Y-%m-%d %H:%M'), weekday=now.strftime('%A'),
             today=now.strftime('%Y-%m-%d'),
         )
@@ -92,12 +94,17 @@ class RealEstateAgent:
         )
         self.evidence.extend([knowledge, appt_text, overrides])
         return "\n\n".join([
-            soul, _load('intent.md'), _load('skills/real_estate.md'), mem,
+            soul, _load('intent.md'), _load(self._skill_file(market)), mem,
             "# CALENDAR (use this, never compute dates yourself; \"next Saturday\" = the first Saturday after today)\n"
             + calendar,
             f"# KNOWLEDGE (agency facts — the only non-tool source of truth)\n{knowledge}",
             channel_note,
         ])
+
+    @staticmethod
+    def _skill_file(market) -> str:
+        specific = PROMPT_DIR / 'skills' / f"real_estate_{market['name'].lower().replace(' ', '_')}.md"
+        return f"skills/{specific.name}" if market['name'] and specific.exists() else 'skills/real_estate.md'
 
     def _history(self, current: str) -> List[Dict[str, str]]:
         msgs = list(self.conversation.messages.order_by('-created_at')[:HISTORY_MESSAGES])

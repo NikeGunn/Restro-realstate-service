@@ -103,7 +103,7 @@ export const organizationsApi = {
     return response.data
   },
 
-  update: async (id: string, data: Partial<{ name: string; widget_color: string; widget_greeting: string }>) => {
+  update: async (id: string, data: Partial<{ name: string; widget_color: string; widget_greeting: string; widget_position: string }>) => {
     const response = await api.patch(`/organizations/${id}/`, data)
     return response.data
   },
@@ -316,9 +316,10 @@ export const locationsApi = {
 
   create: async (organizationId: string, data: {
     name: string
-    address?: string
+    address_line1?: string
     phone?: string
     email?: string
+    timezone?: string
   }) => {
     const response = await api.post(`/organizations/${organizationId}/locations/`, data)
     return response.data
@@ -978,12 +979,14 @@ export const realEstateApi = {
     },
 
     create: async (data: {
+      organization: string
       lead: string
-      property?: string
+      property_listing?: string | null
       appointment_date: string
       appointment_time: string
       duration_minutes?: number
       appointment_type?: string
+      meeting_location?: string
       notes?: string
     }) => {
       const response = await api.post('/realestate/appointments/', data)
@@ -1007,12 +1010,12 @@ export const realEstateApi = {
     },
 
     cancel: async (id: string, reason?: string) => {
-      const response = await api.post(`/realestate/appointments/${id}/cancel/`, { cancellation_reason: reason })
+      const response = await api.post(`/realestate/appointments/${id}/cancel/`, { reason })
       return response.data
     },
 
     complete: async (id: string, outcomeNotes?: string) => {
-      const response = await api.post(`/realestate/appointments/${id}/complete/`, { outcome_notes: outcomeNotes })
+      const response = await api.post(`/realestate/appointments/${id}/complete/`, { outcome: outcomeNotes })
       return response.data
     },
 

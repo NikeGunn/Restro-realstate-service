@@ -549,23 +549,33 @@ export interface Lead {
   updated_at: string;
 }
 
+export type AppointmentType = 'viewing' | 'consultation' | 'virtual_tour' | 'meeting' | 'follow_up';
+export type AppointmentStatus = 'scheduled' | 'confirmed' | 'completed' | 'cancelled' | 'no_show' | 'rescheduled';
+
 export interface Appointment {
   id: string;
+  organization: string;
+  location: string | null;
+  location_name: string | null;
   lead: string;
   lead_name: string;
-  property: string | null;
+  lead_phone: string;
+  property_listing: string | null;
   property_title: string | null;
   property_address: string | null;
+  conversation: string | null;
   appointment_date: string;
   appointment_time: string;
   duration_minutes: number;
-  appointment_type: 'in_person' | 'virtual' | 'phone';
+  meeting_location: string;
+  virtual_meeting_url: string;
+  appointment_type: AppointmentType;
   appointment_type_display: string;
-  status: 'scheduled' | 'confirmed' | 'completed' | 'cancelled' | 'no_show';
+  status: AppointmentStatus;
   status_display: string;
   confirmation_code: string;
   notes: string;
-  outcome_notes: string;
+  outcome: string;
   assigned_agent: string | null;
   assigned_agent_name: string | null;
   confirmed_at: string | null;

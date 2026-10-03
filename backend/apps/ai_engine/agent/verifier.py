@@ -13,10 +13,12 @@ from typing import Iterable, List, Set
 
 REF_RE = re.compile(r'\bPROP\d{6}\b', re.I)
 APPT_RE = re.compile(r'\bAPT[A-Z0-9]{6}\b', re.I)
-# HK$1,234,567 · $32,000 · HKD 5.98M · HK$18.8 million · 42,000,000 港元
+# HK$1,234,567 · $32,000 · HKD 5.98M · 42,000,000 港元 · Rs 12,000 · NPR 1,85,00,000 · रु. 50 लाख · 1.85 crore
+UNIT = r'(million|m\b|萬|万|k\b|lakhs?|lacs?|crores?|cr\b|लाख|करोड)'
 MONEY_RE = re.compile(
-    r'(?:HK\$|HKD\s?|\$|港幣|港元)\s?(\d[\d,]*(?:\.\d+)?)\s*(million|m\b|萬|万|k\b)?'
-    r'|(\d[\d,]*(?:\.\d+)?)\s*(million|萬|万)?\s*(?:港元|港幣|HKD)',
+    r'(?:HK\$|HKD\s?|\$|港幣|港元|Rs\.?|NPR|रु\.?|रू\.?)\s?(\d[\d,]*(?:\.\d+)?)\s*' + UNIT + r'?'
+    r'|(\d[\d,]*(?:\.\d+)?)\s*' + UNIT + r'?\s*(?:港元|港幣|HKD|rupees|रुपैयाँ)'
+    r'|(\d[\d,]*(?:\.\d+)?)\s*(lakhs?|lacs?|crores?|लाख|करोड)',
     re.I,
 )
 NUMBER_RE = re.compile(r'\d[\d,]*(?:\.\d+)?')
@@ -39,10 +41,14 @@ def _to_number(raw: str, unit: str = '') -> float:
         value *= 10_000
     elif unit == 'k':
         value *= 1_000
+    elif unit.startswith(('lakh', 'lac')) or unit == 'लाख':
+        value *= 100_000
+    elif unit.startswith('crore') or unit in ('cr', 'करोड'):
+        value *= 10_000_000
     return value
 
 
-SCALED_RE = re.compile(r'(\d[\d,]*(?:\.\d+)?)\s*(million|mil|m\b|萬|万|k\b)', re.I)
+SCALED_RE = re.compile(r'(\d[\d,]*(?:\.\d+)?)\s*(million|mil|m\b|萬|万|k\b|lakhs?|lacs?|crores?|cr\b|लाख|करोड)', re.I)
 
 
 def evidence_numbers(texts: Iterable[str]) -> Set[float]:
@@ -92,7 +98,7 @@ def verify_reply(reply: str, evidence: List[str], actions: List[dict],
 
     known = evidence_numbers(evidence)
     for m in MONEY_RE.finditer(reply):
-        raw, unit = (m.group(1), m.group(2)) if m.group(1) else (m.group(3), m.group(4))
+        raw, unit = next(((m.group(i), m.group(i + 1)) for i in (1, 3, 5) if m.group(i)), (None, None))
         try:
             value = round(_to_number(raw, unit), 2)
         except (TypeError, ValueError):

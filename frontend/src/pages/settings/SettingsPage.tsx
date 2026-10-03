@@ -12,6 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useToast } from '@/hooks/use-toast'
 import { WidgetPreview } from '@/components/WidgetPreview'
 import { RedeemCouponCard } from '@/components/RedeemCouponCard'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import {
   Building2,
   MapPin,
@@ -40,15 +41,31 @@ export function SettingsPage() {
     name: '',
     widget_position: 'bottom-right',
     widget_color: '#3B82F6',
-    greeting_message: '',
+    widget_greeting: '',
   })
 
-  const [newLocation, setNewLocation] = useState({
+  const EMPTY_LOCATION = {
     name: '',
-    address: '',
+    address_line1: '',
     phone: '',
     email: '',
-  })
+    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Hong_Kong',
+  }
+  const [newLocation, setNewLocation] = useState(EMPTY_LOCATION)
+  const [addingLocation, setAddingLocation] = useState(false)
+  const [locationToDelete, setLocationToDelete] = useState<Location | null>(null)
+  const [deletingLocation, setDeletingLocation] = useState(false)
+
+  /** Readable message from a DRF error ({field: [msg]} | {error} | {detail}). */
+  const apiError = (error: unknown, fallback: string) => {
+    const data = (error as { response?: { data?: unknown } })?.response?.data
+    if (!data || typeof data !== 'object') return fallback
+    const obj = data as Record<string, unknown>
+    if (typeof obj.error === 'string') return obj.error
+    if (typeof obj.detail === 'string') return obj.detail
+    const first = Object.entries(obj)[0]
+    return first ? `${first[0]}: ${Array.isArray(first[1]) ? first[1].join(' ') : String(first[1])}` : fallback
+  }
 
   useEffect(() => {
     if (currentOrganization) {
@@ -56,7 +73,7 @@ export function SettingsPage() {
         name: currentOrganization.name || '',
         widget_position: currentOrganization.widget_position || 'bottom-right',
         widget_color: currentOrganization.widget_color || '#3B82F6',
-        greeting_message: currentOrganization.greeting_message || '',
+        widget_greeting: currentOrganization.widget_greeting || '',
       })
       fetchLocations()
     }
@@ -76,21 +93,32 @@ export function SettingsPage() {
 
   const handleSaveOrganization = async () => {
     if (!currentOrganization) return
+    if (!orgForm.name.trim()) {
+      toast({ variant: 'destructive', title: t('common.error'), description: t('settings.errNameRequired', { defaultValue: 'Organization name is required.' }) })
+      return
+    }
+    if (!/^#[0-9A-Fa-f]{6}$/.test(orgForm.widget_color)) {
+      toast({ variant: 'destructive', title: t('common.error'), description: t('settings.errColor', { defaultValue: 'Use a hex colour like #3B82F6.' }) })
+      return
+    }
 
     setSaving(true)
     try {
-      const updated = await organizationsApi.update(currentOrganization.id, orgForm)
+      const updated = await organizationsApi.update(currentOrganization.id, { ...orgForm, name: orgForm.name.trim() })
       setCurrentOrganization({ ...currentOrganization, ...updated })
       toast({
-        title: 'Saved!',
-        description: 'Organization settings updated.',
+        title: t('settings.savedTitle', { defaultValue: 'Saved' }),
+        description: t('settings.savedOrg', { defaultValue: 'Organization settings updated.' }),
       })
     } catch (error) {
       console.error('Error saving organization:', error)
+      const status = (error as { response?: { status?: number } })?.response?.status
       toast({
         variant: 'destructive',
-        title: 'Error',
-        description: 'Failed to save settings.',
+        title: t('common.error'),
+        description: status === 403
+          ? t('settings.errOwnerOnly', { defaultValue: 'Only the organization owner can change these settings.' })
+          : apiError(error, t('settings.errSave', { defaultValue: 'Failed to save settings.' })),
       })
     } finally {
       setSaving(false)
@@ -98,11 +126,16 @@ export function SettingsPage() {
   }
 
   const handleAddLocation = async () => {
-    if (!currentOrganization || !newLocation.name.trim()) return
+    if (!currentOrganization || !newLocation.name.trim() || addingLocation) return
+    if (newLocation.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newLocation.email)) {
+      toast({ variant: 'destructive', title: t('common.error'), description: t('settings.errEmail', { defaultValue: 'Enter a valid email address.' }) })
+      return
+    }
 
+    setAddingLocation(true)
     try {
-      await locationsApi.create(currentOrganization.id, newLocation)
-      setNewLocation({ name: '', address: '', phone: '', email: '' })
+      await locationsApi.create(currentOrganization.id, { ...newLocation, name: newLocation.name.trim() })
+      setNewLocation(EMPTY_LOCATION)
       await fetchLocations()
       toast({
         title: 'Location added',
@@ -112,17 +145,21 @@ export function SettingsPage() {
       console.error('Error adding location:', error)
       toast({
         variant: 'destructive',
-        title: 'Error',
-        description: 'Failed to add location.',
+        title: t('common.error'),
+        description: apiError(error, t('settings.errAddLocation', { defaultValue: 'Failed to add location.' })),
       })
+    } finally {
+      setAddingLocation(false)
     }
   }
 
-  const handleDeleteLocation = async (locationId: string) => {
-    if (!currentOrganization) return
+  const handleDeleteLocation = async () => {
+    if (!currentOrganization || !locationToDelete) return
 
+    setDeletingLocation(true)
     try {
-      await locationsApi.delete(currentOrganization.id, locationId)
+      await locationsApi.delete(currentOrganization.id, locationToDelete.id)
+      setLocationToDelete(null)
       await fetchLocations()
       toast({
         title: 'Location deleted',
@@ -132,9 +169,11 @@ export function SettingsPage() {
       console.error('Error deleting location:', error)
       toast({
         variant: 'destructive',
-        title: 'Error',
-        description: 'Failed to delete location.',
+        title: t('common.error'),
+        description: apiError(error, t('settings.errDeleteLocation', { defaultValue: 'Failed to remove location.' })),
       })
+    } finally {
+      setDeletingLocation(false)
     }
   }
 
@@ -162,7 +201,8 @@ export function SettingsPage() {
     if (!currentOrganization) return
 
     const code = getWidgetCode()
-    navigator.clipboard.writeText(code)
+    navigator.clipboard.writeText(code).catch(() =>
+      toast({ variant: 'destructive', title: t('common.error'), description: t('settings.errCopy', { defaultValue: 'Copy failed — select the code and copy it manually.' }) }))
     toast({
       title: 'Copied!',
       description: 'Widget code copied to clipboard.',
@@ -314,9 +354,9 @@ export function SettingsPage() {
                     id="greeting"
                     className="w-full min-h-[80px] p-3 rounded-md border bg-background"
                     placeholder={t('settings.greetingPlaceholder')}
-                    value={orgForm.greeting_message}
+                    value={orgForm.widget_greeting}
                     onChange={(e) =>
-                      setOrgForm((prev) => ({ ...prev, greeting_message: e.target.value }))
+                      setOrgForm((prev) => ({ ...prev, widget_greeting: e.target.value }))
                     }
                   />
                 </div>
@@ -451,9 +491,10 @@ export function SettingsPage() {
                   <Input
                     id="loc_address"
                     placeholder={t('settings.locationAddressPlaceholder')}
-                    value={newLocation.address}
+                    value={newLocation.address_line1}
+                    maxLength={255}
                     onChange={(e) =>
-                      setNewLocation((prev) => ({ ...prev, address: e.target.value }))
+                      setNewLocation((prev) => ({ ...prev, address_line1: e.target.value }))
                     }
                   />
                 </div>
@@ -482,9 +523,21 @@ export function SettingsPage() {
                     />
                   </div>
                 </div>
-                <Button onClick={handleAddLocation}>
+                <div className="space-y-2">
+                  <Label htmlFor="loc_tz">{t('settings.timezone', { defaultValue: 'Timezone' })}</Label>
+                  <Input
+                    id="loc_tz"
+                    placeholder="Asia/Hong_Kong"
+                    value={newLocation.timezone}
+                    onChange={(e) => setNewLocation((prev) => ({ ...prev, timezone: e.target.value.trim() }))}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    {t('settings.timezoneHint', { defaultValue: 'Used for "today", viewing slots and reminders. IANA name, e.g. Asia/Hong_Kong.' })}
+                  </p>
+                </div>
+                <Button onClick={handleAddLocation} disabled={!newLocation.name.trim() || addingLocation}>
                   <Plus className="h-4 w-4 mr-2" />
-                  {t('settings.addLocation')}
+                  {addingLocation ? t('common.saving') : t('settings.addLocation')}
                 </Button>
               </CardContent>
             </Card>
@@ -515,26 +568,32 @@ export function SettingsPage() {
                         <div>
                           <div className="flex items-center gap-2">
                             <p className="font-medium">{loc.name}</p>
-                            {!loc.is_active && (
-                              <Badge variant="secondary">Inactive</Badge>
+                            {loc.is_primary && (
+                              <Badge variant="outline">{t('settings.primary', { defaultValue: 'Primary' })}</Badge>
                             )}
                           </div>
-                          {loc.address && (
-                            <p className="text-sm text-muted-foreground">{loc.address}</p>
+                          {(loc.address_line1 || loc.city) && (
+                            <p className="text-sm text-muted-foreground">
+                              {[loc.address_line1, loc.city].filter(Boolean).join(', ')}
+                            </p>
                           )}
                           <div className="flex gap-4 text-xs text-muted-foreground mt-1">
                             {loc.phone && <span>{loc.phone}</span>}
                             {loc.email && <span>{loc.email}</span>}
+                            {loc.timezone && <span>{loc.timezone}</span>}
                           </div>
                         </div>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="opacity-0 group-hover:opacity-100"
-                          onClick={() => handleDeleteLocation(loc.id)}
-                        >
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
+                        {!loc.is_primary && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            aria-label={t('settings.removeLocation', { defaultValue: 'Remove location' })}
+                            className="opacity-60 hover:opacity-100 focus-visible:opacity-100"
+                            onClick={() => setLocationToDelete(loc)}
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -549,6 +608,25 @@ export function SettingsPage() {
         </TabsContent>
       </Tabs>
       </div>
-    </>
+          <Dialog open={!!locationToDelete} onOpenChange={(o) => { if (!o && !deletingLocation) setLocationToDelete(null) }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t('settings.removeLocationTitle', { defaultValue: 'Remove this location?' })}</DialogTitle>
+            <DialogDescription>
+              {t('settings.removeLocationBody', {
+                defaultValue: '"{{name}}" will be hidden from your dashboard and chat assistant. Its listings, leads and history are kept.',
+                name: locationToDelete?.name ?? '',
+              })}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setLocationToDelete(null)} disabled={deletingLocation}>{t('common.cancel')}</Button>
+            <Button variant="destructive" onClick={handleDeleteLocation} disabled={deletingLocation}>
+              {deletingLocation ? t('common.saving') : t('settings.removeLocation', { defaultValue: 'Remove location' })}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+</>
   )
 }

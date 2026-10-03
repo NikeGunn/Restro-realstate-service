@@ -23,6 +23,14 @@ class OrganizationViewSet(ModelViewSet):
     ViewSet for managing organizations.
     """
     permission_classes = [permissions.IsAuthenticated]
+    # Deleting a tenant cascades every row it owns — admin-only, never via the API.
+    http_method_names = ['get', 'post', 'put', 'patch', 'head', 'options']
+
+    def get_permissions(self):
+        # Managers can read the org; only owners may change it.
+        if self.action in ('update', 'partial_update'):
+            return [permissions.IsAuthenticated(), IsOrganizationOwner()]
+        return super().get_permissions()
 
     def get_queryset(self):
         """Return organizations user is a member of."""
@@ -58,9 +66,29 @@ class LocationViewSet(ModelViewSet):
     """
     permission_classes = [permissions.IsAuthenticated, IsOrganizationMember]
 
+    def get_permissions(self):
+        if self.action in ('create', 'update', 'partial_update', 'destroy'):
+            return [permissions.IsAuthenticated(), IsOrganizationOwner()]
+        return super().get_permissions()
+
     def get_queryset(self):
         org_id = self.kwargs.get('organization_pk')
-        return Location.objects.filter(organization_id=org_id)
+        # Removed locations are soft-deleted (is_active=False) and hidden.
+        return Location.objects.filter(organization_id=org_id, is_active=True)
+
+    def perform_destroy(self, instance):
+        """
+        Soft-delete. Listings, leads, appointments and knowledge FK to Location with
+        CASCADE, so a hard delete would silently wipe a branch's business data.
+        """
+        from rest_framework.exceptions import ValidationError
+
+        if instance.is_primary:
+            raise ValidationError({'error': 'The primary location cannot be removed. Make another location primary first.'})
+        if not Location.objects.filter(organization=instance.organization, is_active=True).exclude(pk=instance.pk).exists():
+            raise ValidationError({'error': 'An organization needs at least one location.'})
+        instance.is_active = False
+        instance.save(update_fields=['is_active', 'updated_at'])
 
     def get_serializer_class(self):
         if self.action in ['create', 'update', 'partial_update']:

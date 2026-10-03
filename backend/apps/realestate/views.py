@@ -361,6 +361,22 @@ class LeadViewSet(viewsets.ModelViewSet):
         return Response(stats)
 
 
+def _org_local_today(org_id):
+    """'Today' in the organization's primary-location timezone (UTC fallback)."""
+    from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+    from apps.accounts.models import Location
+
+    tz_name = None
+    if org_id:
+        loc = (Location.objects.filter(organization_id=org_id, is_active=True)
+               .order_by('-is_primary').values_list('timezone', flat=True).first())
+        tz_name = loc
+    try:
+        return timezone.now().astimezone(ZoneInfo(tz_name)).date() if tz_name else timezone.now().date()
+    except (ZoneInfoNotFoundError, ValueError):
+        return timezone.now().date()
+
+
 class AppointmentViewSet(viewsets.ModelViewSet):
     """ViewSet for managing appointments."""
     permission_classes = [permissions.IsAuthenticated]
@@ -434,11 +450,32 @@ class AppointmentViewSet(viewsets.ModelViewSet):
             from rest_framework.exceptions import PermissionDenied
             raise PermissionDenied('You do not have access to this organization.')
         serializer.save()
-    
+
+    def create(self, request, *args, **kwargs):
+        """Respond with the full read representation (confirmation code, display fields)."""
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        return Response(AppointmentSerializer(serializer.instance).data, status=status.HTTP_201_CREATED)
+
+    ACTIVE_STATUSES = (Appointment.Status.SCHEDULED, Appointment.Status.CONFIRMED)
+
+    def _guard(self, appointment, allowed, action_name):
+        """Reject transitions out of a terminal state (e.g. cancelling a completed viewing)."""
+        if appointment.status not in allowed:
+            return Response(
+                {'error': f"Cannot {action_name} an appointment that is {appointment.get_status_display().lower()}."},
+                status=status.HTTP_409_CONFLICT,
+            )
+        return None
+
     @action(detail=True, methods=['post'])
     def confirm(self, request, pk=None):
         """Confirm appointment."""
         appointment = self.get_object()
+        blocked = self._guard(appointment, (Appointment.Status.SCHEDULED,), 'confirm')
+        if blocked:
+            return blocked
         appointment.confirm()
         return Response(AppointmentSerializer(appointment).data)
     
@@ -446,29 +483,38 @@ class AppointmentViewSet(viewsets.ModelViewSet):
     def cancel(self, request, pk=None):
         """Cancel appointment."""
         appointment = self.get_object()
-        reason = request.data.get('reason', '')
-        appointment.cancel(reason=reason)
+        blocked = self._guard(appointment, self.ACTIVE_STATUSES, 'cancel')
+        if blocked:
+            return blocked
+        reason = request.data.get('reason') or request.data.get('cancellation_reason') or ''
+        appointment.cancel(reason=str(reason)[:1000])
         return Response(AppointmentSerializer(appointment).data)
     
     @action(detail=True, methods=['post'])
     def complete(self, request, pk=None):
         """Mark appointment as completed."""
         appointment = self.get_object()
-        outcome = request.data.get('outcome', '')
-        appointment.complete(outcome=outcome)
+        blocked = self._guard(appointment, self.ACTIVE_STATUSES, 'complete')
+        if blocked:
+            return blocked
+        outcome = request.data.get('outcome') or request.data.get('outcome_notes') or ''
+        appointment.complete(outcome=str(outcome)[:2000])
         return Response(AppointmentSerializer(appointment).data)
     
     @action(detail=True, methods=['post'])
     def no_show(self, request, pk=None):
         """Mark as no-show."""
         appointment = self.get_object()
+        blocked = self._guard(appointment, self.ACTIVE_STATUSES, 'mark as no-show')
+        if blocked:
+            return blocked
         appointment.mark_no_show()
         return Response(AppointmentSerializer(appointment).data)
     
     @action(detail=False, methods=['get'])
     def today(self, request):
         """Get today's appointments."""
-        today = timezone.now().date()
+        today = _org_local_today(request.query_params.get('organization'))
         queryset = self.get_queryset().filter(appointment_date=today)
         serializer = AppointmentSerializer(queryset, many=True)
         return Response(serializer.data)
@@ -476,7 +522,7 @@ class AppointmentViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'])
     def upcoming(self, request):
         """Get upcoming appointments (next 7 days)."""
-        today = timezone.now().date()
+        today = _org_local_today(request.query_params.get('organization'))
         end_date = today + timedelta(days=7)
         queryset = self.get_queryset().filter(
             appointment_date__gte=today,

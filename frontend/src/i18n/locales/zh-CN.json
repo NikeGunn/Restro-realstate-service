@@ -137,7 +137,8 @@
     "coffeePassRedeem": "核销",
     "coffeePassPasses": "通行证",
     "coffeePassPlans": "方案",
-    "coffeePassAnalytics": "分析"
+    "coffeePassAnalytics": "分析",
+    "appointments": "预约"
   },
   "inventory": {
     "title": "库存",
@@ -933,6 +934,106 @@
       "markContacted": "标记为已联系",
       "qualify": "验证",
       "convert": "转化"
+    },
+    "appointments": {
+      "title": "预约",
+      "subtitle": "看房、视频看房与咨询——包括 AI 助手预约的行程。",
+      "new": "新建预约",
+      "today": "今天",
+      "tomorrow": "明天",
+      "min": "分钟",
+      "noOrg": "请选择机构以查看预约。",
+      "searchPlaceholder": "搜索姓名、电话、编号或物业",
+      "allStatuses": "全部状态",
+      "noMatch": "没有符合搜索条件的预约。",
+      "unknownLead": "未知客户",
+      "noProperty": "未关联物业",
+      "bookedByAi": "AI 预约",
+      "stats": {
+        "today": "今天",
+        "next7": "未来 7 天",
+        "completion": "完成率（30天）",
+        "noShow": "爽约率（30天）"
+      },
+      "view": {
+        "upcoming": "即将到来",
+        "today": "今天",
+        "past": "过去",
+        "all": "全部"
+      },
+      "empty": {
+        "upcoming": "暂无即将到来的预约。聊天中的新预约会自动显示在这里。",
+        "today": "今天没有安排。",
+        "past": "暂无过去的预约。",
+        "all": "暂无预约。"
+      },
+      "status": {
+        "scheduled": "已安排",
+        "confirmed": "已确认",
+        "completed": "已完成",
+        "cancelled": "已取消",
+        "no_show": "爽约",
+        "rescheduled": "已改期"
+      },
+      "type": {
+        "viewing": "看房",
+        "virtual_tour": "视频看房",
+        "consultation": "咨询",
+        "meeting": "会面",
+        "follow_up": "跟进"
+      },
+      "action": {
+        "confirm": "确认",
+        "complete": "完成",
+        "noShow": "爽约",
+        "cancel": "取消"
+      },
+      "dialog": {
+        "cancel": {
+          "title": "取消此预约？",
+          "body": "{{name}} · {{code}} · {{when}}。系统不会自动通知客户。",
+          "noteLabel": "原因（可选）",
+          "notePlaceholder": "例如：客户要求改期"
+        },
+        "complete": {
+          "title": "标记为已完成",
+          "body": "{{name}} · {{code}} · {{when}}",
+          "noteLabel": "结果（可选）",
+          "notePlaceholder": "例如：喜欢该单位，想与伴侣再看一次"
+        },
+        "no_show": {
+          "title": "标记为爽约？",
+          "body": "{{name}} 未出席 {{when}} 的预约 {{code}}。"
+        }
+      },
+      "form": {
+        "subtitle": "为现有潜在客户安排看房或会面。",
+        "lead": "潜在客户",
+        "leadPlaceholder": "选择潜在客户",
+        "noLeads": "暂无潜在客户——请先在潜在客户页面添加。",
+        "property": "物业",
+        "noProperty": "不指定物业",
+        "type": "类型",
+        "duration": "时长（分钟）",
+        "date": "日期",
+        "time": "时间",
+        "meetingLocation": "会面地点（可选）",
+        "notes": "备注",
+        "submit": "创建预约",
+        "errLead": "请选择潜在客户。",
+        "errWhen": "请选择日期和时间。",
+        "errPast": "预约时间必须在未来。",
+        "errDuration": "时长须为 15–480 分钟。"
+      },
+      "toast": {
+        "confirm": "预约 {{code}} 已确认",
+        "cancel": "预约 {{code}} 已取消",
+        "complete": "预约 {{code}} 已完成",
+        "no_show": "{{code}} 已标记为爽约",
+        "created": "预约 {{code}} 已创建",
+        "copied": "已复制 {{code}}",
+        "failed": "操作失败"
+      }
     }
   },
   "landing": {
