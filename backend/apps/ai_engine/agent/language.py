@@ -22,6 +22,8 @@ STRONG = {
     'dinus', 'dinuhos', 'namaste', 'dhanyabad', 'dhanyavad', 'thik', 'hernu', 'herna', 'jaana',
     'bhanda', 'ekdam', 'ali', 'pani', 'haru', 'sanga', 'ramro',
     'ani', 'yo', 'tyo', 'yaha', 'tyaha', 'chhaina', 'chaina', 'xaina', 'parcha', 'parxa',
+    'ajhai', 'ahile', 'aile', 'aba', 'abo', 'esko', 'yesko', 'tesko', 'mero', 'hamro', 'timro', 'bholi',
+    'parsi', 'hijo', 'baje', 'dinchha', 'dinchhau', 'milchha', 'herna', 'jane', 'gara', 'garnu', 'bhannus',
 }
 # Short words also used in English text; they only count alongside a strong word.
 WEAK = {'ma', 'ho', 'ra', 'ko', 'ka', 'ki', 'ni', 'ta', 'la', 'na'}
@@ -40,7 +42,8 @@ def detect_reply_style(text: str, fallback: str = 'en') -> str:
     words = _WORD.findall(text.lower())
     strong = sum(1 for w in words if w in STRONG)
     weak = sum(1 for w in words if w in WEAK)
-    if words and (strong >= 2 or (strong == 1 and (weak >= 1 or len(words) <= 3))):
+    english = sum(1 for w in words if w in ENGLISH_MARKERS)
+    if words and (strong >= 2 or (strong == 1 and (weak >= 1 or len(words) <= 3 or not english))):
         return NEPALI_ROMAN
     return fallback
 
@@ -85,3 +88,52 @@ def sticky_reply_style(current: str, previous_customer_texts, fallback: str = 'e
             if not is_neutral(text):
                 return detect_reply_style(text, fallback=fallback)
     return style
+
+
+# Deterministic wording for completed actions — the customer is told what the RECEIPT says.
+_RECEIPT = {
+    'book_viewing': {
+        'confirmed': {
+            'en': "Confirmed: viewing {code} — {property}, {weekday} {date} at {time} ({timezone}).",
+            NEPALI_ROMAN: "Confirm bhayo: viewing {code} — {property}, {weekday} {date}, {time} baje ({timezone}).",
+            NEPALI_DEVANAGARI: "पक्का भयो: भ्यूइङ {code} — {property}, {weekday} {date}, {time} बजे ({timezone})।",
+            'zh': "已確認：睇樓 {code} — {property}，{date}（{weekday}）{time}（{timezone}）。",
+        },
+        'pending_staff_approval': {
+            'en': "Request sent: viewing {code} — {property}, {weekday} {date} at {time} ({timezone}). "
+                  "Our team still needs to approve it; it is not confirmed yet.",
+            NEPALI_ROMAN: "Request pathaiyo: viewing {code} — {property}, {weekday} {date}, {time} baje. "
+                          "Team le approve garna baki chha; ajhai confirm bhayeko chhaina.",
+            NEPALI_DEVANAGARI: "अनुरोध पठाइयो: भ्यूइङ {code} — {property}, {weekday} {date}, {time} बजे। "
+                               "टिमले स्वीकृत गर्न बाँकी छ; अझै पक्का भएको छैन।",
+            'zh': "已提交申請：睇樓 {code} — {property}，{date} {time}。仍待職員確認，尚未確認。",
+        },
+    },
+    'cancel_appointment': {
+        'cancelled': {'en': "Cancelled: appointment {code}.", NEPALI_ROMAN: "Appointment {code} cancel bhayo.",
+                      NEPALI_DEVANAGARI: "अपोइन्टमेन्ट {code} रद्द भयो।", 'zh': "已取消預約 {code}。"},
+    },
+    'reschedule_appointment': {
+        '*': {'en': "Updated: {code} is now on {weekday} {date} at {time} ({timezone}).",
+              NEPALI_ROMAN: "Update bhayo: {code} aba {weekday} {date}, {time} baje ({timezone}).",
+              NEPALI_DEVANAGARI: "परिवर्तन भयो: {code} अब {weekday} {date}, {time} बजे ({timezone})।",
+              'zh': "已更改：{code} 改為 {date}（{weekday}）{time}（{timezone}）。"},
+    },
+}
+
+
+def receipt_line(receipt: dict, style: str) -> str:
+    by_status = _RECEIPT.get(receipt.get('action'), {})
+    templates = by_status.get(receipt.get('status')) or by_status.get('*') or {}
+    key = 'zh' if style in ('zh-CN', 'zh-TW') else style
+    template = templates.get(key) or templates.get('en') or "Done: {code}."
+    fields = {k: '' for k in ('code', 'property', 'weekday', 'date', 'time', 'timezone')}
+    fields.update({k: v for k, v in receipt.items() if v is not None})
+    return template.format(**fields)
+
+
+def busy_message(style: str) -> str:
+    return {
+        NEPALI_ROMAN: "Hajur, ahile hamro team le tapai ko message herchha — chadai reply aauchha.",
+        NEPALI_DEVANAGARI: "हजुर, अहिले हाम्रो टिमले तपाईंको सन्देश हेर्छ — चाँडै जवाफ आउँछ।",
+    }.get(style, "Thanks for your message — our team will reply to you here.")

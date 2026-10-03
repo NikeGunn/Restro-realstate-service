@@ -240,6 +240,9 @@ class AIService:
             
             # Add language to response
             parsed['language'] = detected_lang
+            # A "your table is booked" claim must be backed by complete booking data.
+            from .booking_guard import guard_reply
+            parsed = guard_reply(parsed, self.conversation, user_message)
 
             latency_ms = int((time.time() - start_time) * 1000)
 

@@ -214,6 +214,12 @@ class WidgetMessageView(APIView):
         from apps.ai_engine.services import AIService
         ai_service = AIService(conversation)
         ai_response = ai_service.process_message(content)
+        if ai_response.get('suppressed'):  # staff took over mid-run: AI stays silent
+            return Response({
+                'message': MessageSerializer(customer_message).data,
+                'response': None,
+                'is_human_handling': True,
+            })
 
         # Create AI response message
         ai_message = Message.objects.create(

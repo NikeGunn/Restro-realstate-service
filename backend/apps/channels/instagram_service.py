@@ -237,6 +237,10 @@ class InstagramService:
                 return
             
             response = ai_service.process_message(message.content)
+            if response and response.get('suppressed'):
+                # Staff took the conversation over while the AI was running: stay silent.
+                logger.info("AI reply suppressed — human takeover during processing")
+                return
             
             if response:
                 detected_lang = response.get('language', 'en')

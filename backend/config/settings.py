@@ -391,6 +391,15 @@ CRM_INACTIVE_DAYS = config('CRM_INACTIVE_DAYS', default=90, cast=int)
 # belongs in k8s/configmap.yaml (chatplatform-config) in production.
 PUBLIC_BASE_URL = config('PUBLIC_BASE_URL', default='https://kribaat.com')
 
+# Listing photos on Cloudflare R2 (apps/realestate/photo_storage.py). All five must be set
+# for R2 to be used; otherwise photos go to default storage (media-pvc).
+R2_BUCKET = config('R2_BUCKET', default='')
+R2_ENDPOINT_URL = config('R2_ENDPOINT_URL', default='')
+R2_ACCESS_KEY_ID = config('R2_ACCESS_KEY_ID', default='')
+R2_SECRET_ACCESS_KEY = config('R2_SECRET_ACCESS_KEY', default='')
+R2_PUBLIC_DOMAIN = config('R2_PUBLIC_DOMAIN', default='')   # e.g. pub-xxxx.r2.dev or media.kribaat.com
+AGENT_COST_PER_1K_TOKENS_USD = config('AGENT_COST_PER_1K_TOKENS_USD', default='0.0008')
+
 # ──────────────────────────────────────────────────────────────────────
 # AI Credit & Usage Billing (Phase 6) settings
 # ──────────────────────────────────────────────────────────────────────

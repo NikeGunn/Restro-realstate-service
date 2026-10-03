@@ -133,3 +133,74 @@ class AgentMemory(models.Model):
 
     def __str__(self):
         return f"{self.organization} · {self.subject_type}:{self.subject_key}"
+
+
+class AgentSettings(models.Model):
+    """
+    Owner-controlled switches for the customer-facing agent — edited in the dashboard
+    (Settings → AI agent), read by the agent every turn. No code change, no deploy.
+    Plan gating for a future subscription hooks in at agent/capabilities.py.
+    """
+    organization = models.OneToOneField(Organization, on_delete=models.CASCADE, related_name='agent_settings')
+    bookings_enabled = models.BooleanField(default=True, help_text='Agent may book viewings')
+    viewings_need_staff_approval = models.BooleanField(
+        default=False, help_text='Bookings are requests until staff confirm them in Appointments')
+    viewing_start_hour = models.PositiveSmallIntegerField(default=10)
+    viewing_end_hour = models.PositiveSmallIntegerField(default=18, help_text='Last slot start hour')
+    slot_minutes = models.PositiveSmallIntegerField(default=60)
+    max_days_ahead = models.PositiveSmallIntegerField(default=60)
+    daily_ai_reply_cap = models.PositiveIntegerField(
+        default=0, help_text='Max AI replies per day for this org (0 = unlimited)')
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'ai_agent_settings'
+
+    @classmethod
+    def for_org(cls, organization) -> 'AgentSettings':
+        obj = cls.objects.filter(organization=organization).first()
+        return obj or cls(organization=organization)  # unsaved defaults until the owner edits
+
+
+class AgentAction(models.Model):
+    """
+    Ledger for every side-effect the agent proposes (preview) and performs (receipt).
+
+    A write happens only by executing a PREVIEWED row from an EARLIER turn, after the
+    customer's own message confirmed it. The row is locked while executing, so a
+    duplicate "yes" or a retried webhook returns the stored receipt instead of a second
+    booking. Receipts — not model prose — are what the customer is told.
+    """
+    class Kind(models.TextChoices):
+        BOOK_VIEWING = 'book_viewing', 'Book viewing'
+        CANCEL_APPOINTMENT = 'cancel_appointment', 'Cancel appointment'
+        RESCHEDULE_APPOINTMENT = 'reschedule_appointment', 'Reschedule appointment'
+
+    class Status(models.TextChoices):
+        PREVIEWED = 'previewed', 'Awaiting customer confirmation'
+        EXECUTED = 'executed', 'Done'
+        FAILED = 'failed', 'Failed'
+        SUPERSEDED = 'superseded', 'Replaced by a newer preview'
+        DECLINED = 'declined', 'Customer declined'
+        EXPIRED = 'expired', 'Expired'
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name='agent_actions')
+    conversation = models.ForeignKey('messaging.Conversation', on_delete=models.CASCADE, related_name='agent_actions')
+    kind = models.CharField(max_length=40, choices=Kind.choices)
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.PREVIEWED)
+    payload = models.JSONField(default=dict)
+    payload_hash = models.CharField(max_length=64)
+    receipt = models.JSONField(default=dict, blank=True)
+    error = models.CharField(max_length=300, blank=True)
+    expires_at = models.DateTimeField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    executed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = 'ai_agent_actions'
+        ordering = ['-created_at']
+        indexes = [models.Index(fields=['conversation', 'status', '-created_at'])]
+
+    def __str__(self):
+        return f"{self.kind} {self.status} {self.payload_hash[:8]}"

@@ -25,6 +25,7 @@ import {
 } from '@/components/ui/select'
 import { MARKET_OPTIONS, currencySymbol, formatMoney } from '@/lib/money'
 import { useToast } from '@/hooks/use-toast'
+import { PropertyPhotos } from '@/components/realestate/PropertyPhotos'
 import { realEstateApi, organizationsApi } from '@/services/api'
 import type { PropertyListing, Organization } from '@/types'
 
@@ -119,17 +120,16 @@ export function PropertiesPage() {
     try {
       const params: Record<string, any> = { organization: selectedOrgId }
       if (statusFilter !== 'all') params.status = statusFilter
-      if (typeFilter !== 'all') params.property_type = typeFilter
       
       const data = await realEstateApi.properties.list(params)
-      setProperties(Array.isArray(data) ? data : data.results || [])
+      setProperties(data)
     } catch (error) {
       console.error('Failed to load properties:', error)
       toast({ title: 'Error', description: 'Failed to load properties', variant: 'destructive' })
     } finally {
       setLoading(false)
     }
-  }, [selectedOrgId, statusFilter, typeFilter, toast])
+  }, [selectedOrgId, statusFilter, toast])
 
   useEffect(() => {
     loadProperties()
@@ -249,6 +249,12 @@ export function PropertiesPage() {
     }
   }
 
+  const typeCounts = properties.reduce<Record<string, number>>((acc, p) => {
+    acc[p.property_type] = (acc[p.property_type] ?? 0) + 1
+    return acc
+  }, {})
+  const visibleProperties = typeFilter === 'all' ? properties : properties.filter(p => p.property_type === typeFilter)
+
   const formatPrice = (price: number | string | null, listingType: string, country?: string) => {
     if (!price) return 'Price TBD'
     const formatted = formatMoney(price, country)
@@ -281,7 +287,7 @@ export function PropertiesPage() {
       </div>
 
       {/* Filters */}
-      <div className="flex gap-4">
+      <div className="flex gap-4 mb-3">
         <Select value={statusFilter} onValueChange={setStatusFilter}>
           <SelectTrigger className="w-40">
             <SelectValue placeholder="Status" />
@@ -296,23 +302,28 @@ export function PropertiesPage() {
           </SelectContent>
         </Select>
 
-        <Select value={typeFilter} onValueChange={setTypeFilter}>
-          <SelectTrigger className="w-40">
-            <SelectValue placeholder="Type" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Types</SelectItem>
-            {PROPERTY_TYPES.map(t => (
-              <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+      </div>
+
+      {/* Type chips with live counts — only types the agency actually has */}
+      <div className="flex flex-wrap gap-2 mb-6">
+        {[{ value: 'all', label: 'All', count: properties.length },
+          ...PROPERTY_TYPES.map(t => ({ ...t, count: typeCounts[t.value] ?? 0 })).filter(t => t.count > 0)]
+          .map(t => (
+            <Button
+              key={t.value}
+              size="sm"
+              variant={typeFilter === t.value ? 'default' : 'outline'}
+              onClick={() => setTypeFilter(t.value)}
+            >
+              {t.label} <span className="ml-1.5 opacity-70">{t.count}</span>
+            </Button>
+          ))}
       </div>
 
       {/* Properties Grid */}
       {loading ? (
         <Card className="p-8 text-center">Loading properties...</Card>
-      ) : properties.length === 0 ? (
+      ) : visibleProperties.length === 0 ? (
         <Card className="p-8 text-center">
           <Building2 className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
           <h3 className="text-lg font-semibold mb-2">No properties found</h3>
@@ -324,13 +335,17 @@ export function PropertiesPage() {
         </Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {properties.map(property => (
+          {visibleProperties.map(property => (
             <Card key={property.id} className="overflow-hidden hover:shadow-lg transition-shadow">
               {/* Image placeholder */}
               <div className="h-48 bg-gradient-to-br from-gray-100 to-gray-200 relative">
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <Building2 className="h-16 w-16 text-gray-400" />
-                </div>
+                {property.primary_image ? (
+                  <img src={property.primary_image} alt={property.title} loading="lazy" className="absolute inset-0 h-full w-full object-cover" />
+                ) : (
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <Building2 className="h-16 w-16 text-gray-400" />
+                  </div>
+                )}
                 {property.is_featured && (
                   <Badge className="absolute top-2 left-2 bg-yellow-500">
                     <Star className="h-3 w-3 mr-1" />
@@ -620,6 +635,19 @@ export function PropertiesPage() {
               <Label>Featured Property</Label>
             </div>
           </div>
+          {editingProperty ? (
+            <PropertyPhotos
+              propertyId={editingProperty.id}
+              images={editingProperty.images || []}
+              onChange={images => {
+                setEditingProperty(prev => (prev ? { ...prev, images } : prev))
+                setProperties(prev => prev.map(p => (p.id === editingProperty.id ? { ...p, primary_image: images[0] ?? null } : p)))
+              }}
+            />
+          ) : (
+            <p className="text-xs text-muted-foreground">Save the property first, then open it again to add photos.</p>
+          )}
+
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
             <Button onClick={handleSubmit}>{editingProperty ? 'Update' : 'Create'}</Button>

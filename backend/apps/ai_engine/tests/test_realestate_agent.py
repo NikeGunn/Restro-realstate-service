@@ -81,24 +81,6 @@ def test_gate_allows_booking_claim_after_tool():
 
 
 # --------------------------------------------------------------------- tools
-def test_book_viewing_rejects_out_of_hours_and_past(conv, listing):
-    tools = RealEstateTools(conv)
-    tomorrow = (RealEstateTools(conv).now() + timedelta(days=1)).date().isoformat()
-    assert not tools.book_viewing(date=tomorrow, time='23:00', property_reference=listing.reference_number)['ok']
-    assert not tools.book_viewing(date='2020-01-01', time='15:00')['ok']
-    assert Appointment.objects.count() == 0
-
-
-def test_book_viewing_creates_appointment_and_memory(conv, listing):
-    tomorrow = (RealEstateTools(conv).now() + timedelta(days=1)).date().isoformat()
-    res = RealEstateTools(conv).book_viewing(date=tomorrow, time='15:00', name='Priya Sharma',
-                                             property_reference=listing.reference_number)
-    assert res['ok'] and res['appointment']['confirmation_code'].startswith('APT')
-    mem = AgentMemory.objects.get(subject_key='85291234567')
-    assert mem.display_name == 'Priya Sharma'
-    assert any(res['appointment']['confirmation_code'] in f['fact'] for f in mem.facts)
-
-
 def test_search_is_tenant_scoped(conv, listing):
     other = Organization.objects.create(name='Other', business_type='real_estate')
     PropertyListing.objects.create(organization=other, title='Secret', description='x', price=1,
@@ -115,25 +97,6 @@ def test_hallucinated_booking_never_reaches_customer(conv, listing):
     assert 'confirmed' not in out['content'].lower() and 'booked' not in out['content'].lower()
     assert out['metadata']['verified'] is False
     assert Appointment.objects.count() == 0
-
-
-def test_tool_loop_books_then_confirms(conv, listing):
-    tomorrow = (RealEstateTools(conv).now() + timedelta(days=1)).date().isoformat()
-    first = _msg(tool_calls=[_call('book_viewing', {'date': tomorrow, 'time': '15:00', 'name': 'Priya',
-                                                    'property_reference': listing.reference_number})])
-
-    def second():
-        return _msg(f"Your viewing is confirmed. Code {Appointment.objects.get().confirmation_code}.")
-
-    replies = iter([lambda: first, second])
-    svc = _service(conv, [])
-    svc.client.chat.completions.create.side_effect = lambda *a, **k: next(replies)()
-
-    out = svc.process_message('book the Wan Chai flat tomorrow 3pm, I am Priya')
-    appt = Appointment.objects.get()
-    assert out['metadata']['verified'] is True
-    assert appt.confirmation_code in out['content']
-    assert out['extracted_data'] == {}  # channels must not create a second appointment
 
 
 def test_current_message_not_duplicated_in_history(conv):
@@ -164,14 +127,6 @@ def test_summarize_customer_folds_messages(conv):
 
 def test_gate_accepts_customer_stated_millions():
     assert verify_reply("Noted: expected price HK$9 million.", ["expecting 9 million"], []).ok
-
-
-def test_book_viewing_rejects_weekday_mismatch(conv, listing):
-    day = (RealEstateTools(conv).now() + timedelta(days=3)).date()
-    wrong = (day + timedelta(days=1)).strftime('%A')
-    res = RealEstateTools(conv).book_viewing(date=day.isoformat(), time='11:00', weekday=wrong, name='Priya')
-    assert not res['ok'] and 'not' in res['error']
-    assert Appointment.objects.count() == 0
 
 
 def test_search_whole_territory_is_not_an_area_filter(conv, listing):

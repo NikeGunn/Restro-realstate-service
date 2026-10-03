@@ -68,6 +68,18 @@ Root causes fixed (prod chats: "jagga" → English "could you clarify?" loop; in
 - Prod data reseeded: 29 Nepal listings (rooms, flats, 9 land plots across 7 districts, houses,
   shops, office), NPR.
 
+## Shipped (2026-10-03, round 3) — agent harness (kribaat_agent_harness spec) + photos
+
+- Preview → confirm → receipt for bookings/cancellations/reschedules (`AgentAction` ledger, listing
+  lock, slot + price re-check, idempotent duplicate "yes", one pending decision at a time).
+- Viewing slots from owner settings; ownership check for cancel/reschedule (a code is not identity).
+- Strict search with labelled near matches; `list_locations`; compare; `not_recorded` facts;
+  photos; forget-my-preferences; capabilities list (no deposits/offers/leases/alerts/guarantees).
+- Staff takeover mid-run suppresses the AI on every channel; restaurant false "booked" guard.
+- Owner `AgentSettings` (bookings on/off, staff approval, hours, daily cap) + usage metering.
+- Live eval: 45/45 scenarios, 57/57 on 3× critical repeats (gpt-4.1-mini). CI tests now blocking.
+- Listing photos on Cloudflare R2 + agent sends them on WhatsApp.
+
 ## Pending — product features (requested, not built)
 
 1. **Landlord self-serve "rooms" product** (the subscription you described): landlord signs up,
@@ -88,7 +100,12 @@ Root causes fixed (prod chats: "jagga" → English "could you clarify?" loop; in
 8. **Vertical gating on the API** (today the UI hides other-vertical modules; the APIs are still
    reachable by a member of the org, though data stays org-scoped).
 9. **Customer memory viewer** on the lead/inbox page (facts + summary).
-10. **Listing photos** on the Properties form (upload → `images`); the agent could send them on WhatsApp.
+10. **Settings UI for AgentSettings** (bookings on/off, staff-approval mode, viewing hours, daily cap).
+    The model + API-side reads exist; today it is edited in Django admin.
+11. **Remaining spec scenarios**: 45 of 130 are executable live evals; add the rest (journeys
+    RE-101–110, restaurant RT-111–130) and a restaurant tool-calling agent like the real-estate one.
+12. **Custom photo domain**: r2.dev is rate-limited; put `media.kribaat.com` on the bucket (Cloudflare
+    DNS needed) and change `R2_PUBLIC_DOMAIN`.
 
 ## Pending — MCP server + website crawler (design only, needs your go/no-go)
 

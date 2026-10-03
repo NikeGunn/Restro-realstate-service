@@ -240,6 +240,10 @@ class WhatsAppService:
                 return
             
             response = ai_service.process_message(message.content)
+            if response and response.get('suppressed'):
+                # Staff took the conversation over while the AI was running: stay silent.
+                logger.info("AI reply suppressed — human takeover during processing")
+                return
             
             if response:
                 detected_lang = response.get('language', 'en')
@@ -288,6 +292,10 @@ class WhatsAppService:
                     ai_message.channel_message_id = sent_message_id
                     ai_message.save()
                     logger.info(f"✅ WhatsApp message sent successfully - ID: {sent_message_id}")
+                    # Listing photos the agent attached (real uploads only), after the text.
+                    for att in (response.get('attachments') or [])[:6]:
+                        if att.get('type') == 'image':
+                            self.send_image(conversation.customer_phone, att['url'], att.get('caption', ''))
                 else:
                     logger.error(f"❌ CRITICAL: Failed to send WhatsApp message - check access_token and phone_number_id")
                     logger.error(f"Org: {self.organization.name}, Phone ID: {self.config.phone_number_id}")
@@ -486,7 +494,31 @@ class WhatsAppService:
                     error_detail += f" | API Response: {e.response.text}"
             logger.exception(error_detail)
             return None
-    
+
+    def send_image(self, to: str, image_url: str, caption: str = '') -> Optional[str]:
+        """Send an image by public HTTPS link (Meta fetches it). Returns the message id or None."""
+        if not (self.config and self.config.access_token and self.config.phone_number_id):
+            logger.error("WhatsApp image not sent: channel is not configured for %s", self.organization.name)
+            return None
+        if not image_url.startswith('https://'):
+            logger.error("WhatsApp image not sent: Meta needs a public https URL, got %s", image_url[:80])
+            return None
+        payload = {
+            "messaging_product": "whatsapp", "recipient_type": "individual", "to": to, "type": "image",
+            "image": {"link": image_url, **({"caption": caption[:1024]} if caption else {})},
+        }
+        try:
+            response = requests.post(
+                f"{self.GRAPH_API_URL}/{self.config.phone_number_id}/messages", json=payload, timeout=30,
+                headers={"Authorization": f"Bearer {self.config.access_token}", "Content-Type": "application/json"},
+            )
+            response.raise_for_status()
+            return response.json().get('messages', [{}])[0].get('id')
+        except requests.exceptions.RequestException as e:
+            body = getattr(getattr(e, 'response', None), 'text', '')
+            logger.error("WhatsApp image send failed: %s %s", e, body[:300])
+            return None
+
     def send_template(
         self,
         to: str,

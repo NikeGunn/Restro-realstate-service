@@ -790,8 +790,16 @@ export const realEstateApi = {
       city?: string
       is_featured?: boolean
     }) => {
-      const response = await api.get('/realestate/properties/', { params })
-      return Array.isArray(response.data) ? response.data : (response.data.results || [])
+      // The API paginates (20/page); an agency's catalog must show every listing, so follow `next`.
+      const all: any[] = []
+      let page = 1
+      for (;;) {
+        const response = await api.get('/realestate/properties/', { params: { ...params, page } })
+        if (Array.isArray(response.data)) return response.data
+        all.push(...(response.data.results || []))
+        if (!response.data.next || page >= 50) return all
+        page += 1
+      }
     },
 
     get: async (id: string) => {
@@ -853,6 +861,20 @@ export const realEstateApi = {
     markSold: async (id: string, data: { sold_price?: string; sold_date?: string }) => {
       const response = await api.post(`/realestate/properties/${id}/mark_sold/`, data)
       return response.data
+    },
+
+    uploadPhotos: async (id: string, files: File[]) => {
+      const form = new FormData()
+      files.forEach(f => form.append('photo', f))
+      const response = await api.post(`/realestate/properties/${id}/photos/`, form, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+      return response.data as { images: string[]; added: string[]; errors: string[] }
+    },
+
+    deletePhoto: async (id: string, url: string) => {
+      const response = await api.delete(`/realestate/properties/${id}/photos/`, { data: { url } })
+      return response.data as { images: string[] }
     },
 
     toggleFeatured: async (id: string) => {

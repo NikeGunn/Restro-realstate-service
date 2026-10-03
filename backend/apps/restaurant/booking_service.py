@@ -419,25 +419,31 @@ def process_booking_from_ai_response(
     Returns:
         Booking object if created, None otherwise
     """
+    from apps.ai_engine.booking_guard import apply_receipt
+
     extracted_data = ai_response.get('extracted_data', {})
-    
+
     # Check if this is a booking intent with complete data
     if not extracted_data.get('booking_intent'):
         return None
-    
+
     # Check if we have all required fields for booking
     required_fields = ['date', 'time', 'party_size', 'customer_name', 'customer_phone']
     for field in required_fields:
         if not extracted_data.get(field):
             logger.debug(f"Booking incomplete - missing {field}")
+            apply_receipt(ai_response, None)  # the reply must not claim a booking that wasn't made
             return None
-    
+
     service = BookingService(organization, conversation)
     booking, message = service.create_booking_from_extracted_data(extracted_data, source)
-    
+
     if booking:
         logger.info(f"✅ Booking processed: {message}")
     else:
         logger.info(f"Booking not created: {message}")
-    
+    # Customer-facing text follows the real outcome: quote the code, or drop a false claim.
+    reason = '' if booking or 'error' in str(message).lower() else str(message)  # never leak exceptions
+    apply_receipt(ai_response, booking, reason)
+
     return booking

@@ -90,7 +90,10 @@ jobs:
         run: |
           cd backend
           python manage.py migrate --noinput
-          python manage.py test --verbosity=2 || true  # Don't fail if no tests
+          python manage.py makemigrations --check --dry-run
+          # Blocking: a red suite must not deploy (pytest runs the full ~880-test suite;
+          # the old `manage.py test || true` ran 42 tests and ignored failures).
+          pytest -q -p no:cacheprovider
 
       - name: Set up Node.js
         uses: actions/setup-node@v6
@@ -317,6 +320,8 @@ jobs:
           DEFAULT_FROM_EMAIL: ${{ secrets.DEFAULT_FROM_EMAIL }}
           STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
           STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
         run: |
           echo "📝 Creating/updating Kubernetes secrets..."
 
@@ -340,7 +345,9 @@ jobs:
               --from-literal=EMAIL_HOST_PASSWORD='$EMAIL_HOST_PASSWORD' \
               --from-literal=DEFAULT_FROM_EMAIL='$DEFAULT_FROM_EMAIL' \
               --from-literal=STRIPE_SECRET_KEY='$STRIPE_SECRET_KEY' \
-              --from-literal=STRIPE_WEBHOOK_SECRET='$STRIPE_WEBHOOK_SECRET'"
+              --from-literal=STRIPE_WEBHOOK_SECRET='$STRIPE_WEBHOOK_SECRET' \
+              --from-literal=R2_ACCESS_KEY_ID='$R2_ACCESS_KEY_ID' \
+              --from-literal=R2_SECRET_ACCESS_KEY='$R2_SECRET_ACCESS_KEY'"
 
           echo "✅ Secrets deployed successfully"
 

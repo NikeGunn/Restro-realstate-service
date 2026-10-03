@@ -98,7 +98,7 @@ class PropertyListingViewSet(viewsets.ModelViewSet):
         if self.action in ['create', 'update', 'partial_update']:
             return PropertyListingCreateSerializer
         return PropertyListingSerializer
-    
+
     def perform_create(self, serializer):
         org_id = self.request.data.get('organization')
         if not OrganizationMembership.objects.filter(
@@ -108,6 +108,29 @@ class PropertyListingViewSet(viewsets.ModelViewSet):
             from rest_framework.exceptions import PermissionDenied
             raise PermissionDenied('You do not have access to this organization.')
         serializer.save()
+
+    @action(detail=True, methods=['post', 'delete'], url_path='photos')
+    def photos(self, request, pk=None):
+        """POST multipart `photo` (one or more) to add; DELETE {"url": ...} to remove. Returns `images`."""
+        from .photo_storage import PhotoError, add_photo, remove_photo
+
+        listing = self.get_object()  # org-scoped queryset: another org's listing is a 404
+        if request.method == 'DELETE':
+            url = (request.data.get('url') or request.query_params.get('url') or '').strip()
+            if not remove_photo(listing, url):
+                return Response({'error': 'That photo is not on this listing.'}, status=status.HTTP_404_NOT_FOUND)
+            return Response({'images': listing.images})
+        files = request.FILES.getlist('photo')
+        if not files:
+            return Response({'error': 'Attach at least one image as "photo".'}, status=status.HTTP_400_BAD_REQUEST)
+        added, errors = [], []
+        for f in files[:10]:
+            try:
+                added.append(add_photo(listing, f))
+            except PhotoError as e:
+                errors.append(f"{f.name}: {e}")
+        code = status.HTTP_201_CREATED if added else status.HTTP_400_BAD_REQUEST
+        return Response({'images': listing.images, 'added': added, 'errors': errors}, status=code)
     
     @action(detail=True, methods=['post'])
     def mark_sold(self, request, pk=None):

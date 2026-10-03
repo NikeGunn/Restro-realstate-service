@@ -65,6 +65,13 @@ data:
   STRIPE_PUBLISHABLE_KEY: "pk_test_51SozbOLnDeWlHrbRI6I0PHwBjpytdO7QgI3f33JqEaQBTeNlkFLdnvicrrNOzPOGlTnuf7WftLdZjZlkqs33SIIg007d804LgZ"
   PUBLIC_BASE_URL: "https://kribaat.com"
 
+  # Listing photos → Cloudflare R2 (apps/realestate/photo_storage.py). Keys are secrets
+  # (R2_ACCESS_KEY_ID / R2_SECRET_ACCESS_KEY via deploy-secrets). Until R2_PUBLIC_DOMAIN is
+  # set, photos fall back to the media-pvc — nothing breaks while R2 is being enabled.
+  R2_BUCKET: "kribaat-media"
+  R2_ENDPOINT_URL: "https://28cd257c33038640fa6f234442b247c8.r2.cloudflarestorage.com"
+  R2_PUBLIC_DOMAIN: "pub-296eb79cd8404023a4b91caa9c0e6bd0.r2.dev"
+
   # Coffee Pass — customer login OTP delivery.
   #
   # WhatsApp only delivers a FREE-FORM text to a number that messaged the

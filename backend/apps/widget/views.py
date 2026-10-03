@@ -149,6 +149,8 @@ class WidgetMessageView(APIView):
             try:
                 ai_service = AIService(conversation)
                 ai_result = ai_service.process_message(content)
+                if ai_result.get('suppressed'):  # staff took over mid-run: AI stays silent
+                    return Response(response_data)
 
                 # Process any extracted booking data
                 self._process_extracted_data(session.organization, conversation, ai_result)

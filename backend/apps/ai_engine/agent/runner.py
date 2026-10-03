@@ -22,7 +22,9 @@ from apps.messaging.models import MessageSender
 
 from . import language as reply_lang
 from . import memory as agent_memory
-from .tools import TOOL_SCHEMAS, RealEstateTools, format_money
+from . import actions as agent_actions
+from . import capabilities
+from .tools import RealEstateTools, format_money
 from .verifier import salvage, verify_reply
 
 logger = logging.getLogger(__name__)
@@ -113,8 +115,22 @@ class RealEstateAgent:
             "broad questions immediately, and call tools for details/filters)\n" + portfolio,
             f"# KNOWLEDGE (agency facts — the only non-tool source of truth)\n{knowledge}",
             "# FACTS FROM EARLIER TOOL CALLS IN THIS CHAT (re-check with a tool before booking)\n" + (earlier or "(none)"),
+            "# CAPABILITIES (set by the agency owner — never offer anything outside this)\n"
+            + capabilities.describe(self.organization, self.tools.settings),
+            "# PENDING DECISION\n" + self._pending_text(),
             channel_note,
         ])
+
+    def _pending_text(self) -> str:
+        action = agent_actions.pending_preview(self.conversation)
+        if not action:
+            return "(none)"
+        self.evidence.append(json.dumps(action.payload, ensure_ascii=False, default=str))
+        return (f"preview_id {action.id} — {action.get_kind_display()}: "
+                f"{json.dumps(action.payload, ensure_ascii=False, default=str)}\n"
+                "If the customer's latest message is a plain yes to THIS, call confirm_pending_action. "
+                "If they said no/keep it, call decline_pending_action. If they changed details, prepare a new "
+                "preview. If they asked something else, answer it and remind them this is still waiting.")
 
     def _portfolio_text(self) -> str:
         overview = self.tools.get_portfolio_overview()
@@ -170,7 +186,7 @@ class RealEstateAgent:
 
     def _complete(self, messages):
         model = self._model()
-        kwargs = dict(model=model, messages=messages, tools=TOOL_SCHEMAS, tool_choice='auto')
+        kwargs = dict(model=model, messages=messages, tools=self.tools.schemas(), tool_choice='auto')
         if model.startswith(('gpt-5', 'o3', 'o4')):
             # Reasoning models: no temperature; the output budget includes reasoning tokens.
             kwargs.update(max_completion_tokens=4000, reasoning_effort='low')
@@ -212,14 +228,25 @@ class RealEstateAgent:
                 # able to "verify" itself. Customer-stated budgets are already in evidence.
                 if name in ('search_properties', 'get_property_details', 'get_portfolio_overview') and result.get('ok'):
                     self.tool_facts.append(f"{name}: {payload[:1500]}")
-                self.tool_trace.append({'tool': name, 'args': c.function.arguments[:500], 'ok': result.get('ok')})
+                entry = {'tool': name, 'args': c.function.arguments[:500], 'ok': result.get('ok')}
+                if name == 'confirm_pending_action' and result.get('ok') and not result.get('already_done'):
+                    entry['receipt'] = result.get('receipt')
+                self.tool_trace.append(entry)
                 messages.append({'role': 'tool', 'tool_call_id': c.id, 'content': payload})
         self.tokens = tokens
         return ''
 
     def run(self, user_message: str, language: str) -> Dict[str, Any]:
+        from django.utils import timezone as dj_tz
+
         started = time.time()
         self.tokens = 0
+        # The confirmation gate needs the customer's own words and the turn boundary.
+        self.tools.current_message = user_message
+        self.tools.turn_started_at = dj_tz.now()
+        capped = self._daily_cap_reached()
+        if capped:
+            return capped
         history = self._history(user_message)
         self.reply_style = reply_lang.sticky_reply_style(
             user_message, [m['content'] for m in history if m['role'] == 'user'], fallback=language)
@@ -264,6 +291,17 @@ class RealEstateAgent:
             # Never send an unverified draft. We don't silently hand off either: the
             # fallback asks the customer, and the failure is recorded on the AILog.
             reply = SAFE_FALLBACK.get(self.reply_style) or SAFE_FALLBACK.get(language, SAFE_FALLBACK['en'])
+        # A completed action is reported from its stored receipt, whatever the model wrote.
+        receipts = self._receipts()
+        if receipts and not verified:
+            reply = "\n".join(reply_lang.receipt_line(r, self.reply_style) for r in receipts)
+        for receipt in receipts:
+            if receipt.get('code') and receipt['code'] not in reply:
+                reply = (reply + "\n\n" + reply_lang.receipt_line(receipt, self.reply_style)).strip()
+
+        # Staff may have taken the chat over while we were thinking: then the AI must stay silent.
+        self.conversation.refresh_from_db(fields=['state'])
+        suppressed = self.conversation.state == 'human_handoff'
 
         intent = self._intent()
         result = {
@@ -276,7 +314,16 @@ class RealEstateAgent:
             'handoff_reason': (escalation or {}).get('reason', ''),
             'language': language,
             'extracted_data': {},  # actions already executed by tools — channels must not re-create them
+            'suppressed': suppressed,
         }
+        attachments = self.tools.attachments if verified else []
+        if attachments and str(self.conversation.channel) != 'whatsapp':
+            # Channels without native images get the links; WhatsApp sends real image messages.
+            result['content'] += "\n\n" + "\n".join(a['url'] for a in attachments)
+        result['attachments'] = attachments
+        result['metadata']['attachments'] = len(attachments)
+        if suppressed:
+            result.update(content='', needs_handoff=False, attachments=[])
         self._schedule_memory_consolidation()
         self.svc._log_interaction(
             prompt=user_message, response=reply, confidence=result['confidence'], intent=intent,
@@ -285,9 +332,48 @@ class RealEstateAgent:
             error='' if verified else 'gate:' + '; '.join(gate.problems if gate else ['empty']),
             language=language,
             context_extra={'reply_style': self.reply_style, 'tools': self.tool_trace,
-                           'tool_facts': self.tool_facts[-4:]},
+                           'tool_facts': self.tool_facts[-4:], 'suppressed': suppressed},
         )
+        self._meter()
         return result
+
+    def _receipts(self) -> List[Dict[str, Any]]:
+        out = []
+        for t in self.tool_trace:
+            if t['tool'] == 'confirm_pending_action' and t.get('receipt'):
+                out.append(t['receipt'])
+        return out
+
+    def _daily_cap_reached(self):
+        """Owner-set daily AI reply cap (cost control; the seam for paid-plan quotas)."""
+        from django.utils import timezone as dj_tz
+        from apps.ai_engine.models import AILog
+
+        cap = self.tools.settings.daily_ai_reply_cap
+        if not cap:
+            return None
+        start = dj_tz.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        if AILog.objects.filter(organization=self.organization, created_at__gte=start).count() < cap:
+            return None
+        logger.warning("Daily AI reply cap (%s) reached for org %s", cap, self.organization.id)
+        return {'content': reply_lang.busy_message(self.reply_style if hasattr(self, 'reply_style') else 'en'),
+                'confidence': 0.0, 'intent': 'capped', 'metadata': {'source': 'realestate_agent', 'capped': True},
+                'needs_handoff': True, 'handoff_reason': 'daily_ai_cap', 'language': 'en', 'extracted_data': {},
+                'suppressed': False}
+
+    def _meter(self):
+        """Best-effort usage record per AI reply — the data a future subscription bills from."""
+        try:
+            from decimal import Decimal
+            from apps.billing.services.meter import record_usage
+            per_1k = Decimal(str(getattr(settings, 'AGENT_COST_PER_1K_TOKENS_USD', '0.0008')))
+            record_usage(organization=self.organization, module='chatbot_ai', event_type='agent_reply',
+                         provider='openai', model=self._model(),
+                         cost_usd=(per_1k * Decimal(self.tokens) / 1000).quantize(Decimal('0.000001')),
+                         metadata={'tokens': self.tokens, 'tools': [t['tool'] for t in self.tool_trace],
+                                   'conversation': str(self.conversation.id)})
+        except Exception:
+            logger.exception("Agent usage metering failed")
 
     def _schedule_memory_consolidation(self):
         """Fold older turns into long-term memory before they slide out of the context window."""
@@ -320,9 +406,11 @@ class RealEstateAgent:
 
     def _intent(self) -> str:
         used = [t['tool'] for t in self.tool_trace]
-        for tool, intent in (('book_viewing', 'appointment'), ('cancel_appointment', 'appointment_cancel'),
+        for tool, intent in (('confirm_pending_action', 'appointment'), ('prepare_viewing', 'appointment'),
+                             ('prepare_cancellation', 'appointment_cancel'), ('prepare_reschedule', 'appointment'),
                              ('escalate_to_human', 'handoff'), ('save_lead', 'lead_capture'),
-                             ('get_property_details', 'property'), ('search_properties', 'property'),
+                             ('get_property_details', 'property'), ('compare_properties', 'property'),
+                             ('search_properties', 'property'), ('list_locations', 'property'),
                              ('get_my_appointments', 'appointment')):
             if tool in used:
                 return intent

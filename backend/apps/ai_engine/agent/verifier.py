@@ -40,6 +40,22 @@ BOOKED_CLAIM_RE = re.compile(
 CANCEL_CLAIM_RE = re.compile(r"\b(has been|is now|successfully) cancel+ed\b|已(取消)", re.I)
 
 
+_HEDGE_RE = re.compile(r"(\bnot\b|n't|\byet\b|\bonce\b|\bafter\b|\bwill\b|\bwould\b|\bshall\b|\bcan\b|\bif\b|"
+                       r"\bbefore\b|\bto be\b|\?|hoina|chhaina|chaina|छैन|未|尚未|會|会)", re.I)
+
+
+def _asserted(pattern, reply: str) -> bool:
+    """A real claim — not "not booked yet", "once you confirm it will be booked", or a question."""
+    for m in pattern.finditer(reply):
+        line_start = reply.rfind('\n', 0, m.start()) + 1
+        line_end = reply.find('\n', m.end())
+        line = reply[line_start:line_end if line_end != -1 else len(reply)]
+        sentence = next((s for s in re.split(r'(?<=[.!。！])\s', line) if m.group(0) in s), line)
+        if not _HEDGE_RE.search(sentence):
+            return True
+    return False
+
+
 def _to_number(raw: str, unit: str = '') -> float:
     value = float(raw.replace(',', ''))
     unit = (unit or '').lower()
@@ -129,11 +145,11 @@ def verify_reply(reply: str, evidence: List[str], actions: List[dict],
             result.fail(f"figure {m.group(0)} does not appear in any tool result or KNOWLEDGE", span=m.group(0))
 
     performed = {a.get('tool') for a in actions}
-    if BOOKED_CLAIM_RE.search(reply) and 'book_viewing' not in performed and not has_existing_appointments:
+    if _asserted(BOOKED_CLAIM_RE, reply) and 'book_viewing' not in performed and not has_existing_appointments:
         # Allowed only when the code quoted comes from an existing appointment (get_my_appointments).
         if not APPT_RE.search(reply):
             result.fail("claims a viewing is booked/confirmed but book_viewing did not succeed this turn", fatal=True)
-    if CANCEL_CLAIM_RE.search(reply) and 'cancel_appointment' not in performed:
+    if _asserted(CANCEL_CLAIM_RE, reply) and 'cancel_appointment' not in performed:
         result.fail("claims a cancellation but cancel_appointment did not succeed this turn", fatal=True)
 
     return result

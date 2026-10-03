@@ -40,7 +40,7 @@ The repo path contains a space and `&`: quote it in shell commands.
 `git push origin main` → GitHub Actions (`.github/workflows/deploy.yml`) builds images to Docker
 Hub, rewrites image tags in `k8s/*` and commits "🚀 Deploy" → ArgoCD syncs (~3-10 min), running the
 PreSync `migrate-job` first.
-- CI tests are **non-blocking**: run tests in Docker before pushing.
+- CI backend tests are **blocking** (`pytest` + `makemigrations --check`): a red suite does not deploy.
 - Never hand-edit image tags, never use `redeploy.ps1`/SSH to deploy.
 - Non-secret config → `k8s/configmap.yaml`. Secrets → GitHub Secret + a `--from-literal` line in
   the `deploy-secrets` job.
@@ -84,9 +84,22 @@ Loop per message: build prompt → model calls tools → real results → draft 
 - `prompts/`: `soul.md` (identity + hard rules), `intent.md` (routing; *give value first, then ask
   one question*), `skills/real_estate[_nepal].md` (market skill chosen by location country),
   `memory.md`, `summarize.md`. Prompts live in files, never inline.
-- `tools.py`: search (vocabulary-normalized, relaxes criteria instead of returning nothing),
-  details, **portfolio overview**, appointments, save lead, book/cancel viewing, memory, escalate.
+- `tools.py`: strict search (hard budget/area; near matches labelled with what differs, never
+  silently widened), `list_locations`, portfolio overview, details (`not_recorded` topics), compare,
+  `send_property_photos`, viewing slots, appointments, leads, memory, handoff.
   `MARKETS` maps country → currency/timezone (Nepal Rs + lakh/crore, India ₹, Hong Kong HK$, USA $).
+- **Writes are preview → customer yes → locked execution → receipt** (`actions.py`, `AgentAction`
+  ledger): `prepare_viewing/cancellation/reschedule` create a preview; `confirm_pending_action`
+  runs it only if the preview is from an earlier turn AND the customer's latest message is a plain
+  yes. Listing row lock + slot/price re-check; a duplicate yes returns the stored receipt. The
+  reply always quotes the receipt (deterministic template in `language.receipt_line`).
+- `capabilities.py`: the ONE place tool access is decided (owner `AgentSettings` today; subscription
+  plan tomorrow) + the CAN/CANNOT list in the prompt. `AgentSettings` (Settings → AI agent):
+  bookings on/off, staff-approval mode, viewing hours, daily AI reply cap.
+- Every agent reply is metered (`billing.meter.record_usage`, module `chatbot_ai`) for future plans.
+- Staff takeover during a run → reply `suppressed`; every channel stays silent.
+- Restaurant path: `ai_engine/booking_guard.py` blocks "table booked" claims without complete data
+  and quotes the real booking code (fixes the 2026-06 false-confirmation screenshot).
 - `vocab.py`: customer words → enums (jagga→land, kotha→room, ghar→house, shutter→retail, ktm→Kathmandu).
 - `language.py`: deterministic reply language (Devanagari / Romanized Nepali / English / Chinese),
   sticky across neutral replies like "10000".
@@ -99,6 +112,13 @@ Loop per message: build prompt → model calls tools → real results → draft 
 - Model: `AI_AGENT_MODEL` in the configmap (`gpt-4.1-mini`; gpt-4o-mini invented listing facts in
   evals). Restaurant path still uses `OPENAI_MODEL`.
 - If every reply fails: check OpenAI credits first (a zero-credit key returns 429 on every call).
+- **Live eval:** `python manage.py run_agent_evals [--cases RE-043 --repeat 5] [--report f.md]` runs
+  the spec scenarios (`ai_engine/evals/scenarios.py`, from `kribaat_agent_harness_130_conversations.md`)
+  against the real model on a throwaway tenant. Run it after any prompt/tool change.
+- **Listing photos:** `realestate/photo_storage.py` → Cloudflare R2 bucket `kribaat-media`
+  (public `pub-296eb79cd8404023a4b91caa9c0e6bd0.r2.dev`), re-encoded JPEG ≤1600px, EXIF/GPS stripped.
+  Falls back to the media-pvc if any `R2_*` setting is missing. WhatsApp sends them as image messages.
+  r2.dev blocks Python's default user-agent (error 1010) — test with a browser/`facebookexternalua` UA.
 
 ## Frontend (`frontend/src/`)
 

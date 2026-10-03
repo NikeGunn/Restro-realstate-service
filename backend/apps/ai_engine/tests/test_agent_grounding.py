@@ -89,12 +89,13 @@ def test_jagga_search_returns_land_whichever_field_the_model_uses(nepal_conv):
         assert out['total_matches'] == 2
 
 
-def test_search_relaxes_instead_of_returning_nothing(nepal_conv):
+def test_strict_search_labels_near_matches_and_never_widens_silently(nepal_conv):
     out = RealEstateTools(nepal_conv).search_properties(property_type='land', area='Pokhara', max_price=1000000)
-    assert out['exact_match'] is False
-    assert out['results'], 'must show the closest real land, not an empty list'
-    assert {r['property_type'] for r in out['results']} == {'Land'}   # the asked type is dropped last
-    assert 'area' in out['relaxed_criteria'] or 'max_price' in out['relaxed_criteria']
+    assert out['exact_match'] is False and out['results'] == []         # nothing is presented as a match
+    assert out['near_matches'], 'closest real land is still shown, as an alternative'
+    assert all(m['differs_from_request'] for m in out['near_matches'])   # each says what differs
+    assert any('over the maximum budget' in d for m in out['near_matches'] for d in m['differs_from_request'])
+    assert {loc['district'] for loc in out['same_type_elsewhere']} == {'Bhaktapur', 'Lalitpur'}
 
 
 def test_keywords_match_any_word_and_features(nepal_conv):

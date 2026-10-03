@@ -499,6 +499,7 @@ export interface PropertyListing {
   longitude: string | null;
   features: string[];
   images: string[];
+  primary_image?: string | null;
   virtual_tour_url: string;
   status: 'draft' | 'active' | 'pending' | 'sold' | 'rented' | 'off_market';
   status_display: string;
