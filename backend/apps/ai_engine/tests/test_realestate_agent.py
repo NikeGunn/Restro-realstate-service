@@ -159,3 +159,15 @@ def test_summarize_customer_folds_messages(conv):
     mem = agent_memory.summarize_customer(conv.organization, '85291234567', client=client)
     assert 'schools' in mem.summary and mem.summarized_until is not None
     assert 'Needs 3 bedrooms' in agent_memory.customer_memory_text(conv)
+
+
+def test_gate_accepts_customer_stated_millions():
+    assert verify_reply("Noted: expected price HK$9 million.", ["expecting 9 million"], []).ok
+
+
+def test_book_viewing_rejects_weekday_mismatch(conv, listing):
+    day = (hk_now() + timedelta(days=3)).date()
+    wrong = (day + timedelta(days=1)).strftime('%A')
+    res = RealEstateTools(conv).book_viewing(date=day.isoformat(), time='11:00', weekday=wrong, name='Priya')
+    assert not res['ok'] and 'not' in res['error']
+    assert Appointment.objects.count() == 0

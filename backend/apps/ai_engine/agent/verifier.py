@@ -42,12 +42,20 @@ def _to_number(raw: str, unit: str = '') -> float:
     return value
 
 
+SCALED_RE = re.compile(r'(\d[\d,]*(?:\.\d+)?)\s*(million|mil|m\b|萬|万|k\b)', re.I)
+
+
 def evidence_numbers(texts: Iterable[str]) -> Set[float]:
     nums: Set[float] = set()
     for text in texts:
         for raw in NUMBER_RE.findall(text or ''):
             try:
                 nums.add(round(float(raw.replace(',', '')), 2))
+            except ValueError:
+                continue
+        for raw, unit in SCALED_RE.findall(text or ''):  # "9 million", "18.8M", "900萬"
+            try:
+                nums.add(round(_to_number(raw, 'million' if unit.lower() == 'mil' else unit), 2))
             except ValueError:
                 continue
     return nums

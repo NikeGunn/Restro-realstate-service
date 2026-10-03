@@ -85,9 +85,16 @@ class RealEstateAgent:
         if self.conversation.customer_name and self.conversation.customer_name not in ('WhatsApp User', 'Website Visitor'):
             channel_note += f"Profile name on the channel: {self.conversation.customer_name} (confirm before using as booking name).\n"
 
+        from datetime import timedelta
+        calendar = "\n".join(
+            f"- {(now + timedelta(days=i)):%A %Y-%m-%d}" + (" (today)" if i == 0 else " (tomorrow)" if i == 1 else "")
+            for i in range(15)
+        )
         self.evidence.extend([knowledge, appt_text, overrides])
         return "\n\n".join([
             soul, _load('intent.md'), _load('skills/real_estate.md'), mem,
+            "# CALENDAR (use this, never compute dates yourself; \"next Saturday\" = the first Saturday after today)\n"
+            + calendar,
             f"# KNOWLEDGE (agency facts — the only non-tool source of truth)\n{knowledge}",
             channel_note,
         ])

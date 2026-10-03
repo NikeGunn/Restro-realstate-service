@@ -632,10 +632,10 @@ class AppointmentService:
         """Parse appointment type from extracted data."""
         apt_type = extracted_data.get('appointment_type', '').lower()
         
-        if 'viewing' in apt_type or 'tour' in apt_type or 'visit' in apt_type:
-            return Appointment.AppointmentType.VIEWING
-        elif 'virtual' in apt_type:
+        if 'virtual' in apt_type or 'video' in apt_type:
             return Appointment.AppointmentType.VIRTUAL_TOUR
+        elif 'viewing' in apt_type or 'tour' in apt_type or 'visit' in apt_type:
+            return Appointment.AppointmentType.VIEWING
         elif 'consult' in apt_type:
             return Appointment.AppointmentType.CONSULTATION
         elif 'follow' in apt_type:

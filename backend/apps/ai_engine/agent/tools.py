@@ -167,7 +167,7 @@ class RealEstateTools:
         self._remember("; ".join(bits), display_name=name)
         return {'ok': True, 'lead_id': str(lead.id), 'lead_score': lead.lead_score, 'priority': lead.priority}
 
-    def book_viewing(self, date: str, time: str, name: str = '', phone: str = '',
+    def book_viewing(self, date: str, time: str, weekday: str = '', name: str = '', phone: str = '',
                      property_reference: str = '', appointment_type: str = 'viewing',
                      notes: str = '') -> Dict[str, Any]:
         from apps.realestate.lead_service import AppointmentService
@@ -183,6 +183,8 @@ class RealEstateTools:
             t = datetime.strptime(time.strip()[:5], '%H:%M').time()
         except (ValueError, AttributeError):
             return {'ok': False, 'error': 'date must be YYYY-MM-DD and time HH:MM (24h).'}
+        if weekday and weekday.strip().lower()[:3] != d.strftime('%a').lower():
+            return {'ok': False, 'error': f'{d.isoformat()} is a {d:%A}, not {weekday}. Re-check the CALENDAR and pass the correct date.'}
         now = hk_now()
         if datetime.combine(d, t, HK_TZ) < now + timedelta(hours=1):
             return {'ok': False, 'error': f'That time is in the past or under 1 hour away (now {now:%Y-%m-%d %H:%M}). Ask for a later slot.'}
@@ -317,11 +319,12 @@ TOOL_SCHEMAS = [
     _fn('book_viewing', 'Book a property viewing / consultation. Only claim it is booked if this returns ok=true. In the same turn also call save_lead with everything known (intent, budget, areas).', {
         'date': {'type': 'string', 'description': 'YYYY-MM-DD (resolve relative dates against today)'},
         'time': {'type': 'string', 'description': 'HH:MM 24h, between 10:00 and 19:00'},
+        'weekday': {'type': 'string', 'description': 'Weekday of that date from the CALENDAR, e.g. "Saturday" — must match'},
         'name': {'type': 'string'}, 'phone': {'type': 'string', 'description': 'Only if not on WhatsApp'},
         'property_reference': {'type': 'string'},
         'appointment_type': {'type': 'string', 'enum': ['viewing', 'virtual_tour', 'consultation']},
         'notes': {'type': 'string'},
-    }, ['date', 'time']),
+    }, ['date', 'time', 'weekday']),
     _fn('cancel_appointment', 'Cancel one of this customer\'s appointments by confirmation code.',
         {'confirmation_code': {'type': 'string'}, 'reason': {'type': 'string'}}, ['confirmation_code']),
     _fn('remember_customer_fact', 'Persist a durable fact/preference about this customer for future conversations.',
