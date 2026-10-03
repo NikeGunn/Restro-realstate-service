@@ -77,8 +77,8 @@ class PropertyListingListSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'title', 'listing_type', 'listing_type_display',
             'property_type', 'property_type_display', 'reference_number',
-            'price', 'city', 'state', 'neighborhood',
-            'bedrooms', 'bathrooms', 'square_feet',
+            'price', 'rent_period', 'city', 'state', 'country', 'neighborhood',
+            'bedrooms', 'bathrooms', 'square_feet', 'lot_size',
             'status', 'status_display', 'is_featured', 'primary_image',
             'created_at'
         ]

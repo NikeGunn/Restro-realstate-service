@@ -12,6 +12,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useToast } from '@/hooks/use-toast'
 import { WidgetPreview } from '@/components/WidgetPreview'
 import { RedeemCouponCard } from '@/components/RedeemCouponCard'
+import { MarketSettingsCard } from '@/components/MarketSettingsCard'
+import { AgentPlaybookCard } from '@/components/AgentPlaybookCard'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import {
   Building2,
@@ -296,6 +298,12 @@ export function SettingsPage() {
               </Button>
             </CardContent>
           </Card>
+          <div className="mt-4">
+            <MarketSettingsCard locations={locations} onSaved={fetchLocations} />
+          </div>
+          <div className="mt-4">
+            <AgentPlaybookCard organizationId={currentOrganization.id} />
+          </div>
         </TabsContent>
 
         <TabsContent value="widget" className="mt-4">

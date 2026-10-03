@@ -1,8 +1,9 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
-import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom'
+import { Outlet, NavLink, Navigate, useNavigate, useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/store/auth'
 import { cn } from '@/lib/utils'
+import { isPathAllowed } from '@/lib/verticals'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -222,41 +223,25 @@ export function DashboardLayout() {
   const navigate = useNavigate()
   const location = useLocation()
 
-  // Build navigation items based on organization business type
+  // Navigation = every module in display order, filtered by the org's vertical
+  // (lib/verticals.ts decides; the same rule guards direct URL access below).
+  const businessType = currentOrganization?.business_type
   const navItems = useMemo<NavItem[]>(() => {
-    const items: NavItem[] = [...coreNavKeys]
-
-    const businessType = currentOrganization?.business_type
-    if (businessType === 'restaurant') {
-      items.push(...restaurantNavKeys)
-      items.push(coffeePassGroup)
-    } else if (businessType === 'real_estate') {
-      items.push(...realEstateNavKeys)
-    } else {
-      items.push(...restaurantNavKeys)
-      items.push(coffeePassGroup)
-      items.push(...realEstateNavKeys)
-    }
-
-    // Inventory is shared across both verticals — single collapsible group.
-    items.push(inventoryGroup)
-
-    // CRM Lite — shared across verticals.
-    items.push(crmGroup)
-
-    // Engage (Lucky Draw) — shared across verticals.
-    items.push(engageGroup)
-
-    // Content Studio (Phase 5) — shared across verticals.
-    items.push(studioGroup)
-
-    // Billing & Usage (Phase 6) — shared across verticals.
-    items.push(billingGroup)
-
-    items.push(settingsNavKey)
-    items.push(channelsNavKey)
-    return items
-  }, [currentOrganization?.business_type])
+    const all: NavItem[] = [
+      ...coreNavKeys,
+      ...restaurantNavKeys,
+      coffeePassGroup,
+      ...realEstateNavKeys,
+      inventoryGroup,
+      crmGroup,
+      engageGroup,
+      studioGroup,
+      billingGroup,
+      settingsNavKey,
+      channelsNavKey,
+    ]
+    return all.filter((item) => isPathAllowed(item.kind === 'leaf' ? item.path : item.pathPrefix, businessType))
+  }, [businessType])
 
   // Group expand/collapse state, persisted across reloads.
   const [groupState, setGroupState] = useState<Record<string, boolean>>(loadGroupState)
@@ -482,7 +467,7 @@ export function DashboardLayout() {
         )}
       >
         <div className="p-6">
-          <Outlet />
+          {isPathAllowed(location.pathname, businessType) ? <Outlet /> : <Navigate to="/dashboard" replace />}
         </div>
       </main>
     </div>

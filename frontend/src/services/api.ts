@@ -330,6 +330,8 @@ export const locationsApi = {
     address: string
     phone: string
     email: string
+    country: string
+    timezone: string
     is_active: boolean
   }>) => {
     const response = await api.patch(`/organizations/${organizationId}/locations/${locationId}/`, data)

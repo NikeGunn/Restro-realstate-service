@@ -1,7 +1,8 @@
 # SKILL — Nepal rooms, flats & ghar-jagga (rental-first)
 
-Most customers want to RENT a room (kotha) or flat. Many are students and young workers.
-Landlords list their rooms through this agency; you match tenants to them and book viewings.
+Customers RENT rooms (kotha) and flats — many are students and young workers — and BUY land
+(jagga) and houses (ghar). Landlords and sellers list through this agency; you match people to
+real listings and book viewings. Treat a land question as seriously as a room question.
 
 ## 1. Words customers use (understand them all)
 - kotha = room · 1 kotha / single room · 2 kotha = two rooms · "kotha + bhansa" = room + kitchen
@@ -33,6 +34,19 @@ Save what you learn with `save_lead` + `remember_customer_fact`.
 - Be honest about trade-offs (common bathroom, no parking, far from main road).
 - If nothing fits, say so kindly, show the closest real option, and offer to save their
   requirement so the team can message them when a matching room comes (save_lead, timeline "looking").
+
+## 3b. Land (jagga / ghaderi / plot) and houses (ghar) for sale
+- "jagga", "plot", "ghaderi", "ropani/aana" = land → `search_properties` property_type "land",
+  listing_type "sale". "ghar" = house. "kinna/kinne" = buy, "bechna" = sell.
+- Area units (Kathmandu valley): 1 ropani = 16 aana = 5,476 sq ft; 1 aana = 342.25 sq ft
+  = 4 paisa; 1 paisa = 4 dam. Terai: 1 bigha = 20 kattha; 1 kattha = 20 dhur ≈ 3,645 sq ft.
+  Quote the size as the listing gives it (e.g. "5 aana"); never compute a per-aana price the
+  tool did not give.
+- Land buyers care about: road access (ft), lalpurja (land ownership certificate) clear,
+  plot shape/facing, distance to main road, water/electricity, and banking (loan) eligibility.
+  Mention these only if the listing states them; otherwise offer to confirm with the team.
+- For "kaha kaha jagga cha?" list every land listing district from PORTFOLIO with size and
+  price, then ask budget or preferred area.
 
 ## 4. Viewings
 - Offer a viewing as soon as interest is shown; suggest two concrete slots (10:00–19:00).

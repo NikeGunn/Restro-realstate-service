@@ -13,14 +13,22 @@ from typing import Iterable, List, Set
 
 REF_RE = re.compile(r'\bPROP\d{6}\b', re.I)
 APPT_RE = re.compile(r'\bAPT[A-Z0-9]{6}\b', re.I)
-# HK$1,234,567 · $32,000 · HKD 5.98M · 42,000,000 港元 · Rs 12,000 · NPR 1,85,00,000 · रु. 50 लाख · 1.85 crore
-UNIT = r'(million|m\b|萬|万|k\b|lakhs?|lacs?|crores?|cr\b|लाख|करोड)'
+# HK$1,234,567 · $32,000 · HKD 5.98M · 42,000,000 港元 · Rs 12,000 · NRs 12,000 · ₨ 9,500 · HK₨ 7,500 (sic)
+# NPR 1,85,00,000 · रु. 50 लाख · 1.85 crore · 15 hajar · 12,000/month · 12000 per month
+UNIT = r'(million|m\b|萬|万|k\b|lakhs?|lacs?|crores?|cr\b|लाख|करोड|hajar|hazar|हजार)'
+CURRENCY = r'(?:HK\$|HK₨|HKD\s?|US\$|\$|港幣|港元|NRs\.?|Rs\.?|₨|₹|INR\s?|NPR|रु\.?|रू\.?)'
 MONEY_RE = re.compile(
-    r'(?:HK\$|HKD\s?|\$|港幣|港元|Rs\.?|NPR|रु\.?|रू\.?)\s?(\d[\d,]*(?:\.\d+)?)\s*' + UNIT + r'?'
-    r'|(\d[\d,]*(?:\.\d+)?)\s*' + UNIT + r'?\s*(?:港元|港幣|HKD|rupees|रुपैयाँ)'
-    r'|(\d[\d,]*(?:\.\d+)?)\s*(lakhs?|lacs?|crores?|लाख|करोड)',
+    CURRENCY + r'\s?(\d[\d,]*(?:\.\d+)?)\s*' + UNIT + r'?'
+    r'|(\d[\d,]*(?:\.\d+)?)\s*' + UNIT + r'?\s*(?:港元|港幣|HKD|NPR|rupees|rupiya|रुपैयाँ)'
+    r'|(\d[\d,]*(?:\.\d+)?)\s*(lakhs?|lacs?|crores?|लाख|करोड|hajar|hazar|हजार)'
+    r'|(\d[\d,]*(?:\.\d+)?)()\s*(?:/\s?(?:month|mo|mahina)\b|per\s+month|a\s+month|monthly|प्रति\s?महिना)',
     re.I,
 )
+# Any standalone figure of 4+ digits (prices, sizes) must be backed by evidence too,
+# whatever currency word the model chose (or forgot). Dates/times are excluded.
+# Phone-like runs (9+ bare digits, or after '+') and codes such as PROP958917 are not figures.
+BIG_NUMBER_RE = re.compile(r'(?<![\w\-:/.+])(\d{1,3}(?:,\d{2,3})+|\d{4,8})(?:\.\d+)?(?![\w\-:/])')
+ISO_DATE_RE = re.compile(r'\b\d{4}-\d{2}-\d{2}\b')
 NUMBER_RE = re.compile(r'\d[\d,]*(?:\.\d+)?')
 
 BOOKED_CLAIM_RE = re.compile(
@@ -45,10 +53,12 @@ def _to_number(raw: str, unit: str = '') -> float:
         value *= 100_000
     elif unit.startswith('crore') or unit in ('cr', 'करोड'):
         value *= 10_000_000
+    elif unit in ('hajar', 'hazar', 'हजार'):
+        value *= 1_000
     return value
 
 
-SCALED_RE = re.compile(r'(\d[\d,]*(?:\.\d+)?)\s*(million|mil|m\b|萬|万|k\b|lakhs?|lacs?|crores?|cr\b|लाख|करोड)', re.I)
+SCALED_RE = re.compile(r'(\d[\d,]*(?:\.\d+)?)\s*(million|mil|m\b|萬|万|k\b|lakhs?|lacs?|crores?|cr\b|लाख|करोड|hajar|hazar|हजार)', re.I)
 
 
 def evidence_numbers(texts: Iterable[str]) -> Set[float]:
@@ -97,8 +107,9 @@ def verify_reply(reply: str, evidence: List[str], actions: List[dict],
             result.fail(f"confirmation code {code} was not returned by a tool", fatal=True)
 
     known = evidence_numbers(evidence)
+    checked: Set[float] = set()
     for m in MONEY_RE.finditer(reply):
-        raw, unit = next(((m.group(i), m.group(i + 1)) for i in (1, 3, 5) if m.group(i)), (None, None))
+        raw, unit = next(((m.group(i), m.group(i + 1)) for i in (1, 3, 5, 7) if m.group(i)), (None, None))
         try:
             value = round(_to_number(raw, unit), 2)
         except (TypeError, ValueError):
@@ -106,6 +117,16 @@ def verify_reply(reply: str, evidence: List[str], actions: List[dict],
         if value not in known:
             result.fail(f"amount {m.group(0).strip()} is not in the listings, knowledge or what the customer said",
                         span=m.group(0).strip())
+        else:
+            checked.add(value)
+
+    for m in BIG_NUMBER_RE.finditer(ISO_DATE_RE.sub(' ', reply)):
+        try:
+            value = round(float(m.group(1).replace(',', '')), 2)
+        except ValueError:
+            continue
+        if value not in known and value not in checked and not any(m.group(1) in o for o in result.offending):
+            result.fail(f"figure {m.group(0)} does not appear in any tool result or KNOWLEDGE", span=m.group(0))
 
     performed = {a.get('tool') for a in actions}
     if BOOKED_CLAIM_RE.search(reply) and 'book_viewing' not in performed and not has_existing_appointments:

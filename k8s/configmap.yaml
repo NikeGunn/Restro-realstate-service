@@ -37,6 +37,9 @@ data:
 
   # OpenAI settings
   OPENAI_MODEL: "gpt-4o-mini"
+  # Real-estate tool-calling agent (apps/ai_engine/agent). gpt-4.1-mini: accurate tool use +
+  # Romanized Nepali, ~2.5s/turn in the 2026-10-03 eval; gpt-4o-mini invented listing facts.
+  AI_AGENT_MODEL: "gpt-4.1-mini"
   OPENAI_MAX_TOKENS: "500"
   OPENAI_TEMPERATURE: "0.7"
 

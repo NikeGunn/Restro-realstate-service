@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { format } from 'date-fns'
-import { Building2, MapPin, Bed, Bath, Maximize, DollarSign, Plus, Edit, Trash2, Star, Eye, Check } from 'lucide-react'
+import { Building2, MapPin, Bed, Bath, Maximize, Plus, Edit, Trash2, Star, Eye, Check } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -23,7 +23,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { formatMoney } from '@/lib/money'
+import { MARKET_OPTIONS, currencySymbol, formatMoney } from '@/lib/money'
 import { useToast } from '@/hooks/use-toast'
 import { realEstateApi, organizationsApi } from '@/services/api'
 import type { PropertyListing, Organization } from '@/types'
@@ -39,12 +39,16 @@ const STATUS_COLORS: Record<string, string> = {
 
 const PROPERTY_TYPES = [
   { value: 'house', label: 'House' },
-  { value: 'apartment', label: 'Apartment' },
+  { value: 'apartment', label: 'Apartment / Flat' },
+  { value: 'room', label: 'Room' },
   { value: 'condo', label: 'Condo' },
   { value: 'townhouse', label: 'Townhouse' },
   { value: 'land', label: 'Land' },
   { value: 'commercial', label: 'Commercial' },
+  { value: 'office', label: 'Office' },
+  { value: 'retail', label: 'Shop / Shutter' },
   { value: 'industrial', label: 'Industrial' },
+  { value: 'other', label: 'Other' },
 ]
 
 const LISTING_TYPES = [
@@ -65,7 +69,7 @@ const INITIAL_FORM = {
   city: '',
   state: '',
   postal_code: '',
-  country: 'USA',
+  country: '',
   bedrooms: '',
   bathrooms: '',
   square_feet: '',
@@ -88,6 +92,8 @@ export function PropertiesPage() {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingProperty, setEditingProperty] = useState<PropertyListing | null>(null)
   const [form, setForm] = useState(INITIAL_FORM)
+  // The agency's market (primary location country) — a listing without its own country uses it.
+  const orgCountry = organizations.find((o) => o.id === selectedOrgId)?.locations?.find((l) => l.is_primary)?.country
 
   // Load organizations
   useEffect(() => {
@@ -135,7 +141,16 @@ export function PropertiesPage() {
     setDialogOpen(true)
   }
 
-  const openEditDialog = (property: PropertyListing) => {
+  const openEditDialog = async (summary: PropertyListing) => {
+    // List rows are a lightweight projection (no description/address) — editing from them
+    // would save blanks over real data, so always load the full listing first.
+    let property: PropertyListing
+    try {
+      property = await realEstateApi.properties.get(summary.id)
+    } catch (error) {
+      toast({ title: 'Error', description: 'Could not load this property for editing', variant: 'destructive' })
+      return
+    }
     setEditingProperty(property)
     setForm({
       title: property.title,
@@ -149,7 +164,7 @@ export function PropertiesPage() {
       city: property.city || '',
       state: property.state || '',
       postal_code: property.postal_code || '',
-      country: property.country || 'USA',
+      country: property.country || orgCountry || '',
       bedrooms: property.bedrooms?.toString() || '',
       bathrooms: property.bathrooms?.toString() || '',
       square_feet: property.square_feet?.toString() || '',
@@ -179,7 +194,7 @@ export function PropertiesPage() {
       city: form.city,
       state: form.state,
       postal_code: form.postal_code,
-      country: form.country,
+      country: form.country || orgCountry || 'USA',
       bedrooms: form.bedrooms ? parseInt(form.bedrooms) : null,
       bathrooms: form.bathrooms ? parseFloat(form.bathrooms) : null,
       square_feet: form.square_feet ? parseInt(form.square_feet) : null,
@@ -331,7 +346,7 @@ export function PropertiesPage() {
                 <div className="mb-2">
                   <h3 className="font-semibold text-lg line-clamp-1">{property.title}</h3>
                   <p className="text-2xl font-bold text-primary">
-                    {formatPrice(property.price, property.listing_type, property.country)}
+                    {formatPrice(property.price, property.listing_type, property.country || orgCountry)}
                   </p>
                 </div>
 
@@ -452,19 +467,43 @@ export function PropertiesPage() {
               </div>
             </div>
 
+            {/* Market — defaults to the agency's market (Settings → Market & currency) */}
+            <div className="space-y-2">
+              <Label>Market / currency</Label>
+              <Select
+                value={form.country || orgCountry || ''}
+                onValueChange={v => setForm(prev => ({ ...prev, country: v }))}
+              >
+                <SelectTrigger><SelectValue placeholder="Agency default" /></SelectTrigger>
+                <SelectContent>
+                  {MARKET_OPTIONS.map(m => (
+                    <SelectItem key={m.country} value={m.country}>{m.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
             {/* Price */}
             <div className="space-y-2">
-              <Label>Price</Label>
+              <Label>{form.listing_type === 'rent' || form.listing_type === 'lease' ? 'Monthly rent' : 'Price'}</Label>
               <div className="relative">
-                <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                  {currencySymbol(form.country || orgCountry)}
+                </span>
                 <Input
                   type="number"
-                  className="pl-8"
+                  className="pl-12"
                   value={form.price}
                   onChange={e => setForm(prev => ({ ...prev, price: e.target.value }))}
                   placeholder="500000"
                 />
               </div>
+              {form.price && (
+                <p className="text-xs text-muted-foreground">
+                  {formatMoney(form.price, form.country || orgCountry)}
+                  {form.listing_type === 'rent' || form.listing_type === 'lease' ? ' / month' : ''}
+                </p>
+              )}
             </div>
 
             {/* Address */}

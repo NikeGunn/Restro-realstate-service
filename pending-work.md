@@ -43,16 +43,41 @@ Everything under **Pending** was requested but is not built yet. Start from the 
 owner playbook memory. Restaurant data was replaced for this org. New OpenAI key in GitHub Secret +
 cluster secret (the old key had zero credits).
 
+## Shipped (2026-10-03, round 2) — agent grounding + admin control
+
+Root causes fixed (prod chats: "jagga" → English "could you clarify?" loop; invented rooms at
+"HK₨7,500"; `$` on Properties):
+- Properties list API omitted `country` → dashboard fell back to USD. Edit dialog filled from that
+  lightweight row (no description/address) → saving an edit would blank them. Both fixed.
+- Agent: no view of the whole stock → added live PORTFOLIO in the prompt + `get_portfolio_overview`;
+  search maps jagga/kotha/ghar/shutter (+ Devanagari, area aliases) and relaxes criteria instead of
+  returning nothing; prompt rule "give value first, then one question".
+- Language: shared detector labelled Romanized Nepali as English → deterministic Nepali detector,
+  binding per-turn instruction, sticky for neutral replies ("10000").
+- Gate: `₨`, `₹`, NRs, hajar, "/month" and bare 4+ digit figures now checked; tool arguments no
+  longer count as evidence (a made-up max_price used to verify itself).
+- Old Hong Kong summary in customer memory poisoned Nepal chats → `seed_nepal_portfolio --wipe`
+  clears customer memory and archives old chats.
+- Model: `AI_AGENT_MODEL=gpt-4.1-mini` (eval: gpt-4o-mini invented a listing feature and put a
+  1.25-crore plot under "below 1 crore").
+- Sidebar showed Inventory / Lucky Draw to real-estate orgs → `lib/verticals.ts` drives sidebar +
+  route guard.
+- Admin control without code: Settings → *Market & currency* (country → currency + timezone for
+  dashboard AND agent; Nepal / India / Hong Kong / USA), property form market selector + live
+  formatted price, Settings → *AI agent playbook* editor (`/api/v1/ai/playbook/`, owner-only).
+- Prod data reseeded: 29 Nepal listings (rooms, flats, 9 land plots across 7 districts, houses,
+  shops, office), NPR.
+
 ## Pending — product features (requested, not built)
 
 1. **Landlord self-serve "rooms" product** (the subscription you described): landlord signs up,
    subscribes, adds rooms with photos, availability, rent, deposit, who-is-allowed (student /
    bachelor / family), water, parking, bathroom type. Needs explicit fields on `PropertyListing`
    (or a `Room` model), a landlord-friendly add-room form, and plan limits (rooms per tier).
-2. **Edit an existing location in Settings** (name, country, timezone). Today only Django admin
-   can change country/timezone, and the country drives the whole market.
-3. **Country/market picker in Settings** (Nepal / Hong Kong / other) so the admin sets the market
-   in the UI rather than per location.
+2. **Edit an existing location's name/address in Settings** (market/country is now editable via
+   *Market & currency*; other location fields still need an edit dialog).
+3. **More markets**: add a country to `MARKET_OPTIONS` (frontend `lib/money.ts`) and `MARKETS`
+   (`ai_engine/agent/tools.py`) — keep them in sync; optionally a market skill file.
 4. **Nepali UI language** (`ne`) for the dashboard, plus Nepali in `LanguageService` so detection
    and fallback messages are Nepali.
 5. **Property form fields for Nepal**: land area in ropani/aana/paisa/dam and bigha/kattha/dhur,
@@ -60,8 +85,10 @@ cluster secret (the old key had zero credits).
 6. **Notify the customer** when the dashboard confirms/cancels/reschedules an appointment
    (WhatsApp template), and owner WhatsApp alert when the AI books a viewing.
 7. **Reschedule action** on the Appointments page (today it's cancel + create).
-8. **Owner playbook editor** in the dashboard (AgentMemory owner facts); today set via shell/admin.
+8. **Vertical gating on the API** (today the UI hides other-vertical modules; the APIs are still
+   reachable by a member of the org, though data stays org-scoped).
 9. **Customer memory viewer** on the lead/inbox page (facts + summary).
+10. **Listing photos** on the Properties form (upload → `images`); the agent could send them on WhatsApp.
 
 ## Pending — MCP server + website crawler (design only, needs your go/no-go)
 

@@ -242,4 +242,5 @@ def test_gate_understands_npr_lakh_crore():
     assert verify_reply("The house is Rs 3.85 crore and the room Rs 6,000/month.", ev, []).ok
     assert not verify_reply("Room only Rs 4,000 per month!", ev, []).ok
     assert not verify_reply("Land is 2 crore.", ev, []).ok
-    assert verify_reply("Your budget of 15 hajar is noted; 50 lakh too.", ev + ['budget 50 lakh'], []).ok
+    assert verify_reply("Your budget of 15 hajar is noted; 50 lakh too.", ev + ['kotha 15 hajar samma, budget 50 lakh'], []).ok
+    assert not verify_reply("Your budget of 15 hajar is noted.", ev, []).ok  # hajar is checked too

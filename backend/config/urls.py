@@ -41,6 +41,7 @@ urlpatterns = [
     path('api/organizations/', include('apps.accounts.urls_organizations')),
     path('api/conversations/', include('apps.messaging.urls')),
     path('api/knowledge/', include('apps.knowledge.urls')),
+    path('api/v1/ai/', include('apps.ai_engine.urls')),
     path('api/handoff/', include('apps.handoff.urls')),
     path('api/analytics/', include('apps.analytics.urls')),
     path('api/v1/widget/', include('apps.widget.urls')),

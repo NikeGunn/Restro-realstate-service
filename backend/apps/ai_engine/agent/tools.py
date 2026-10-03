@@ -18,6 +18,7 @@ from django.db.models import Q
 from apps.realestate.models import Appointment, Lead, PropertyListing
 
 from . import memory as agent_memory
+from . import vocab
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +39,17 @@ MARKETS = {
         'name': 'Hong Kong', 'tz': 'Asia/Hong_Kong', 'currency': 'HK$', 'lakh_crore': False,
         'territory': {'hong kong', 'hongkong', 'hk', 'h.k.', '香港', '全港'},
     },
+    'india': {
+        'name': 'India', 'tz': 'Asia/Kolkata', 'currency': '₹', 'lakh_crore': True,
+        'territory': {'india', 'all india', 'bharat'},
+    },
+    'usa': {
+        'name': 'USA', 'tz': 'America/New_York', 'currency': '$', 'lakh_crore': False,
+        'territory': {'usa', 'us', 'united states', 'america'},
+    },
 }
+# Same aliases the dashboard accepts (frontend/src/lib/money.ts).
+MARKET_ALIASES = {'united states': 'usa', 'us': 'usa', 'u.s.': 'usa', 'hk': 'hong kong', 'np': 'nepal'}
 DEFAULT_MARKET = {'name': '', 'tz': 'UTC', 'currency': '$', 'lakh_crore': False, 'territory': set()}
 
 
@@ -48,6 +59,7 @@ def market_for(organization) -> Dict[str, Any]:
     loc = (Location.objects.filter(organization=organization, is_active=True)
            .order_by('-is_primary').values('country', 'timezone').first()) or {}
     country = (loc.get('country') or '').strip().lower()
+    country = MARKET_ALIASES.get(country, country)
     market = dict(MARKETS.get(country, DEFAULT_MARKET))
     tz = loc.get('timezone') or ''
     # The location's own zone wins — unless it is the untouched model default
@@ -101,10 +113,12 @@ def _listing_summary(p: PropertyListing, market: Dict[str, Any]) -> Dict[str, An
         'price': price,
         'area': p.neighborhood or p.city,
         'district': p.city,
+        'province': p.state,
         'bedrooms': p.bedrooms,
         'bathrooms': float(p.bathrooms) if p.bathrooms is not None else None,
         'size_sqft': p.square_feet,
-        'highlights': (p.features or [])[:4],
+        'land_size_sqft': p.lot_size,
+        'highlights': (p.features or [])[:5],
     }
 
 
@@ -123,47 +137,101 @@ class RealEstateTools:
             organization=self.organization, status=PropertyListing.Status.ACTIVE, is_published=True,
         )
 
+    def _filtered(self, c: Dict[str, Any]):
+        qs = self._active_listings()
+        if c.get('listing_type') == 'rent':
+            qs = qs.filter(listing_type__in=['rent', 'lease'])
+        elif c.get('listing_type') == 'sale':
+            qs = qs.filter(listing_type='sale')
+        if c.get('property_type'):
+            qs = qs.filter(property_type=c['property_type'])
+        if c.get('area'):
+            a = c['area']
+            qs = qs.filter(Q(city__icontains=a) | Q(neighborhood__icontains=a) | Q(address_line1__icontains=a)
+                           | Q(title__icontains=a) | Q(state__icontains=a))
+        if c.get('min_price'):
+            qs = qs.filter(price__gte=Decimal(str(c['min_price'])))
+        if c.get('max_price'):
+            qs = qs.filter(price__lte=Decimal(str(c['max_price'])))
+        if c.get('min_bedrooms'):
+            qs = qs.filter(bedrooms__gte=int(c['min_bedrooms']))
+        if c.get('words'):
+            # ANY word may match (OR): "attached bathroom wifi" should not need all three.
+            any_word = Q()
+            for w in c['words'][:6]:
+                any_word |= (Q(title__icontains=w) | Q(description__icontains=w) | Q(neighborhood__icontains=w)
+                             | Q(features__icontains=w) | Q(amenities__icontains=w))
+            qs = qs.filter(any_word)
+        return qs
+
     def search_properties(self, listing_type: str = '', property_type: str = '', area: str = '',
                           min_price: float = None, max_price: float = None,
                           min_bedrooms: int = None, keywords: str = '', sort: str = 'best_match') -> Dict[str, Any]:
-        qs = self._active_listings()
-        lt = (listing_type or '').lower()
-        if lt in ('rent', 'lease'):
-            qs = qs.filter(listing_type__in=['rent', 'lease'])
-        elif lt in ('sale', 'buy'):
-            qs = qs.filter(listing_type='sale')
-        if property_type:
-            qs = qs.filter(property_type=property_type.lower())
-        area = (area or '').strip()
+        valid_types = {c for c, _ in PropertyListing.PropertyType.choices}
+        words, kw_type, kw_listing = vocab.split_keywords(keywords)
+        # "jagga" / "kotha" / "ghar" may arrive in any field — map them to the real enums.
+        ptype = vocab.normalize_property_type(property_type, valid_types) or kw_type
+        if property_type and not ptype:
+            words += vocab.tokens(property_type)  # unknown type word: search it as text instead
+        ltype = vocab.normalize_listing_type(listing_type) or kw_listing
+        area = vocab.normalize_area(area)
         if area.lower() in GENERIC_ANYWHERE | self.market['territory']:
             area = ''  # "anywhere in Nepal" is not a district filter
-        if area:
-            qs = qs.filter(Q(city__icontains=area) | Q(neighborhood__icontains=area)
-                           | Q(address_line1__icontains=area) | Q(title__icontains=area)
-                           | Q(state__icontains=area))
-        if min_price:
-            qs = qs.filter(price__gte=Decimal(str(min_price)))
-        if max_price:
-            qs = qs.filter(price__lte=Decimal(str(max_price)))
-        if min_bedrooms:
-            qs = qs.filter(bedrooms__gte=int(min_bedrooms))
-        if keywords:
-            for word in keywords.split()[:4]:
-                qs = qs.filter(Q(title__icontains=word) | Q(description__icontains=word))
+        criteria = {'listing_type': ltype, 'property_type': ptype, 'area': area, 'min_price': min_price,
+                    'max_price': max_price, 'min_bedrooms': min_bedrooms, 'words': words}
+
+        # Relaxation ladder: never answer "nothing" while the agency has something close.
+        # Least important criteria are dropped first; the type the customer asked for goes last.
+        relaxed: List[str] = []
+        qs = self._filtered(criteria)
+        for key in ('words', 'min_bedrooms', 'min_price', 'max_price', 'area', 'listing_type', 'property_type'):
+            if qs.exists():
+                break
+            if criteria.get(key):
+                criteria[key] = None
+                relaxed.append(key)
+                qs = self._filtered(criteria)
+
         total = qs.count()
         ordering = {'price_asc': ('price',), 'price_desc': ('-price',), 'newest': ('-created_at',)}.get(
             sort, ('-is_featured', 'price'))
         results = [_listing_summary(p, self.market) for p in qs.order_by(*ordering)[:SEARCH_LIMIT]]
-        criteria = ', '.join(str(v) for v in (listing_type, property_type, area,
-                             f"min {min_bedrooms} bed" if min_bedrooms else '',
-                             f"max {format_money(max_price, self.market)}" if max_price else '', keywords) if v)
-        if criteria:
-            self._remember(f"Searched for: {criteria}")
-        out = {'ok': True, 'total_matches': total, 'results': results}
+        asked = ', '.join(str(v) for v in (ltype, ptype, area,
+                          f"min {min_bedrooms} bed" if min_bedrooms else '',
+                          f"max {format_money(max_price, self.market)}" if max_price else '', ' '.join(words)) if v)
+        if asked:
+            self._remember(f"Searched for: {asked}")
+        out = {'ok': True, 'exact_match': not relaxed, 'total_matches': total, 'results': results,
+               'interpreted_as': {'listing_type': ltype or 'any', 'property_type': ptype or 'any',
+                                  'area': area or 'anywhere'}}
+        if relaxed:
+            out['relaxed_criteria'] = relaxed
+            out['note'] = ('Nothing matched every criterion. These are the CLOSEST real listings after dropping: '
+                           + ', '.join(relaxed) + '. Say so honestly (e.g. "nothing in X under your budget, '
+                           'closest is ...") — never present them as exact matches.')
         if not results:
             out['available_districts'] = sorted(set(self._active_listings().values_list('city', flat=True)))
-            out['note'] = 'No listing matches these criteria. Do not invent one; offer alternatives from a wider search.'
+            out['note'] = 'The agency has no active listings at all right now. Offer to save their requirement.'
         return out
+
+    def get_portfolio_overview(self) -> Dict[str, Any]:
+        """What the agency offers, grouped — for "what do you have?" / "land kaha kaha cha?"."""
+        groups: Dict[str, Dict[str, Any]] = {}
+        for p in self._active_listings().order_by('price'):
+            key = f"{p.get_property_type_display()} for {'rent' if p.listing_type in ('rent', 'lease') else 'sale'}"
+            g = groups.setdefault(key, {'count': 0, 'districts': set(), 'prices': []})
+            g['count'] += 1
+            g['districts'].add(p.city)
+            g['prices'].append(p.price)
+        overview = []
+        for key, g in sorted(groups.items(), key=lambda kv: -kv[1]['count']):
+            lo, hi = min(g['prices']), max(g['prices'])
+            rng = format_money(lo, self.market) if lo == hi else \
+                f"{format_money(lo, self.market)} – {format_money(hi, self.market)}"
+            overview.append({'category': key, 'listings': g['count'], 'districts': sorted(g['districts']),
+                             'price_range': rng})
+        return {'ok': True, 'total_active_listings': sum(g['count'] for g in groups.values()),
+                'categories': overview}
 
     def get_property_details(self, reference: str) -> Dict[str, Any]:
         p = self._active_listings().filter(reference_number__iexact=(reference or '').strip()).first()
@@ -343,6 +411,7 @@ class RealEstateTools:
         return {
             'search_properties': self.search_properties,
             'get_property_details': self.get_property_details,
+            'get_portfolio_overview': self.get_portfolio_overview,
             'get_my_appointments': self.get_my_appointments,
             'save_lead': self.save_lead,
             'book_viewing': self.book_viewing,
@@ -360,9 +429,13 @@ def _fn(name, description, properties, required=()):
 
 
 TOOL_SCHEMAS = [
-    _fn('search_properties', 'Search this agency\'s ACTIVE listings. Call before recommending or quoting any property.', {
+    _fn('search_properties', 'Search this agency\'s ACTIVE listings. Call before recommending or quoting any property. '
+        'Never returns empty while the agency has stock: if nothing matches exactly it returns the closest '
+        'listings with exact_match=false and relaxed_criteria.', {
         'listing_type': {'type': 'string', 'enum': ['sale', 'rent']},
-        'property_type': {'type': 'string', 'enum': [c for c, _ in PropertyListing.PropertyType.choices]},
+        'property_type': {'type': 'string', 'enum': [c for c, _ in PropertyListing.PropertyType.choices],
+                          'description': 'jagga/plot/ropani/aana = land · kotha = room · flat/BHK = apartment · '
+                                         'ghar = house · shutter/pasal = retail'},
         'area': {'type': 'string', 'description': 'City, area or tole, e.g. "Baneshwor", "Lalitpur", "Pokhara Lakeside"'},
         'min_price': {'type': 'number', 'description': 'Plain number in local currency (monthly rent for rentals). 1 lakh = 100000, 1 crore = 10000000'},
         'max_price': {'type': 'number', 'description': 'Plain number in local currency (monthly rent for rentals). 1 lakh = 100000, 1 crore = 10000000'},
@@ -371,6 +444,8 @@ TOOL_SCHEMAS = [
         'sort': {'type': 'string', 'enum': ['best_match', 'price_asc', 'price_desc', 'newest'],
                  'description': 'Use price_asc for "cheap/affordable/student/budget" requests instead of inventing a max_price'},
     }),
+    _fn('get_portfolio_overview', 'Everything this agency offers right now, grouped by type with districts and '
+        'price ranges. Use for broad questions: "what do you have?", "jagga kaha kaha cha?", "which areas?".', {}),
     _fn('get_property_details', 'Full details of one listing by reference code (e.g. PROP123456).',
         {'reference': {'type': 'string'}}, ['reference']),
     _fn('get_my_appointments', 'List this customer\'s upcoming viewings/appointments.', {}),

@@ -1843,6 +1843,7 @@ Consider irrelevant if:
         latency_ms: int,
         error: str = "",
         language: str = "en",
+        context_extra: dict = None,
     ):
         """Log the AI interaction with language info."""
         try:
@@ -1853,6 +1854,7 @@ Consider irrelevant if:
                 context={
                     'location': str(self.location.id) if self.location else None,
                     'language': language,
+                    **(context_extra or {}),
                 },
                 response=response,
                 confidence_score=confidence,
