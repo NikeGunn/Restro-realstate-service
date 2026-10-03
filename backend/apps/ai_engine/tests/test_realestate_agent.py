@@ -171,3 +171,43 @@ def test_book_viewing_rejects_weekday_mismatch(conv, listing):
     res = RealEstateTools(conv).book_viewing(date=day.isoformat(), time='11:00', weekday=wrong, name='Priya')
     assert not res['ok'] and 'not' in res['error']
     assert Appointment.objects.count() == 0
+
+
+def test_search_whole_territory_is_not_an_area_filter(conv, listing):
+    assert RealEstateTools(conv).search_properties(area='Hong Kong')['total_matches'] == 1
+    assert RealEstateTools(conv).search_properties(area='香港')['total_matches'] == 1
+
+
+def test_search_price_asc_sort(conv, listing):
+    PropertyListing.objects.create(organization=conv.organization, title='Cheaper', description='x', listing_type='rent',
+                                   price=Decimal('9000'), address_line1='a', city='Wan Chai', state='HK', postal_code='0')
+    res = RealEstateTools(conv).search_properties(listing_type='rent', sort='price_asc')
+    assert [r['title'] for r in res['results']][0] == 'Cheaper'
+
+
+def test_salvage_drops_only_unverifiable_sentence():
+    from apps.ai_engine.agent.verifier import salvage
+    reply = "No 2-beds under HK$15,000 right now. Our most affordable rental is the Wan Chai flat at HK$32,000/month. Want details?"
+    gate = verify_reply(reply, ['"price": "HK$32,000/month"'], [])
+    assert not gate.ok and not gate.fatal
+    trimmed = salvage(reply, gate)
+    assert 'HK$15,000' not in trimmed and 'HK$32,000' in trimmed
+    assert verify_reply(trimmed, ['"price": "HK$32,000/month"'], []).ok
+
+
+def test_salvage_refuses_false_action_claims():
+    from apps.ai_engine.agent.verifier import salvage
+    gate = verify_reply("Your viewing is confirmed!", [], [])
+    assert gate.fatal and salvage("Your viewing is confirmed!", gate) == ''
+
+
+def test_vague_budget_turn_never_dead_ends(conv, listing):
+    """The prod WhatsApp failure: model invents a budget twice -> must salvage, not fallback."""
+    bad = "Sorry, nothing under HK$15,000. The Wan Chai 2-bed is HK$32,000/month — want to see it?"
+    search = _msg(tool_calls=[_call('search_properties', {'listing_type': 'rent', 'sort': 'price_asc'})])
+    replies = iter([search, _msg(bad), _msg(bad)])
+    svc = _service(conv, [])
+    svc.client.chat.completions.create.side_effect = lambda *a, **k: next(replies)
+    out = svc.process_message('I want cheap rooms i am student')
+    assert out['metadata']['verified'] is True
+    assert 'HK$32,000' in out['content'] and 'HK$15,000' not in out['content']

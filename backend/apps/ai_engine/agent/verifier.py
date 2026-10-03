@@ -65,10 +65,15 @@ def evidence_numbers(texts: Iterable[str]) -> Set[float]:
 class GateResult:
     ok: bool = True
     problems: List[str] = field(default_factory=list)
+    offending: List[str] = field(default_factory=list)  # exact substrings that failed
+    fatal: bool = False  # false action claims can't be fixed by trimming sentences
 
-    def fail(self, problem: str):
+    def fail(self, problem: str, span: str = '', fatal: bool = False):
         self.ok = False
         self.problems.append(problem)
+        if span:
+            self.offending.append(span)
+        self.fatal = self.fatal or fatal or not span
 
 
 def verify_reply(reply: str, evidence: List[str], actions: List[dict],
@@ -79,11 +84,11 @@ def verify_reply(reply: str, evidence: List[str], actions: List[dict],
 
     for ref in {r.upper() for r in REF_RE.findall(reply)}:
         if ref not in upper_blob:
-            result.fail(f"reference {ref} does not exist in any tool result")
+            result.fail(f"reference {ref} does not exist in any tool result", span=ref)
 
     for code in {c.upper() for c in APPT_RE.findall(reply)}:
         if code not in upper_blob:
-            result.fail(f"confirmation code {code} was not returned by a tool")
+            result.fail(f"confirmation code {code} was not returned by a tool", fatal=True)
 
     known = evidence_numbers(evidence)
     for m in MONEY_RE.finditer(reply):
@@ -93,14 +98,38 @@ def verify_reply(reply: str, evidence: List[str], actions: List[dict],
         except (TypeError, ValueError):
             continue
         if value not in known:
-            result.fail(f"amount {m.group(0).strip()} is not in the listings or knowledge")
+            result.fail(f"amount {m.group(0).strip()} is not in the listings, knowledge or what the customer said",
+                        span=m.group(0).strip())
 
     performed = {a.get('tool') for a in actions}
     if BOOKED_CLAIM_RE.search(reply) and 'book_viewing' not in performed and not has_existing_appointments:
         # Allowed only when the code quoted comes from an existing appointment (get_my_appointments).
         if not APPT_RE.search(reply):
-            result.fail("claims a viewing is booked/confirmed but book_viewing did not succeed this turn")
+            result.fail("claims a viewing is booked/confirmed but book_viewing did not succeed this turn", fatal=True)
     if CANCEL_CLAIM_RE.search(reply) and 'cancel_appointment' not in performed:
-        result.fail("claims a cancellation but cancel_appointment did not succeed this turn")
+        result.fail("claims a cancellation but cancel_appointment did not succeed this turn", fatal=True)
 
     return result
+
+
+
+
+def salvage(reply: str, gate: GateResult) -> str:
+    """
+    Drop only the sentences/lines that contain an unverifiable figure or reference,
+    keeping the rest of a useful answer. Returns '' when nothing safe is left.
+    """
+    if gate.fatal or not gate.offending:
+        return ''
+    kept = []
+    for line in reply.splitlines():
+        if any(span.lower() in line.lower() for span in gate.offending):
+            # try sentence-level trimming inside the line first
+            parts = [p for p in re.split(r'(?<=[.!?。！？])\s+', line)
+                     if p and not any(span.lower() in p.lower() for span in gate.offending)]
+            if parts:
+                kept.append(' '.join(parts))
+            continue
+        kept.append(line)
+    text = "\n".join(kept).strip()
+    return text if len(text) >= 20 else ''

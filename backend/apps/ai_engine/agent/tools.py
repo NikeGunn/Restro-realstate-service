@@ -26,6 +26,7 @@ VIEWING_START = time(10, 0)
 VIEWING_END = time(19, 0)
 MAX_DAYS_AHEAD = 90
 SEARCH_LIMIT = 5
+WHOLE_TERRITORY = {'hong kong', 'hongkong', 'hk', 'h.k.', '香港', '全港', 'anywhere', 'any', 'all', 'everywhere', 'all areas'}
 
 
 def hk_now() -> datetime:
@@ -70,7 +71,7 @@ class RealEstateTools:
 
     def search_properties(self, listing_type: str = '', property_type: str = '', area: str = '',
                           min_price: float = None, max_price: float = None,
-                          min_bedrooms: int = None, keywords: str = '') -> Dict[str, Any]:
+                          min_bedrooms: int = None, keywords: str = '', sort: str = 'best_match') -> Dict[str, Any]:
         qs = self._active_listings()
         lt = (listing_type or '').lower()
         if lt in ('rent', 'lease'):
@@ -79,9 +80,13 @@ class RealEstateTools:
             qs = qs.filter(listing_type='sale')
         if property_type:
             qs = qs.filter(property_type=property_type.lower())
+        area = (area or '').strip()
+        if area.lower() in WHOLE_TERRITORY:
+            area = ''  # "anywhere in Hong Kong" is not a district filter
         if area:
             qs = qs.filter(Q(city__icontains=area) | Q(neighborhood__icontains=area)
-                           | Q(address_line1__icontains=area) | Q(title__icontains=area))
+                           | Q(address_line1__icontains=area) | Q(title__icontains=area)
+                           | Q(state__icontains=area))
         if min_price:
             qs = qs.filter(price__gte=Decimal(str(min_price)))
         if max_price:
@@ -92,7 +97,9 @@ class RealEstateTools:
             for word in keywords.split()[:4]:
                 qs = qs.filter(Q(title__icontains=word) | Q(description__icontains=word))
         total = qs.count()
-        results = [_listing_summary(p) for p in qs.order_by('-is_featured', 'price')[:SEARCH_LIMIT]]
+        ordering = {'price_asc': ('price',), 'price_desc': ('-price',), 'newest': ('-created_at',)}.get(
+            sort, ('-is_featured', 'price'))
+        results = [_listing_summary(p) for p in qs.order_by(*ordering)[:SEARCH_LIMIT]]
         criteria = ', '.join(str(v) for v in (listing_type, property_type, area,
                              f"min {min_bedrooms} bed" if min_bedrooms else '',
                              f"max HK${int(max_price):,}" if max_price else '', keywords) if v)
@@ -304,6 +311,8 @@ TOOL_SCHEMAS = [
         'max_price': {'type': 'number', 'description': 'HKD (monthly rent for rentals)'},
         'min_bedrooms': {'type': 'integer'},
         'keywords': {'type': 'string', 'description': 'e.g. "sea view pet"'},
+        'sort': {'type': 'string', 'enum': ['best_match', 'price_asc', 'price_desc', 'newest'],
+                 'description': 'Use price_asc for "cheap/affordable/student/budget" requests instead of inventing a max_price'},
     }),
     _fn('get_property_details', 'Full details of one listing by reference code (e.g. PROP123456).',
         {'reference': {'type': 'string'}}, ['reference']),

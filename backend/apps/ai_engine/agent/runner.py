@@ -22,7 +22,7 @@ from apps.messaging.models import MessageSender
 
 from . import memory as agent_memory
 from .tools import TOOL_SCHEMAS, RealEstateTools, hk_now
-from .verifier import verify_reply
+from .verifier import salvage, verify_reply
 
 logger = logging.getLogger(__name__)
 
@@ -155,6 +155,8 @@ class RealEstateAgent:
                     result = {'ok': False, 'error': 'internal error while running the tool'}
                 payload = json.dumps(result, default=str, ensure_ascii=False)
                 self.evidence.append(payload)
+                # Criteria the agent searched with (e.g. max_price) are not claims about listings.
+                self.evidence.append(c.function.arguments or '')
                 self.tool_trace.append({'tool': name, 'args': c.function.arguments[:500], 'ok': result.get('ok')})
                 messages.append({'role': 'tool', 'tool_call_id': c.id, 'content': payload})
         self.tokens = tokens
@@ -171,16 +173,28 @@ class RealEstateAgent:
         self.evidence.extend([m['content'] for m in history if m['role'] == 'user'] + [user_message])
 
         reply = self._run_tools(messages)
-        gate = verify_reply(reply, self.evidence, self.tools.actions, self._has_appts()) if reply else None
+        gate = self._verify(reply)
         if reply and not gate.ok:
             logger.warning("Agent gate rejected draft: %s | %s", gate.problems, reply[:300])
             messages.append({'role': 'assistant', 'content': reply})
             messages.append({'role': 'system', 'content': (
                 "VERIFICATION FAILED — your last reply was NOT sent. Problems: " + "; ".join(gate.problems)
-                + ". Rewrite it using only facts from tool results/KNOWLEDGE. Call tools if you need data. "
-                  "Never claim an action that a tool did not confirm.")})
+                + ". Rewrite it. Only state figures/references that appear in tool results, KNOWLEDGE, or the "
+                  "customer's own words. If the customer was vague (e.g. 'cheap'), describe it in words or ask "
+                  "their budget — never invent a number. Never claim an action a tool did not confirm. "
+                  "Keep being helpful: give the real options you have and one next step.")})
+            first_draft, first_gate = reply, gate
             reply = self._run_tools(messages)
-            gate = verify_reply(reply, self.evidence, self.tools.actions, self._has_appts()) if reply else None
+            gate = self._verify(reply)
+            if reply and not gate.ok:
+                logger.warning("Agent gate rejected retry: %s | %s", gate.problems, reply[:300])
+                # Salvage: drop only the unverifiable sentences rather than dead-ending the chat.
+                for draft, g in ((reply, gate), (first_draft, first_gate)):
+                    trimmed = salvage(draft, g)
+                    if trimmed and self._verify(trimmed).ok:
+                        logger.info("Agent reply salvaged by trimming unverifiable sentences")
+                        reply, gate = trimmed, self._verify(trimmed)
+                        break
 
         verified = bool(reply) and gate is not None and gate.ok
         escalation = self.tools.escalation
@@ -232,6 +246,9 @@ class RealEstateAgent:
             transaction.on_commit(lambda: summarize_customer_memory_task.delay(org_id, key))
         except Exception:
             logger.exception("Could not schedule memory consolidation")
+
+    def _verify(self, reply: str):
+        return verify_reply(reply, self.evidence, self.tools.actions, self._has_appts()) if reply else None
 
     def _has_appts(self) -> bool:
         return getattr(self, 'has_appointments', False) or any(
