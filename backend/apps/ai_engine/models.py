@@ -86,3 +86,50 @@ class AILog(models.Model):
 
     def __str__(self):
         return f"AI Log {self.id} - {self.organization.name}"
+
+
+class AgentMemory(models.Model):
+    """
+    Durable memory for the customer-facing agent.
+
+    One row per (organization, subject). The OWNER row holds the owner's
+    standing instructions (the playbook the agent must follow); CUSTOMER rows
+    hold facts the agent learned about a customer, keyed by phone (or by
+    conversation id for anonymous widget visitors). Facts survive across
+    conversations, so a returning customer is recognised.
+    """
+    class SubjectType(models.TextChoices):
+        OWNER = 'owner', 'Owner playbook'
+        CUSTOMER = 'customer', 'Customer'
+
+    OWNER_KEY = 'owner'
+    MAX_FACTS = 40
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    organization = models.ForeignKey(
+        Organization, on_delete=models.CASCADE, related_name='agent_memories'
+    )
+    subject_type = models.CharField(max_length=20, choices=SubjectType.choices)
+    subject_key = models.CharField(max_length=100)
+    display_name = models.CharField(max_length=255, blank=True)
+    # List of {"fact": str, "at": iso8601, "source": "agent"|"owner"}
+    facts = models.JSONField(default=list, blank=True)
+    # Rolling narrative of every conversation with this subject, refreshed daily
+    # (and early when a chat outgrows the context window). Raw messages are kept
+    # forever in messaging.Message; this is the compressed, always-in-prompt view.
+    summary = models.TextField(blank=True)
+    summarized_until = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'ai_agent_memories'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['organization', 'subject_type', 'subject_key'],
+                name='uniq_agent_memory_subject',
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.organization} · {self.subject_type}:{self.subject_key}"

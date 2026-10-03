@@ -19,3 +19,13 @@ class AILogAdmin(admin.ModelAdmin):
     search_fields = ['prompt', 'response']
     readonly_fields = ['created_at']
     raw_id_fields = ['organization', 'conversation']
+
+
+from .models import AgentMemory  # noqa: E402
+
+
+@admin.register(AgentMemory)
+class AgentMemoryAdmin(admin.ModelAdmin):
+    list_display = ['organization', 'subject_type', 'subject_key', 'display_name', 'updated_at']
+    list_filter = ['subject_type']
+    search_fields = ['subject_key', 'display_name', 'organization__name']

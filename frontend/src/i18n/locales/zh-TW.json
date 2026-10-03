@@ -1499,7 +1499,6 @@
       "description": "描述",
       "eligibleItems": "適用咖啡品項",
       "eligibleItemsHint": "方案啟用前至少要揀一項。",
-      "noMenuItems": "搵唔到飲品，請先喺菜單加入咖啡。",
       "terms": "{{pct}}% 折扣 · {{days}} 日",
       "breakEven": "以平均每杯 HK${{price}} 計，顧客大約幫襯 {{visits}} 次就回本。",
       "breakEvenWarning": "呢個次數比大部分顧客一個月嚟得仲多，建議調低價格或者加大折扣。",

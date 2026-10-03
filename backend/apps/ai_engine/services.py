@@ -167,7 +167,10 @@ class AIService:
         # ⚡ FAST PATH: short greeting → instant reply, skip OpenAI entirely.
         # Saves the 5-20s round-trip for "hi"/"hello"/etc. — the most common
         # first message a customer sends. Real questions still go to AI.
-        fast_reply = self._fast_path_greeting(user_message, detected_lang)
+        is_real_estate = self.organization.business_type == 'real_estate'
+        # Real-estate greetings go through the agent so returning customers are
+        # recognised from memory instead of getting a canned restaurant line.
+        fast_reply = None if is_real_estate else self._fast_path_greeting(user_message, detected_lang)
         if fast_reply is not None:
             latency_ms = int((time.time() - start_time) * 1000)
             logger.info(f"⚡ Fast-path greeting reply in {latency_ms}ms (skipped OpenAI)")
@@ -198,6 +201,22 @@ class AIService:
                 "no_api_key",
                 0.0
             )
+
+        if is_real_estate:
+            from .agent.runner import RealEstateAgent
+            try:
+                return RealEstateAgent(self).run(user_message, detected_lang)
+            except Exception as e:
+                logger.exception(f"Real-estate agent failed: {e}")
+                self._log_interaction(
+                    prompt=user_message, response="", confidence=0.0, intent="error",
+                    model=settings.OPENAI_MODEL, tokens=0,
+                    latency_ms=int((time.time() - start_time) * 1000), error=str(e),
+                    language=detected_lang,
+                )
+                return self._create_handoff_response(
+                    LanguageService.get_error_message(detected_lang), "ai_error", 0.0
+                )
 
         try:
             # Build context with language awareness

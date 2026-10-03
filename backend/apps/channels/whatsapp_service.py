@@ -106,6 +106,11 @@ class WhatsAppService:
         timestamp = msg.get('timestamp', '')
         wa_message_id = msg.get('id', '')
         
+        # Meta redelivers webhooks it thinks timed out — never process one message twice.
+        if wa_message_id and Message.objects.filter(channel_message_id=wa_message_id).exists():
+            logger.info(f"Duplicate WhatsApp delivery ignored: {wa_message_id}")
+            return
+
         # Get sender name from contacts
         sender_name = "WhatsApp User"
         for contact in contacts:

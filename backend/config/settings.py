@@ -269,6 +269,11 @@ CELERY_TIMEZONE = TIME_ZONE
 from celery.schedules import crontab  # noqa: E402
 
 CELERY_BEAT_SCHEDULE = {
+    # Agent long-term memory: nightly 23:30 HKT (15:30 UTC) daily chat consolidation.
+    'ai-summarize-daily-memories': {
+        'task': 'apps.ai_engine.tasks.summarize_daily_memories_task',
+        'schedule': crontab(hour=15, minute=30),
+    },
     # ── Coffee Pass ──────────────────────────────────────────────────
     # Expiry is housekeeping: entitlement checks already refuse an
     # out-of-window pass at query time, so a late run cannot let anyone redeem.
@@ -561,6 +566,8 @@ OPENAI_API_KEY = config('OPENAI_API_KEY', default='')
 OPENAI_MODEL = config('OPENAI_MODEL', default='gpt-4o-mini')
 OPENAI_MAX_TOKENS = config('OPENAI_MAX_TOKENS', default=500, cast=int)
 OPENAI_TEMPERATURE = config('OPENAI_TEMPERATURE', default=0.7, cast=float)
+# Tool-calling customer agent (real-estate vertical). Blank = OPENAI_MODEL.
+AI_AGENT_MODEL = config('AI_AGENT_MODEL', default='')
 
 # Meta (WhatsApp & Instagram) Configuration
 META_APP_SECRET = config('META_APP_SECRET', default='')

@@ -1566,7 +1566,6 @@
       "description": "Description",
       "eligibleItems": "Eligible coffee items",
       "eligibleItemsHint": "At least one item is required before the plan can go live.",
-      "noMenuItems": "No drink items found. Add coffee to your menu first.",
       "terms": "{{pct}}% off · {{days}} days",
       "breakEven": "At an average of HK${{price}} a cup, a customer breaks even after about {{visits}} visits.",
       "breakEvenWarning": "That is more visits than most customers make in a month. Consider a lower price or a higher discount.",

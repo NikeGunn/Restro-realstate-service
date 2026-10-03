@@ -228,7 +228,14 @@ class LeadService:
     def _update_existing_lead(self, lead: Lead, extracted_data: Dict[str, Any]) -> bool:
         """Update existing lead with new extracted data."""
         updated = False
-        
+
+        # A lead first created as a generic enquiry (e.g. by a viewing booking)
+        # gets its real intent once the customer states it.
+        new_intent = self._parse_intent(str(extracted_data.get('lead_intent', 'general')))
+        if lead.intent == Lead.IntentType.GENERAL and new_intent != Lead.IntentType.GENERAL:
+            lead.intent = new_intent
+            updated = True
+
         # Update budget if not set
         if not lead.budget_min and not lead.budget_max:
             budget_min, budget_max = self._parse_budget(extracted_data)
