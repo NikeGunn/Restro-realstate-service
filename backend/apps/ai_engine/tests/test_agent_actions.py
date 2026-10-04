@@ -391,3 +391,30 @@ def test_rt116_receipt_quotes_real_code_or_removes_claim():
     reply = {'content': 'Your table is confirmed!'}
     apply_receipt(reply, None, 'Restaurant is closed at that time')
     assert 'confirmed' not in reply['content'] and 'Nothing has been reserved' in reply['content']
+
+
+def test_re043_changed_name_shown_then_yes_books_once(conv, plot):
+    """The model showed the updated preview without re-preparing; on 'Yes, confirm' it prepares and
+    confirms in the same turn. The customer saw exactly these details, so one yes must be enough."""
+    day = _tomorrow(conv)
+    t = RealEstateTools(conv)
+    Message.objects.create(conversation=conv, sender=MessageSender.AI, content=(
+        f"*Viewing* - {plot.reference_number}, {plot.title}\n{day.strftime('%A')} {day.isoformat()}, 11:00 "
+        "(Nepal time)\nName: Martas\n\nWould you like me to confirm this viewing?"))
+    t = _turn(t, 'Yes, confirm.')
+    p = t.prepare_viewing(plot.reference_number, day.isoformat(), '11:00', day.strftime('%A'), name='Martas')
+    res = t.confirm_pending_action(p['preview_id'])
+    assert res['ok'] and res['receipt']['code'].startswith('APT')
+    assert Appointment.objects.filter(conversation=conv).count() == 1
+
+
+def test_same_turn_preview_with_unseen_details_still_needs_a_yes(conv, plot):
+    day = _tomorrow(conv)
+    t = RealEstateTools(conv)
+    Message.objects.create(conversation=conv, sender=MessageSender.AI,
+                           content=f"{plot.reference_number} {day.isoformat()} 11:00 Name: Martas. Confirm?")
+    t = _turn(t, 'yes')
+    p = t.prepare_viewing(plot.reference_number, day.isoformat(), '15:00', day.strftime('%A'), name='Martas')
+    res = t.confirm_pending_action(p['preview_id'])                    # 15:00 was never shown
+    assert not res['ok'] and 'NOT_CONFIRMED_YET' in res['error']
+    assert Appointment.objects.count() == 0

@@ -116,7 +116,8 @@ def confirm(conversation, preview_id: str, customer_message: str, turn_started_a
     if action.status != AgentAction.Status.PREVIEWED:
         return {'ok': False, 'error': f'PREVIEW_{action.status.upper()}: that preview is no longer valid; '
                                       'prepare a new one if the customer still wants it.'}
-    if action.created_at >= turn_started_at:
+    if action.created_at >= turn_started_at and not shown_in_previous_reply(conversation, action.payload,
+                                                                             turn_started_at):
         return {'ok': False, 'error': 'NOT_CONFIRMED_YET: the customer has not seen this preview. Show it and '
                                       'ask them to confirm; do not claim it is done.'}
     if not is_plain_confirmation(customer_message):
@@ -140,6 +141,25 @@ def confirm(conversation, preview_id: str, customer_message: str, turn_started_a
         action.status, action.receipt, action.executed_at = AgentAction.Status.EXECUTED, receipt, timezone.now()
         action.save(update_fields=['status', 'receipt', 'executed_at'])
     return {'ok': True, 'receipt': receipt}
+
+
+def shown_in_previous_reply(conversation, payload: Dict[str, Any], turn_started_at) -> bool:
+    """A preview prepared in THIS turn still counts as seen when our previous reply already showed the
+    customer exactly these details (reference/code, date, time, name) and they answered a plain yes.
+
+    Eval RE-043 (2026-10-04): the customer changed the booking name; the model showed the updated
+    preview without re-preparing it, then prepared + confirmed after "Yes, confirm". The old rule made
+    the customer say yes twice. Everything the customer agreed to was on screen, so this is safe.
+    """
+    from apps.messaging.models import MessageSender
+
+    tokens = [str(payload[k]) for k in ('reference', 'code', 'date', 'time', 'name') if payload.get(k)]
+    if len(tokens) < 3:
+        return False
+    last_reply = (conversation.messages.filter(sender=MessageSender.AI, created_at__lt=turn_started_at)
+                  .order_by('-created_at').values_list('content', flat=True).first()) or ''
+    text = last_reply.lower()
+    return all(t.lower() in text for t in tokens)
 
 
 class ActionRejected(Exception):
