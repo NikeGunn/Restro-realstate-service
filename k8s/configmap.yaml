@@ -35,11 +35,14 @@ data:
   # Meta/WhatsApp API settings
   META_GRAPH_API_VERSION: "v18.0"
 
-  # OpenAI settings
-  OPENAI_MODEL: "gpt-4o-mini"
-  # Real-estate tool-calling agent (apps/ai_engine/agent). gpt-4.1-mini: accurate tool use +
-  # Romanized Nepali, ~2.5s/turn in the 2026-10-03 eval; gpt-4o-mini invented listing facts.
-  AI_AGENT_MODEL: "gpt-4.1-mini"
+  # LLM provider — DeepSeek via its OpenAI-compatible API (2026-10-04: OpenAI credits ran out).
+  # The openai SDK reads OPENAI_BASE_URL; OPENAI_API_KEY (GitHub Secret) holds the DeepSeek key.
+  # "deepseek-chat" = non-thinking mode: the tool-calling loop works without echoing
+  # reasoning_content (thinking mode rejects that). Back to OpenAI: blank the base URL + gpt models.
+  OPENAI_BASE_URL: "https://api.deepseek.com"
+  OPENAI_MODEL: "deepseek-chat"
+  # Real-estate tool-calling agent (apps/ai_engine/agent).
+  AI_AGENT_MODEL: "deepseek-chat"
   OPENAI_MAX_TOKENS: "500"
   OPENAI_TEMPERATURE: "0.7"
 
