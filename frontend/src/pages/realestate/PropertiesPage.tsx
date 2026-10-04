@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { format } from 'date-fns'
-import { Building2, MapPin, Bed, Bath, Maximize, Plus, Edit, Trash2, Star, Eye, Check } from 'lucide-react'
+import { Building2, MapPin, Bed, Bath, Maximize, Plus, Edit, Trash2, Star, Eye, Check, Globe } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -29,13 +29,28 @@ import { PropertyPhotos } from '@/components/realestate/PropertyPhotos'
 import { realEstateApi, organizationsApi } from '@/services/api'
 import type { PropertyListing, Organization } from '@/types'
 
-const STATUS_COLORS: Record<string, string> = {
-  draft: 'bg-gray-100 text-gray-800',
-  active: 'bg-green-100 text-green-800',
-  under_contract: 'bg-yellow-100 text-yellow-800',
-  sold: 'bg-blue-100 text-blue-800',
-  rented: 'bg-purple-100 text-purple-800',
-  inactive: 'bg-red-100 text-red-800',
+// Must match PropertyListing.Status on the backend (an unknown value is a 400 on save).
+const STATUSES = [
+  { value: 'active', label: 'Active', color: 'bg-green-100 text-green-800' },
+  { value: 'coming_soon', label: 'Coming soon', color: 'bg-sky-100 text-sky-800' },
+  { value: 'pending', label: 'Pending', color: 'bg-yellow-100 text-yellow-800' },
+  { value: 'rented', label: 'Rented', color: 'bg-purple-100 text-purple-800' },
+  { value: 'sold', label: 'Sold', color: 'bg-blue-100 text-blue-800' },
+  { value: 'off_market', label: 'Off market', color: 'bg-gray-100 text-gray-800' },
+]
+const STATUS_COLORS: Record<string, string> = Object.fromEntries(STATUSES.map(s => [s.value, s.color]))
+
+/** DRF field errors -> one readable line ("price: A valid number is required."). */
+function saveErrorMessage(error: any): string {
+  const data = error?.response?.data
+  if (!data) return error?.message ? `Network error: ${error.message}` : 'Failed to save property'
+  if (typeof data === 'string') return data.slice(0, 200)
+  if (data.detail) return data.detail
+  const parts = Object.entries(data).map(([field, msgs]) => {
+    const label = field === 'non_field_errors' ? '' : `${field.replace(/_/g, ' ')}: `
+    return label + (Array.isArray(msgs) ? msgs.join(' ') : String(msgs))
+  })
+  return parts.join(' · ') || 'Failed to save property'
 }
 
 const PROPERTY_TYPES = [
@@ -63,7 +78,7 @@ const INITIAL_FORM = {
   description: '',
   property_type: 'house',
   listing_type: 'sale',
-  status: 'draft',
+  status: 'active',
   price: '',
   address_line1: '',
   address_line2: '',
@@ -93,6 +108,8 @@ export function PropertiesPage() {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingProperty, setEditingProperty] = useState<PropertyListing | null>(null)
   const [form, setForm] = useState(INITIAL_FORM)
+  const [queuedPhotos, setQueuedPhotos] = useState<File[]>([])
+  const [saving, setSaving] = useState(false)
   // The agency's market (primary location country) — a listing without its own country uses it.
   const orgCountry = organizations.find((o) => o.id === selectedOrgId)?.locations?.find((l) => l.is_primary)?.country
 
@@ -138,6 +155,7 @@ export function PropertiesPage() {
   const openCreateDialog = () => {
     setEditingProperty(null)
     setForm(INITIAL_FORM)
+    setQueuedPhotos([])
     setDialogOpen(true)
   }
 
@@ -180,6 +198,14 @@ export function PropertiesPage() {
       toast({ title: 'Error', description: 'Title is required', variant: 'destructive' })
       return
     }
+    if (!form.price || parseFloat(form.price) < 0) {
+      toast({ title: 'Error', description: 'Enter a price (0 or more)', variant: 'destructive' })
+      return
+    }
+    if (!form.address_line1.trim() || !form.city.trim()) {
+      toast({ title: 'Error', description: 'Address and city are required', variant: 'destructive' })
+      return
+    }
 
     const payload = {
       organization: selectedOrgId,
@@ -198,24 +224,36 @@ export function PropertiesPage() {
       bedrooms: form.bedrooms ? parseInt(form.bedrooms) : null,
       bathrooms: form.bathrooms ? parseFloat(form.bathrooms) : null,
       square_feet: form.square_feet ? parseInt(form.square_feet) : null,
-      lot_size: form.lot_size ? parseFloat(form.lot_size) : null,
+      lot_size: form.lot_size ? Math.round(parseFloat(form.lot_size)) : null,
       year_built: form.year_built ? parseInt(form.year_built) : null,
       is_featured: form.is_featured,
     }
 
+    setSaving(true)
     try {
       if (editingProperty) {
         await realEstateApi.properties.update(editingProperty.id, payload)
         toast({ title: 'Success', description: 'Property updated' })
       } else {
-        await realEstateApi.properties.create(payload)
+        const created = await realEstateApi.properties.create(payload)
         toast({ title: 'Success', description: 'Property created' })
+        if (queuedPhotos.length) {
+          // The listing exists now; a photo failure must not lose it, so report it separately.
+          try {
+            const res = await realEstateApi.properties.uploadPhotos(created.id, queuedPhotos)
+            if (res.errors.length) toast({ variant: 'destructive', title: 'Some photos were rejected', description: res.errors.join(' · ') })
+          } catch {
+            toast({ variant: 'destructive', title: 'Listing saved, photos failed', description: 'Open the listing again to add photos.' })
+          }
+          setQueuedPhotos([])
+        }
       }
       setDialogOpen(false)
       loadProperties()
     } catch (error: any) {
-      const message = error.response?.data?.detail || 'Failed to save property'
-      toast({ title: 'Error', description: message, variant: 'destructive' })
+      toast({ title: 'Could not save property', description: saveErrorMessage(error), variant: 'destructive' })
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -280,10 +318,18 @@ export function PropertiesPage() {
           <h1 className="text-2xl font-bold">{t('realEstate.properties.title')}</h1>
           <p className="text-muted-foreground">{t('realEstate.properties.subtitle')}</p>
         </div>
-        <Button onClick={openCreateDialog}>
-          <Plus className="h-4 w-4 mr-2" />
-          Add Property
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" asChild>
+            <a href="/realestate/properties" target="_blank" rel="noopener">
+              <Globe className="h-4 w-4 mr-2" />
+              Public page
+            </a>
+          </Button>
+          <Button onClick={openCreateDialog}>
+            <Plus className="h-4 w-4 mr-2" />
+            Add Property
+          </Button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -294,11 +340,7 @@ export function PropertiesPage() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Status</SelectItem>
-            <SelectItem value="active">Active</SelectItem>
-            <SelectItem value="draft">Draft</SelectItem>
-            <SelectItem value="under_contract">Under Contract</SelectItem>
-            <SelectItem value="sold">Sold</SelectItem>
-            <SelectItem value="rented">Rented</SelectItem>
+            {STATUSES.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
           </SelectContent>
         </Select>
 
@@ -395,9 +437,9 @@ export function PropertiesPage() {
 
                 <div className="flex items-center gap-2 text-xs text-muted-foreground mb-4">
                   <Eye className="h-3 w-3" />
-                  <span>{property.view_count || 0} views</span>
+                  <span>{property.view_count || 0} web views</span>
                   <span>•</span>
-                  <span>{property.inquiry_count || 0} inquiries</span>
+                  <span>{property.whatsapp_clicks || 0} WhatsApp chats</span>
                 </div>
 
                 <div className="flex items-center justify-between">
@@ -438,7 +480,7 @@ export function PropertiesPage() {
               <Input
                 value={form.title}
                 onChange={e => setForm(prev => ({ ...prev, title: e.target.value }))}
-                placeholder="Beautiful 3BR Home in Sunset District"
+                placeholder="Room with balcony near Chabahil Chowk"
               />
             </div>
 
@@ -471,12 +513,7 @@ export function PropertiesPage() {
                 <Select value={form.status} onValueChange={v => setForm(prev => ({ ...prev, status: v }))}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="draft">Draft</SelectItem>
-                    <SelectItem value="active">Active</SelectItem>
-                    <SelectItem value="under_contract">Under Contract</SelectItem>
-                    <SelectItem value="sold">Sold</SelectItem>
-                    <SelectItem value="rented">Rented</SelectItem>
-                    <SelectItem value="inactive">Inactive</SelectItem>
+                    {STATUSES.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
@@ -527,31 +564,31 @@ export function PropertiesPage() {
               <Input
                 value={form.address_line1}
                 onChange={e => setForm(prev => ({ ...prev, address_line1: e.target.value }))}
-                placeholder="123 Main Street"
+                placeholder="Chabahil-7, near the Chowk"
                 className="mb-2"
               />
               <Input
                 value={form.address_line2}
                 onChange={e => setForm(prev => ({ ...prev, address_line2: e.target.value }))}
-                placeholder="Apt 4B (optional)"
+                placeholder="Floor / landmark (optional)"
               />
             </div>
 
             <div className="grid grid-cols-4 gap-4">
               <div className="space-y-2 col-span-2">
-                <Label>City</Label>
+                <Label>City *</Label>
                 <Input
                   value={form.city}
                   onChange={e => setForm(prev => ({ ...prev, city: e.target.value }))}
-                  placeholder="San Francisco"
+                  placeholder="Kathmandu"
                 />
               </div>
               <div className="space-y-2">
-                <Label>State</Label>
+                <Label>Province</Label>
                 <Input
                   value={form.state}
                   onChange={e => setForm(prev => ({ ...prev, state: e.target.value }))}
-                  placeholder="CA"
+                  placeholder="Bagmati (optional)"
                 />
               </div>
               <div className="space-y-2">
@@ -559,7 +596,7 @@ export function PropertiesPage() {
                 <Input
                   value={form.postal_code}
                   onChange={e => setForm(prev => ({ ...prev, postal_code: e.target.value }))}
-                  placeholder="94102"
+                  placeholder="Optional"
                 />
               </div>
             </div>
@@ -595,13 +632,13 @@ export function PropertiesPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label>Lot Size</Label>
+                <Label>Lot (sq ft)</Label>
                 <Input
                   type="number"
-                  step="0.01"
+                  step="1"
                   value={form.lot_size}
                   onChange={e => setForm(prev => ({ ...prev, lot_size: e.target.value }))}
-                  placeholder="0.25"
+                  placeholder="1711"
                 />
               </div>
               <div className="space-y-2">
@@ -635,22 +672,23 @@ export function PropertiesPage() {
               <Label>Featured Property</Label>
             </div>
           </div>
-          {editingProperty ? (
-            <PropertyPhotos
-              propertyId={editingProperty.id}
-              images={editingProperty.images || []}
-              onChange={images => {
-                setEditingProperty(prev => (prev ? { ...prev, images } : prev))
-                setProperties(prev => prev.map(p => (p.id === editingProperty.id ? { ...p, primary_image: images[0] ?? null } : p)))
-              }}
-            />
-          ) : (
-            <p className="text-xs text-muted-foreground">Save the property first, then open it again to add photos.</p>
-          )}
+          <PropertyPhotos
+            propertyId={editingProperty?.id}
+            images={editingProperty?.images || []}
+            onChange={images => {
+              if (!editingProperty) return
+              setEditingProperty(prev => (prev ? { ...prev, images } : prev))
+              setProperties(prev => prev.map(p => (p.id === editingProperty.id ? { ...p, primary_image: images[0] ?? null } : p)))
+            }}
+            queued={queuedPhotos}
+            onQueueChange={setQueuedPhotos}
+          />
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-            <Button onClick={handleSubmit}>{editingProperty ? 'Update' : 'Create'}</Button>
+            <Button onClick={handleSubmit} disabled={saving}>
+              {saving ? 'Saving…' : editingProperty ? 'Update' : queuedPhotos.length ? `Create + upload ${queuedPhotos.length} photo${queuedPhotos.length > 1 ? 's' : ''}` : 'Create'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

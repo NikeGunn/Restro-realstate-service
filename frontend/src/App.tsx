@@ -220,7 +220,7 @@ function App() {
           <Route path="/restaurant/bookings" element={<BookingsPage />} />
 
           {/* Real Estate Routes */}
-          <Route path="/realestate/properties" element={<PropertiesPage />} />
+          <Route path="/realestate/listings" element={<PropertiesPage />} />
           <Route path="/realestate/leads" element={<LeadsPage />} />
           <Route path="/realestate/appointments" element={<AppointmentsPage />} />
 

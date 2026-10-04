@@ -24,6 +24,7 @@ STRONG = {
     'ani', 'yo', 'tyo', 'yaha', 'tyaha', 'chhaina', 'chaina', 'xaina', 'parcha', 'parxa',
     'ajhai', 'ahile', 'aile', 'aba', 'abo', 'esko', 'yesko', 'tesko', 'mero', 'hamro', 'timro', 'bholi',
     'parsi', 'hijo', 'baje', 'dinchha', 'dinchhau', 'milchha', 'herna', 'jane', 'gara', 'garnu', 'bhannus',
+    'hoina', 'hunna', 'pardaina', 'chahidaina', 'samma', 'bhitra', 'matra', 'pugcha', 'dekhaunu',
 }
 # Short words also used in English text; they only count alongside a strong word.
 WEAK = {'ma', 'ho', 'ra', 'ko', 'ka', 'ki', 'ni', 'ta', 'la', 'na'}
@@ -50,13 +51,16 @@ def detect_reply_style(text: str, fallback: str = 'en') -> str:
 
 INSTRUCTIONS = {
     NEPALI_DEVANAGARI: ("Nepali in Devanagari script (नेपाली). Write the whole reply in Devanagari; keep "
-                        "listing titles, reference codes and prices exactly as the tool gave them."),
-    NEPALI_ROMAN: ("Romanized Nepali — Nepali words in Latin letters, the way the customer writes "
-                   "(e.g. \"Hajur, Bhaisepati ma 5 aana jagga cha, mol Rs 2,10,00,000 (2.1 crore) ho.\"). "
-                   "Do NOT answer in English."),
-    'en': "English.",
-    'zh-CN': "Simplified Chinese (简体中文).",
-    'zh-TW': "Traditional Chinese (繁體中文, Cantonese tone is fine).",
+                        "listing titles, reference codes and prices exactly as the tool gave them. Honorific "
+                        "register only: हजुर/तपाईं, -नुहुन्छ/-नुहोला (\"हेर्न जान चाहनुहुन्छ?\"), never तिमी/-छौ."),
+    NEPALI_ROMAN: ("Romanized Nepali - Nepali words in Latin letters, the way the customer writes "
+                   "(e.g. \"Hajur, Bhaisepati ma 5 aana jagga chha, mol Rs 2,10,00,000 (2.1 crore) ho. "
+                   "Herna jaana chahanuhunchha?\"). Do NOT answer in English. Honorific register only "
+                   "(hajur/tapai, -nuhunchha / -nuhola), even if the customer writes casually - never "
+                   "\"Aru sodhna cha?\"; say \"Aru kehi jannu parne bhaye sodhnuhola.\""),
+    'en': "English - courteous full sentences (\"Would you like to…\", \"Could you please…\").",
+    'zh-CN': "Simplified Chinese (简体中文), always 您.",
+    'zh-TW': "Traditional Chinese (繁體中文, Cantonese tone is fine), always 您.",
 }
 
 DISPLAY = {NEPALI_DEVANAGARI: 'Nepali (Devanagari)', NEPALI_ROMAN: 'Romanized Nepali'}
@@ -75,7 +79,7 @@ ENGLISH_MARKERS = {
 
 
 def is_neutral(text: str) -> bool:
-    """'10000', 'Kirtipur', 'PROP123456' — no language signal of its own."""
+    """'10000', 'Kirtipur', 'PROP123456' - no language signal of its own."""
     words = _WORD.findall((text or '').lower())
     return not _DEVANAGARI.search(text or '') and len(words) <= 3 and not (set(words) & (ENGLISH_MARKERS | STRONG))
 
@@ -90,23 +94,23 @@ def sticky_reply_style(current: str, previous_customer_texts, fallback: str = 'e
     return style
 
 
-# Deterministic wording for completed actions — the customer is told what the RECEIPT says.
+# Deterministic wording for completed actions - the customer is told what the RECEIPT says.
 _RECEIPT = {
     'book_viewing': {
         'confirmed': {
-            'en': "Confirmed: viewing {code} — {property}, {weekday} {date} at {time} ({timezone}).",
-            NEPALI_ROMAN: "Confirm bhayo: viewing {code} — {property}, {weekday} {date}, {time} baje ({timezone}).",
-            NEPALI_DEVANAGARI: "पक्का भयो: भ्यूइङ {code} — {property}, {weekday} {date}, {time} बजे ({timezone})।",
-            'zh': "已確認：睇樓 {code} — {property}，{date}（{weekday}）{time}（{timezone}）。",
+            'en': "Confirmed: viewing {code} - {property}, {weekday} {date} at {time} ({timezone}).",
+            NEPALI_ROMAN: "Confirm bhayo: viewing {code} - {property}, {weekday} {date}, {time} baje ({timezone}).",
+            NEPALI_DEVANAGARI: "पक्का भयो: भ्यूइङ {code} - {property}, {weekday} {date}, {time} बजे ({timezone})।",
+            'zh': "已確認：睇樓 {code} - {property}，{date}（{weekday}）{time}（{timezone}）。",
         },
         'pending_staff_approval': {
-            'en': "Request sent: viewing {code} — {property}, {weekday} {date} at {time} ({timezone}). "
+            'en': "Request sent: viewing {code} - {property}, {weekday} {date} at {time} ({timezone}). "
                   "Our team still needs to approve it; it is not confirmed yet.",
-            NEPALI_ROMAN: "Request pathaiyo: viewing {code} — {property}, {weekday} {date}, {time} baje. "
+            NEPALI_ROMAN: "Request pathaiyo: viewing {code} - {property}, {weekday} {date}, {time} baje. "
                           "Team le approve garna baki chha; ajhai confirm bhayeko chhaina.",
-            NEPALI_DEVANAGARI: "अनुरोध पठाइयो: भ्यूइङ {code} — {property}, {weekday} {date}, {time} बजे। "
+            NEPALI_DEVANAGARI: "अनुरोध पठाइयो: भ्यूइङ {code} - {property}, {weekday} {date}, {time} बजे। "
                                "टिमले स्वीकृत गर्न बाँकी छ; अझै पक्का भएको छैन।",
-            'zh': "已提交申請：睇樓 {code} — {property}，{date} {time}。仍待職員確認，尚未確認。",
+            'zh': "已提交申請：睇樓 {code} - {property}，{date} {time}。仍待職員確認，尚未確認。",
         },
     },
     'cancel_appointment': {
@@ -134,6 +138,6 @@ def receipt_line(receipt: dict, style: str) -> str:
 
 def busy_message(style: str) -> str:
     return {
-        NEPALI_ROMAN: "Hajur, ahile hamro team le tapai ko message herchha — chadai reply aauchha.",
-        NEPALI_DEVANAGARI: "हजुर, अहिले हाम्रो टिमले तपाईंको सन्देश हेर्छ — चाँडै जवाफ आउँछ।",
-    }.get(style, "Thanks for your message — our team will reply to you here.")
+        NEPALI_ROMAN: "Hajur, ahile hamro team le tapai ko message herchha - chadai reply aauchha.",
+        NEPALI_DEVANAGARI: "हजुर, अहिले हाम्रो टिमले तपाईंको सन्देश हेर्छ - चाँडै जवाफ आउँछ।",
+    }.get(style, "Thanks for your message - our team will reply to you here.")

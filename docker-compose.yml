@@ -47,6 +47,14 @@ services:
       - DATABASE_URL=postgres://${POSTGRES_USER:-chatplatform}:${POSTGRES_PASSWORD:-chatplatform123}@db:5432/${POSTGRES_DB:-chatplatform}
       - REDIS_URL=redis://redis:6379/0
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - OPENAI_BASE_URL=${OPENAI_BASE_URL:-}
+      - OPENAI_MODEL=${OPENAI_MODEL:-gpt-4o-mini}
+      - AI_AGENT_MODEL=${AI_AGENT_MODEL:-}
+      - LLM_FALLBACK_API_KEY=${LLM_FALLBACK_API_KEY:-}
+      - LLM_FALLBACK_BASE_URL=${LLM_FALLBACK_BASE_URL:-https://api.openai.com/v1}
+      - LLM_FALLBACK_MODEL=${LLM_FALLBACK_MODEL:-gpt-4.1-mini}
+      - PUBLIC_WHATSAPP_NUMBER=${PUBLIC_WHATSAPP_NUMBER:-}
+      - PUBLIC_LISTINGS_ORG=${PUBLIC_LISTINGS_ORG:-}
       - ALLOWED_HOSTS=${ALLOWED_HOSTS:-localhost,127.0.0.1}
     depends_on:
       db:
@@ -68,6 +76,12 @@ services:
       - DATABASE_URL=postgres://${POSTGRES_USER:-chatplatform}:${POSTGRES_PASSWORD:-chatplatform123}@db:5432/${POSTGRES_DB:-chatplatform}
       - REDIS_URL=redis://redis:6379/0
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - OPENAI_BASE_URL=${OPENAI_BASE_URL:-}
+      - OPENAI_MODEL=${OPENAI_MODEL:-gpt-4o-mini}
+      - AI_AGENT_MODEL=${AI_AGENT_MODEL:-}
+      - LLM_FALLBACK_API_KEY=${LLM_FALLBACK_API_KEY:-}
+      - LLM_FALLBACK_BASE_URL=${LLM_FALLBACK_BASE_URL:-https://api.openai.com/v1}
+      - LLM_FALLBACK_MODEL=${LLM_FALLBACK_MODEL:-gpt-4.1-mini}
     depends_on:
       - backend
       - redis

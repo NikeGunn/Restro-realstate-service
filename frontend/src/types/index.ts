@@ -501,7 +501,7 @@ export interface PropertyListing {
   images: string[];
   primary_image?: string | null;
   virtual_tour_url: string;
-  status: 'draft' | 'active' | 'pending' | 'sold' | 'rented' | 'off_market';
+  status: 'active' | 'pending' | 'coming_soon' | 'sold' | 'rented' | 'off_market';
   status_display: string;
   is_featured: boolean;
   reference_number: string;
@@ -511,7 +511,9 @@ export interface PropertyListing {
   assigned_agent: string | null;
   assigned_agent_name: string | null;
   view_count: number;
-  inquiry_count: number;
+  inquiry_count?: number;
+  whatsapp_clicks?: number;
+  is_published?: boolean;
   created_at: string;
   updated_at: string;
 }

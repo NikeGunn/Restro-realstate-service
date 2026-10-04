@@ -4,7 +4,7 @@ Real-estate agent loop: plan → call tools → observe → answer → verify.
 Design (borrowed from HisabKitab / MigAlpha and tool-using agent harnesses):
   * The model never "declares" side-effects in JSON for someone else to maybe
     execute later. It calls tools, sees the real result, and only then writes
-    the reply — so it can't confirm a viewing that failed to save.
+    the reply - so it can't confirm a viewing that failed to save.
   * Identity (soul), routing (intent), domain skill and persistent memory are
     separate prompt files, composed per turn.
   * Every draft passes a deterministic verification gate. One corrective retry,
@@ -24,6 +24,7 @@ from . import language as reply_lang
 from . import memory as agent_memory
 from . import actions as agent_actions
 from . import capabilities
+from . import tone
 from .tools import RealEstateTools, format_money
 from .verifier import salvage, verify_reply
 
@@ -43,6 +44,18 @@ SAFE_FALLBACK = {
     reply_lang.NEPALI_ROMAN: "Hajur, ma tapai lai sahi jankari dina chahanchu. Ek choti feri bhannu huncha, ki hamro team ko manche sanga kura garaidiu?",
     reply_lang.NEPALI_DEVANAGARI: "हजुर, म तपाईंलाई सही जानकारी दिन चाहन्छु। एक पटक फेरि भन्नुहुन्छ कि, वा हाम्रो टिमको मान्छेसँग कुरा गराइदिऊँ?",
 }
+
+
+def _timing_label(t: Dict[str, Any]) -> str:
+    """Appointments are compared with NOW, not just today's date (a 11:00 slot at 13:51 is over)."""
+    if t['state'] == 'upcoming':
+        m = t['minutes_until_start']
+        return f"UPCOMING, starts in {m // 60}h {m % 60}m" if m >= 60 else f"UPCOMING, starts in {m} min"
+    if t['state'] == 'in_progress':
+        return "IN PROGRESS NOW"
+    m = t['minutes_since_end']
+    return (f"TIME PASSED, ended {m // 60}h {m % 60}m ago: never describe it as upcoming or 'confirmed for "
+            "today'; ask kindly whether the viewing happened and offer a new time if they missed it")
 
 
 def _load(name: str) -> str:
@@ -70,7 +83,8 @@ class RealEstateAgent:
         self.has_appointments = bool(appts.get('appointments'))
         appt_text = "\n".join(
             f"- {a['confirmation_code']}: {a['type']} on {a['weekday']} {a['date']} {a['time']}"
-            f"{' — ' + a['property'] + ' (' + a['property_reference'] + ')' if a['property'] else ''}"
+            f"{' - ' + a['property'] + ' (' + a['property_reference'] + ')' if a['property'] else ''}"
+            f" [{a['status']}; {_timing_label(a['timing'])}]"
             for a in appts.get('appointments', [])
         ) or "(none)"
         overrides = self.svc._get_temporary_override_context() or "(none active)"
@@ -108,14 +122,14 @@ class RealEstateAgent:
         self.evidence.extend([knowledge, appt_text, overrides, calendar, portfolio, earlier,
                               self.conversation.customer_phone or ''])
         return "\n\n".join([
-            soul, _load('intent.md'), skill, mem,
+            soul, _load('tone.md'), _load('intent.md'), skill, mem,
             "# CALENDAR (use this, never compute dates yourself; \"next Saturday\" = the first Saturday after today)\n"
             + calendar,
-            "# PORTFOLIO (live from the database right now — this IS what the agency offers; use it to answer "
+            "# PORTFOLIO (live from the database right now - this IS what the agency offers; use it to answer "
             "broad questions immediately, and call tools for details/filters)\n" + portfolio,
-            f"# KNOWLEDGE (agency facts — the only non-tool source of truth)\n{knowledge}",
+            f"# KNOWLEDGE (agency facts - the only non-tool source of truth)\n{knowledge}",
             "# FACTS FROM EARLIER TOOL CALLS IN THIS CHAT (re-check with a tool before booking)\n" + (earlier or "(none)"),
-            "# CAPABILITIES (set by the agency owner — never offer anything outside this)\n"
+            "# CAPABILITIES (set by the agency owner - never offer anything outside this)\n"
             + capabilities.describe(self.organization, self.tools.settings),
             "# PENDING DECISION\n" + self._pending_text(),
             channel_note,
@@ -126,7 +140,7 @@ class RealEstateAgent:
         if not action:
             return "(none)"
         self.evidence.append(json.dumps(action.payload, ensure_ascii=False, default=str))
-        return (f"preview_id {action.id} — {action.get_kind_display()}: "
+        return (f"preview_id {action.id} - {action.get_kind_display()}: "
                 f"{json.dumps(action.payload, ensure_ascii=False, default=str)}\n"
                 "If the customer's latest message is a plain yes to THIS, call confirm_pending_action. "
                 "If they said no/keep it, call decline_pending_action. If they changed details, prepare a new "
@@ -147,7 +161,7 @@ class RealEstateAgent:
                 lines.append(f"- {p.reference_number} | {p.get_property_type_display()} for "
                              f"{'rent' if rent else 'sale'} | {p.title} | {price} | {p.neighborhood or p.city}, {p.city}")
         else:
-            lines.append("(Too many to list here — use search_properties with filters.)")
+            lines.append("(Too many to list here - use search_properties with filters.)")
         return "\n".join(lines)
 
     def _earlier_tool_facts(self) -> str:
@@ -167,7 +181,7 @@ class RealEstateAgent:
     def _history(self, current: str) -> List[Dict[str, str]]:
         msgs = list(self.conversation.messages.order_by('-created_at')[:HISTORY_MESSAGES])
         msgs.reverse()
-        # The channel saved the current inbound message before calling us — drop it
+        # The channel saved the current inbound message before calling us - drop it
         # so the model doesn't see the same user turn twice.
         if msgs and msgs[-1].sender == MessageSender.CUSTOMER and msgs[-1].content.strip() == current.strip():
             msgs = msgs[:-1]
@@ -187,12 +201,14 @@ class RealEstateAgent:
     def _complete(self, messages):
         model = self._model()
         kwargs = dict(model=model, messages=messages, tools=self.tools.schemas(), tool_choice='auto')
-        if model.startswith(('gpt-5', 'o3', 'o4')):
-            # Reasoning models: no temperature; the output budget includes reasoning tokens.
-            kwargs.update(max_completion_tokens=4000, reasoning_effort='low')
-        else:
-            kwargs.update(temperature=0.2, max_tokens=900)
+        kwargs.update(self._sampling())
         return self.svc.client.chat.completions.create(**kwargs)
+
+    def _sampling(self) -> Dict[str, Any]:
+        if self._model().startswith(('gpt-5', 'o3', 'o4')):
+            # Reasoning models: no temperature; the output budget includes reasoning tokens.
+            return dict(max_completion_tokens=4000, reasoning_effort='low')
+        return dict(temperature=0.2, max_tokens=900)
 
     def _run_tools(self, messages) -> str:
         registry = self.tools.registry()
@@ -219,7 +235,7 @@ class RealEstateAgent:
                     result = fn(**args) if fn else {'ok': False, 'error': f'unknown tool {name}'}
                 except TypeError as e:
                     result = {'ok': False, 'error': f'bad arguments: {e}'}
-                except Exception as e:  # tool bug must not kill the turn — surface it to the model + logs
+                except Exception as e:  # tool bug must not kill the turn - surface it to the model + logs
                     logger.exception("Agent tool %s failed", name)
                     result = {'ok': False, 'error': 'internal error while running the tool'}
                 payload = json.dumps(result, default=str, ensure_ascii=False)
@@ -267,10 +283,10 @@ class RealEstateAgent:
             logger.warning("Agent gate rejected draft: %s | %s", gate.problems, reply[:300])
             messages.append({'role': 'assistant', 'content': reply})
             messages.append({'role': 'system', 'content': (
-                "VERIFICATION FAILED — your last reply was NOT sent. Problems: " + "; ".join(gate.problems)
+                "VERIFICATION FAILED - your last reply was NOT sent. Problems: " + "; ".join(gate.problems)
                 + ". Rewrite it. Only state figures/references that appear in tool results, KNOWLEDGE, or the "
                   "customer's own words. If the customer was vague (e.g. 'cheap'), describe it in words or ask "
-                  "their budget — never invent a number. Never claim an action a tool did not confirm. "
+                  "their budget - never invent a number. Never claim an action a tool did not confirm. "
                   "Keep being helpful: give the real options you have and one next step.")})
             first_draft, first_gate = reply, gate
             reply = self._run_tools(messages)
@@ -286,6 +302,8 @@ class RealEstateAgent:
                         break
 
         verified = bool(reply) and gate is not None and gate.ok
+        if verified:
+            reply = self._respectful(messages, reply)
         escalation = self.tools.escalation
         if not verified:
             # Never send an unverified draft. We don't silently hand off either: the
@@ -298,6 +316,8 @@ class RealEstateAgent:
         for receipt in receipts:
             if receipt.get('code') and receipt['code'] not in reply:
                 reply = (reply + "\n\n" + reply_lang.receipt_line(receipt, self.reply_style)).strip()
+
+        reply = tone.no_dashes(tone.polish(reply, self.reply_style))
 
         # Staff may have taken the chat over while we were thinking: then the AI must stay silent.
         self.conversation.refresh_from_db(fields=['state'])
@@ -313,7 +333,7 @@ class RealEstateAgent:
             'needs_handoff': bool(escalation),
             'handoff_reason': (escalation or {}).get('reason', ''),
             'language': language,
-            'extracted_data': {},  # actions already executed by tools — channels must not re-create them
+            'extracted_data': {},  # actions already executed by tools - channels must not re-create them
             'suppressed': suppressed,
         }
         attachments = self.tools.attachments if verified else []
@@ -332,10 +352,38 @@ class RealEstateAgent:
             error='' if verified else 'gate:' + '; '.join(gate.problems if gate else ['empty']),
             language=language,
             context_extra={'reply_style': self.reply_style, 'tools': self.tool_trace,
+                           'tone_problems': getattr(self, 'tone_problems', []),
                            'tool_facts': self.tool_facts[-4:], 'suppressed': suppressed},
         )
         self._meter()
         return result
+
+    def _respectful(self, messages, reply: str) -> str:
+        """Tone gate: a low-register draft gets one rewrite pass (no tools → no side effects).
+
+        The rewrite must still pass the verification gate; otherwise the original verified
+        draft is kept and only the deterministic polish() upgrades it.
+        """
+        problems = tone.register_problems(reply, self.reply_style)
+        if not problems:
+            return reply
+        logger.info("Agent tone gate: %s | %s", problems, reply[:200])
+        self.tone_problems = problems
+        try:
+            kwargs = self._sampling()
+            resp = self.svc.client.chat.completions.create(
+                model=self._model(),
+                messages=messages + [{'role': 'assistant', 'content': reply},
+                                     {'role': 'system', 'content': tone.rewrite_instruction(problems)}],
+                **kwargs)
+            self.tokens += getattr(resp.usage, 'total_tokens', 0) or 0
+            rewritten = (resp.choices[0].message.content or '').strip()
+        except Exception:
+            logger.exception("Tone rewrite failed; sending the verified draft with polish only")
+            return reply
+        if rewritten and self._verify(rewritten).ok and not tone.register_problems(rewritten, self.reply_style):
+            return rewritten
+        return reply
 
     def _receipts(self) -> List[Dict[str, Any]]:
         out = []
@@ -362,7 +410,7 @@ class RealEstateAgent:
                 'suppressed': False}
 
     def _meter(self):
-        """Best-effort usage record per AI reply — the data a future subscription bills from."""
+        """Best-effort usage record per AI reply - the data a future subscription bills from."""
         try:
             from decimal import Decimal
             from apps.billing.services.meter import record_usage

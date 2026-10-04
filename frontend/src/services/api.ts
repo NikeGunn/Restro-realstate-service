@@ -863,13 +863,19 @@ export const realEstateApi = {
       return response.data
     },
 
-    uploadPhotos: async (id: string, files: File[]) => {
+    uploadPhotos: async (id: string, files: File[], onProgress?: (percent: number) => void) => {
       const form = new FormData()
       files.forEach(f => form.append('photo', f))
       const response = await api.post(`/realestate/properties/${id}/photos/`, form, {
         headers: { 'Content-Type': 'multipart/form-data' },
+        onUploadProgress: e => onProgress?.(e.total ? Math.round((e.loaded / e.total) * 100) : 0),
       })
       return response.data as { images: string[]; added: string[]; errors: string[] }
+    },
+
+    reorderPhotos: async (id: string, images: string[]) => {
+      const response = await api.put(`/realestate/properties/${id}/photos/order/`, { images })
+      return response.data as { images: string[] }
     },
 
     deletePhoto: async (id: string, url: string) => {

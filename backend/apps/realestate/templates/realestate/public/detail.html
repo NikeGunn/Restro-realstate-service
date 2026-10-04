@@ -1,0 +1,117 @@
+{% extends "realestate/public/base.html" %}
+{% block og_type %}article{% endblock %}
+{% block style %}
+.layout{display:grid;gap:28px;padding-bottom:40px}
+@media(min-width:980px){.layout{grid-template-columns:minmax(0,1fr) 370px;align-items:start}}
+.gallery{position:relative;border-radius:22px;overflow:hidden;background:var(--paper-2);box-shadow:var(--shadow)}
+.slides{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;aspect-ratio:16/10}
+.slides::-webkit-scrollbar{display:none}
+.slides figure{margin:0;flex:0 0 100%;scroll-snap-align:start;position:relative}
+.slides img{width:100%;height:100%;object-fit:cover}
+.gnav{position:absolute;top:50%;transform:translateY(-50%);width:44px;height:44px;border-radius:999px;border:0;background:rgba(255,253,248,.92);
+  box-shadow:var(--shadow);cursor:pointer;font:600 20px/1 var(--sans);display:none}
+.gallery:hover .gnav{display:grid;place-items:center}.gnav.prev{left:12px}.gnav.next{right:12px}
+.gcount{position:absolute;right:14px;bottom:14px;background:rgba(20,35,31,.75);color:#fff;border-radius:999px;padding:6px 10px;font:600 13px/1 var(--sans)}
+.thumbs{display:flex;gap:8px;overflow-x:auto;padding:10px 2px 0;scrollbar-width:thin}
+.thumbs a{flex:0 0 86px;aspect-ratio:4/3;border-radius:10px;overflow:hidden;opacity:.85;outline-offset:2px}
+.thumbs a:hover{opacity:1}.thumbs img{width:100%;height:100%;object-fit:cover}
+.noimg-lg{aspect-ratio:16/10;display:grid;place-items:center;text-align:center;color:var(--pine);background:linear-gradient(180deg,#E8DFCC 0 64%,#D9CDB4 64%)}
+.title h1{font-size:clamp(28px,4.4vw,46px);line-height:1.06;margin:6px 0 10px}
+.tags{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.panel{background:var(--card);border-radius:22px;box-shadow:var(--shadow);padding:24px;border:1px solid var(--line)}
+@media(min-width:980px){.panel.sticky{position:sticky;top:84px}}
+.big{font:600 40px/1 var(--serif);letter-spacing:-.02em}
+.sub{color:var(--muted);font-size:14px;margin-top:6px}
+.panel .acts{display:grid;gap:10px;margin:20px 0 14px}
+.next{list-style:none;margin:16px 0 0;padding:14px 0 0;border-top:1px dashed var(--line);display:grid;gap:10px;font-size:14px;color:var(--muted)}
+.next li{display:flex;gap:10px}.next b{color:var(--ink)}
+.next span.n{flex:none;width:22px;height:22px;border-radius:999px;background:var(--paper-2);color:var(--brick);font:700 12px/22px var(--sans);text-align:center}
+.factgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:1px;background:var(--line);border-radius:16px;overflow:hidden;border:1px solid var(--line)}
+.factgrid div{background:var(--card);padding:14px 16px}
+.factgrid dt{font:700 11px/1 var(--sans);letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+.factgrid dd{margin:0;font-weight:600}
+.block{margin-top:30px}.block h2{font-size:24px;margin-bottom:12px}
+.desc{white-space:pre-line;font-size:16.5px;line-height:1.75;max-width:70ch}
+.feat{display:flex;flex-wrap:wrap;gap:8px}.feat span{background:#EEF3EE;color:var(--pine);border-radius:10px;padding:7px 11px;font-weight:600;font-size:14px}
+.gone{background:#FBEDE5;border:1px solid #EBC3AE;color:var(--brick-2);border-radius:14px;padding:14px 16px;font-weight:600;margin-bottom:16px}
+.mbar{position:fixed;left:0;right:0;bottom:0;z-index:40;background:rgba(255,253,248,.96);backdrop-filter:blur(8px);border-top:1px solid var(--line);
+  padding:10px 16px calc(10px + env(safe-area-inset-bottom));display:flex;align-items:center;gap:12px}
+.mbar .p{font:600 20px/1 var(--serif)}.mbar .r{font-size:12px;color:var(--muted)}.mbar .btn{margin-left:auto}
+@media(min-width:980px){.mbar{display:none}}
+@media(max-width:979px){.foot{padding-bottom:110px}}
+{% endblock %}
+{% block content %}
+<div class="wrap">
+  <nav class="crumbs" aria-label="Breadcrumb"><a href="/realestate/properties/">Properties</a><span>›</span>
+    {% if crumb %}<a href="/realestate/properties/{{ crumb.0 }}/">{{ crumb.1 }}</a><span>›</span>{% endif %}
+    <span aria-current="page">{{ l.reference_number }}</span></nav>
+
+  <div class="title">
+    <div class="tags">
+      <span class="badge {% if l.listing_type == 'sale' %}sale{% else %}rent{% endif %}">{{ card.deal_label }}</span>
+      <span class="badge" style="background:var(--paper-2)">{{ card.type_label }}</span>
+      {% if l.is_featured %}<span class="badge feat">Featured</span>{% endif %}
+      <span class="ref">{{ l.reference_number }}</span>
+    </div>
+    <h1>{{ l.title }}</h1>
+    {% if card.place %}<p class="place" style="margin:0 0 22px">{{ card.place }}{% if l.state %} · {{ l.state }}{% endif %}</p>{% endif %}
+  </div>
+
+  <div class="layout">
+    <div>
+      {% if images %}
+      <div class="gallery">
+        <div class="slides" id="slides" tabindex="0" aria-label="Photos of {{ l.title }}">
+          {% for src in images %}<figure id="p{{ forloop.counter }}"><img src="{{ src }}" alt="{{ l.title }}, photo {{ forloop.counter }} of {{ images|length }}" {% if forloop.first %}fetchpriority="high"{% else %}loading="lazy"{% endif %} decoding="async" width="1200" height="750"></figure>{% endfor %}
+        </div>
+        {% if images|length > 1 %}<button class="gnav prev" type="button" aria-label="Previous photo" data-dir="-1">‹</button><button class="gnav next" type="button" aria-label="Next photo" data-dir="1">›</button>{% endif %}
+        <span class="gcount">{{ images|length }} photo{{ images|length|pluralize }}</span>
+      </div>
+      {% if images|length > 1 %}<div class="thumbs">{% for src in images %}<a href="#p{{ forloop.counter }}" aria-label="Photo {{ forloop.counter }}"><img src="{{ src }}" alt="" loading="lazy"></a>{% endfor %}</div>{% endif %}
+      {% else %}
+      <div class="gallery noimg-lg"><div><svg width="120" height="80" viewBox="0 0 86 60" aria-hidden="true"><path d="M2 58 L28 20 L40 36 L54 14 L84 58 Z" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round"/></svg><p style="margin:8px 0 0;font-weight:600">Photos on request, ask on WhatsApp</p></div></div>
+      {% endif %}
+
+      <section class="block" aria-labelledby="facts"><h2 id="facts">Key facts</h2>
+        <dl class="factgrid">{% for label, value in facts %}<div><dt>{{ label }}</dt><dd>{{ value }}</dd></div>{% endfor %}</dl>
+      </section>
+      {% if description_text %}<section class="block" aria-labelledby="about"><h2 id="about">About this property</h2><p class="desc">{{ description_text }}</p></section>{% endif %}
+      {% if features %}<section class="block" aria-labelledby="ft"><h2 id="ft">Features</h2><div class="feat">{% for f in features %}<span>{{ f }}</span>{% endfor %}</div></section>{% endif %}
+      <section class="block" aria-labelledby="loc"><h2 id="loc">Location</h2>
+        <p style="margin:0 0 10px">{{ card.place|default:l.city }}{% if l.state %}, {{ l.state }}{% endif %}. Exact address is shared when your viewing is booked.</p>
+        <a class="btn btn-ghost btn-sm" href="https://www.google.com/maps/search/?api=1&amp;query={{ card.place|default:l.city|urlencode }}%2C%20Nepal" target="_blank" rel="noopener">Open area in Google Maps ↗</a>
+      </section>
+    </div>
+
+    <aside class="panel sticky" aria-label="Price and contact">
+      {% if not available %}<div class="gone">This property is no longer available ({{ l.get_status_display|lower }}). Ask us for similar options.</div>{% endif %}
+      <div class="big">{{ card.price }}</div>
+      <div class="sub">{{ card.price_full }}{% if l.listing_type == 'sale' %} · asking price{% endif %}</div>
+      <div class="acts">
+        {% if wa_number %}
+        <a class="btn btn-wa" href="{{ chat_url }}" rel="nofollow noopener" target="_blank">{% include "realestate/public/_wa_icon.html" %} Chat on WhatsApp</a>
+        <a class="btn btn-ghost deva" href="{{ chat_url }}?lang=ne" rel="nofollow noopener" target="_blank">नेपालीमा कुरा गर्नुहोस्</a>
+        {% else %}<p class="sub">Contact {{ org.name }} to arrange a viewing.</p>{% endif %}
+      </div>
+      <ol class="next" aria-label="What happens next">
+        <li><span class="n">1</span><span><b>Your message names {{ l.reference_number }}</b>, no need to explain which property.</span></li>
+        <li><span class="n">2</span><span><b>Get photos & answers</b> in English or Nepali, any time.</span></li>
+        <li><span class="n">3</span><span><b>Book a viewing</b> and receive a booking code.</span></li>
+      </ol>
+    </aside>
+  </div>
+
+  {% if related %}
+  <section class="sec" aria-labelledby="rel" style="padding-top:20px"><p class="eyebrow">Also available</p><h2 id="rel">Similar {{ card.type_label|lower }} listings</h2>
+    <div class="grid">{% for c in related %}{% include "realestate/public/_card.html" with c=c %}{% endfor %}</div>
+  </section>
+  {% endif %}
+</div>
+{% if wa_number %}<div class="mbar"><div><div class="p">{{ card.price }}</div><div class="r">{{ l.reference_number }}</div></div><a class="btn btn-wa" href="{{ chat_url }}" rel="nofollow noopener" target="_blank">{% include "realestate/public/_wa_icon.html" %} Chat on WhatsApp</a></div>{% endif %}
+<script>
+(function(){var s=document.getElementById('slides');if(!s)return;
+document.querySelectorAll('.gnav').forEach(function(b){b.addEventListener('click',function(){s.scrollBy({left:s.clientWidth*(+b.dataset.dir),behavior:'smooth'})})});
+s.addEventListener('keydown',function(e){if(e.key==='ArrowRight')s.scrollBy({left:s.clientWidth});if(e.key==='ArrowLeft')s.scrollBy({left:-s.clientWidth})});})();
+</script>
+{% endblock %}
+{% block fab %}{% endblock %}

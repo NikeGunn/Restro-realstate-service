@@ -32,6 +32,13 @@ data:
   CELERY_BROKER_URL: "redis://redis:6379/0"
   CELERY_RESULT_BACKEND: "redis://redis:6379/0"
 
+  # Public listings website (kribaat.com/realestate/properties): agency shown + canonical origin.
+  # WhatsApp number comes from the org's WhatsApp Cloud API config (PUBLIC_WHATSAPP_NUMBER overrides).
+  PUBLIC_LISTINGS_ORG: "03b40fb0-fb6f-40e6-b21f-5bc445ca717e"
+  PUBLIC_SITE_URL: "https://kribaat.com"
+  LLM_FALLBACK_BASE_URL: "https://api.openai.com/v1"
+  LLM_FALLBACK_MODEL: "gpt-4.1-mini"
+
   # Meta/WhatsApp API settings
   META_GRAPH_API_VERSION: "v18.0"
 
@@ -73,7 +80,9 @@ data:
   # set, photos fall back to the media-pvc — nothing breaks while R2 is being enabled.
   R2_BUCKET: "kribaat-media"
   R2_ENDPOINT_URL: "https://28cd257c33038640fa6f234442b247c8.r2.cloudflarestorage.com"
-  R2_PUBLIC_DOMAIN: "pub-296eb79cd8404023a4b91caa9c0e6bd0.r2.dev"
+  # media.kribaat.com = our ingress → backend media_proxy (authenticated S3 API, no r2.dev rate limit).
+  # Old r2.dev URLs keep working; rewrite stored ones with `manage.py rewrite_photo_domain`.
+  R2_PUBLIC_DOMAIN: "media.kribaat.com"
 
   # Coffee Pass — customer login OTP delivery.
   #

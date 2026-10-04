@@ -270,6 +270,11 @@ from celery.schedules import crontab  # noqa: E402
 
 CELERY_BEAT_SCHEDULE = {
     # Agent long-term memory: nightly 23:30 HKT (15:30 UTC) daily chat consolidation.
+    # Viewing reminders (~1h before) and missed-viewing follow-ups (realestate/appointment_notifications.py).
+    'realestate-appointment-notifications': {
+        'task': 'apps.realestate.tasks.appointment_notifications_task',
+        'schedule': crontab(minute='*/5'),
+    },
     'ai-summarize-daily-memories': {
         'task': 'apps.ai_engine.tasks.summarize_daily_memories_task',
         'schedule': crontab(hour=15, minute=30),
@@ -571,12 +576,29 @@ EMAIL_BACKEND = config(
 )
 
 # OpenAI Configuration
+# Primary chat provider: any OpenAI-compatible API. Since 2026-10-04 this is DeepSeek
+# (OPENAI_BASE_URL=https://api.deepseek.com, model deepseek-chat); blank base URL = OpenAI.
 OPENAI_API_KEY = config('OPENAI_API_KEY', default='')
+OPENAI_BASE_URL = config('OPENAI_BASE_URL', default='')
+# Failover provider (apps/ai_engine/llm.py): used when the primary errors (credit, 429, 5xx, timeout).
+LLM_FALLBACK_API_KEY = config('LLM_FALLBACK_API_KEY', default='')
+LLM_FALLBACK_BASE_URL = config('LLM_FALLBACK_BASE_URL', default='https://api.openai.com/v1')
+LLM_FALLBACK_MODEL = config('LLM_FALLBACK_MODEL', default='gpt-4.1-mini')
+LLM_TIMEOUT_SECONDS = config('LLM_TIMEOUT_SECONDS', default=45, cast=int)
+# Content Studio image generation is OpenAI-only (DeepSeek has no image API).
+OPENAI_IMAGES_API_KEY = config('OPENAI_IMAGES_API_KEY', default='') or LLM_FALLBACK_API_KEY
 OPENAI_MODEL = config('OPENAI_MODEL', default='gpt-4o-mini')
 OPENAI_MAX_TOKENS = config('OPENAI_MAX_TOKENS', default=500, cast=int)
 OPENAI_TEMPERATURE = config('OPENAI_TEMPERATURE', default=0.7, cast=float)
 # Tool-calling customer agent (real-estate vertical). Blank = OPENAI_MODEL.
 AI_AGENT_MODEL = config('AI_AGENT_MODEL', default='')
+
+# Public listings website (/realestate/properties): which agency it shows (org id or exact name;
+# blank = the oldest real-estate org with published listings), an optional WhatsApp number
+# override (else the org's WhatsApp Cloud API display number), and the canonical site origin.
+PUBLIC_LISTINGS_ORG = config('PUBLIC_LISTINGS_ORG', default='')
+PUBLIC_WHATSAPP_NUMBER = config('PUBLIC_WHATSAPP_NUMBER', default='')
+PUBLIC_SITE_URL = config('PUBLIC_SITE_URL', default='')
 
 # Meta (WhatsApp & Instagram) Configuration
 META_APP_SECRET = config('META_APP_SECRET', default='')

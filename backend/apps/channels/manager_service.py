@@ -32,8 +32,8 @@ class ManagerService:
     def __init__(self, organization: Organization):
         self.organization = organization
         self.client = None
-        if settings.OPENAI_API_KEY:
-            self.client = OpenAI(api_key=settings.OPENAI_API_KEY)
+        from apps.ai_engine.llm import chat_client
+        self.client = chat_client()
     
     @classmethod
     def is_manager_message(cls, phone_number: str, organization: Organization) -> Optional[ManagerNumber]:

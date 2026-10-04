@@ -17,6 +17,7 @@ from typing import Optional
 from django.conf import settings
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
+from django.db import transaction
 
 logger = logging.getLogger(__name__)
 
@@ -79,33 +80,65 @@ def _reencode(upload) -> bytes:
     return out.getvalue()
 
 
+def _locked(listing):
+    """Re-read the listing under a row lock: two uploads at once must not drop each other's photo."""
+    return type(listing).objects.select_for_update().get(pk=listing.pk)
+
+
 def add_photo(listing, upload) -> str:
-    images = list(listing.images or [])
-    if len(images) >= MAX_PHOTOS_PER_LISTING:
+    if len(listing.images or []) >= MAX_PHOTOS_PER_LISTING:
         raise PhotoError(f'A listing can have at most {MAX_PHOTOS_PER_LISTING} photos.')
     data = _reencode(upload)
     name = f"listings/{listing.organization_id}/{listing.id}/{uuid.uuid4().hex}.jpg"
     storage = photo_storage()
     saved = storage.save(name, ContentFile(data))
     url = _absolute(storage.url(saved))
-    listing.images = images + [url]
-    listing.save(update_fields=['images', 'updated_at'])
+    with transaction.atomic():
+        row = _locked(listing)
+        images = list(row.images or [])
+        if len(images) >= MAX_PHOTOS_PER_LISTING:
+            _delete_quietly(saved)
+            raise PhotoError(f'A listing can have at most {MAX_PHOTOS_PER_LISTING} photos.')
+        row.images = images + [url]
+        row.save(update_fields=['images', 'updated_at'])
+    listing.images = row.images
     return url
 
 
+def _delete_quietly(key: str):
+    try:
+        photo_storage().delete(key)
+    except Exception:
+        logger.exception("Could not delete photo object %s (listing updated anyway)", key)
+
+
 def remove_photo(listing, url: str) -> bool:
-    images = list(listing.images or [])
-    if url not in images:
-        return False
-    listing.images = [u for u in images if u != url]
-    listing.save(update_fields=['images', 'updated_at'])
+    with transaction.atomic():
+        row = _locked(listing)
+        images = list(row.images or [])
+        if url not in images:
+            listing.images = images
+            return False
+        row.images = [u for u in images if u != url]
+        row.save(update_fields=['images', 'updated_at'])
+    listing.images = row.images
     key = _key_from_url(listing, url)
     if key:
-        try:
-            photo_storage().delete(key)
-        except Exception:
-            logger.exception("Could not delete photo object %s (listing updated anyway)", key)
+        _delete_quietly(key)
     return True
+
+
+def reorder_photos(listing, urls) -> list:
+    """Save a new photo order (the first is the cover). Must be exactly the current photos."""
+    with transaction.atomic():
+        row = _locked(listing)
+        current = list(row.images or [])
+        if not isinstance(urls, list) or sorted(map(str, urls)) != sorted(current):
+            raise PhotoError("The new order must contain exactly the listing's current photos.")
+        row.images = list(urls)
+        row.save(update_fields=['images', 'updated_at'])
+    listing.images = row.images
+    return listing.images
 
 
 def _key_from_url(listing, url: str) -> Optional[str]:

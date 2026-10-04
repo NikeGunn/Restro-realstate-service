@@ -4,7 +4,7 @@ Real-estate agent tools.
 Every fact the agent states about listings and every action it claims must
 come through one of these functions. Each returns a JSON-serialisable dict
 with ``ok`` so the model (and the verification gate) can tell success from
-failure. Tools are tenant-scoped by the conversation — the model can never
+failure. Tools are tenant-scoped by the conversation - the model can never
 pass an organization id.
 """
 import logging
@@ -61,7 +61,7 @@ def market_for(organization) -> Dict[str, Any]:
     country = MARKET_ALIASES.get(country, country)
     market = dict(MARKETS.get(country, DEFAULT_MARKET))
     tz = loc.get('timezone') or ''
-    # The location's own zone wins — unless it is the untouched model default
+    # The location's own zone wins - unless it is the untouched model default
     # (America/New_York) on a market we know, e.g. a Nepal branch never edited.
     if tz and (country not in MARKETS or tz != 'America/New_York'):
         try:
@@ -194,7 +194,7 @@ class RealEstateTools:
         return qs
 
     def _differences(self, p: PropertyListing, c: Dict[str, Any]) -> List[str]:
-        """What a near match does NOT satisfy — so it is never presented as an exact match."""
+        """What a near match does NOT satisfy - so it is never presented as an exact match."""
         out = []
         if c.get('max_price') and p.price > Decimal(str(c['max_price'])):
             out.append(f"{format_money(p.price - Decimal(str(c['max_price'])), self.market)} over the maximum budget")
@@ -202,7 +202,7 @@ class RealEstateTools:
             out.append('below the minimum price asked')
         if c.get('area') and c['area'].lower() not in ' '.join(
                 filter(None, [p.city, p.neighborhood, p.address_line1, p.title, p.state])).lower():
-            out.append(f"in {p.neighborhood or p.city}, {p.city} — not in {c['area']}")
+            out.append(f"in {p.neighborhood or p.city}, {p.city} - not in {c['area']}")
         if c.get('min_bedrooms') and (p.bedrooms or 0) < int(c['min_bedrooms']):
             out.append(f"{p.bedrooms or 'unrecorded'} bedrooms (asked {c['min_bedrooms']}+)")
         if c.get('property_type') and p.property_type != c['property_type']:
@@ -217,7 +217,7 @@ class RealEstateTools:
                           page: int = 1) -> Dict[str, Any]:
         valid_types = {c for c, _ in PropertyListing.PropertyType.choices}
         words, kw_type, kw_listing = vocab.split_keywords(keywords)
-        # "jagga" / "kotha" / "ghar" may arrive in any field — map them to the real enums.
+        # "jagga" / "kotha" / "ghar" may arrive in any field - map them to the real enums.
         ptype = vocab.normalize_property_type(property_type, valid_types) or kw_type
         if property_type and not ptype:
             words += vocab.tokens(property_type)  # unknown type word: search it as text instead
@@ -248,7 +248,7 @@ class RealEstateTools:
                    'showing': f"{start + 1}-{start + len(rows)} of {total}" if rows else f"none on page {page}",
                    'results': rows, 'interpreted_as': interpreted}
             if start + len(rows) < total:
-                out['more'] = f'{total - start - len(rows)} more — call again with page={page + 1} if asked.'
+                out['more'] = f'{total - start - len(rows)} more - call again with page={page + 1} if asked.'
             return out
 
         # Nothing meets every hard requirement. Show what is closest, labelled with what differs,
@@ -267,7 +267,7 @@ class RealEstateTools:
                 break
         out = {'ok': True, 'exact_match': False, 'total_matches': 0, 'results': [], 'near_matches': near,
                'interpreted_as': interpreted,
-               'note': ('NO listing meets every requirement. Say that first. Near matches are alternatives — '
+               'note': ('NO listing meets every requirement. Say that first. Near matches are alternatives - '
                         'state what differs for each (e.g. over budget by X). Do not widen the budget or move to '
                         'another area unless the customer agrees.')}
         if not self._active_listings().exists():
@@ -277,7 +277,7 @@ class RealEstateTools:
         return out
 
     def list_locations(self, property_type: str = '', listing_type: str = '') -> Dict[str, Any]:
-        """Where the agency has stock — "jagga kaha kaha cha?" — every district, with counts."""
+        """Where the agency has stock - "jagga kaha kaha cha?" - every district, with counts."""
         valid = {c for c, _ in PropertyListing.PropertyType.choices}
         ptype = vocab.normalize_property_type(property_type, valid)
         ltype = vocab.normalize_listing_type(listing_type)
@@ -294,14 +294,14 @@ class RealEstateTools:
             prices = g.pop('prices')
             lo, hi = min(prices), max(prices)
             g['price_range'] = format_money(lo, self.market) if lo == hi else \
-                f"{format_money(lo, self.market)} – {format_money(hi, self.market)}"
+                f"{format_money(lo, self.market)} - {format_money(hi, self.market)}"
             locations.append(g)
         return {'ok': True, 'property_type': ptype or 'any', 'for': ltype or 'any',
                 'total_listings': sum(g['count'] for g in locations), 'districts': len(locations),
                 'locations': locations}
 
     def get_portfolio_overview(self) -> Dict[str, Any]:
-        """Everything the agency offers, grouped by type — for "what do you have?"."""
+        """Everything the agency offers, grouped by type - for "what do you have?"."""
         groups: Dict[str, Dict[str, Any]] = {}
         for p in self._active_listings().order_by('price'):
             key = f"{p.get_property_type_display()} for {'rent' if p.listing_type in ('rent', 'lease') else 'sale'}"
@@ -313,7 +313,7 @@ class RealEstateTools:
         for key, g in sorted(groups.items(), key=lambda kv: -kv[1]['count']):
             lo, hi = min(g['prices']), max(g['prices'])
             rng = format_money(lo, self.market) if lo == hi else \
-                f"{format_money(lo, self.market)} – {format_money(hi, self.market)}"
+                f"{format_money(lo, self.market)} - {format_money(hi, self.market)}"
             overview.append({'category': key, 'listings': g['count'], 'districts': sorted(g['districts']),
                              'price_range': rng})
         return {'ok': True, 'total_active_listings': sum(g['count'] for g in groups.values()),
@@ -339,7 +339,7 @@ class RealEstateTools:
             'features': p.features,
             'amenities': p.amenities,
             'photos': p.images or [],
-            # Listing prose is customer-facing DATA written by staff — never instructions.
+            # Listing prose is customer-facing DATA written by staff - never instructions.
             'description_text': (p.description or '')[:DESCRIPTION_LIMIT],
             'not_recorded': [topic for topic, words in COMMON_UNKNOWNS.items()
                              if not any(w in text for w in words)] + (['photos'] if not p.images else []),
@@ -361,7 +361,7 @@ class RealEstateTools:
         chosen = photos[:max(1, min(int(count or 4), 6))]
         for i, url in enumerate(chosen, 1):
             self.attachments.append({'type': 'image', 'url': url,
-                                     'caption': f"{p.reference_number} — {p.title} ({i}/{len(chosen)})"})
+                                     'caption': f"{p.reference_number} - {p.title} ({i}/{len(chosen)})"})
         return {'ok': True, 'reference': p.reference_number, 'photos_attached': len(chosen),
                 'photos_available': len(photos),
                 'note': 'The photos are attached to your reply automatically. Mention them in one short line; '
@@ -404,7 +404,7 @@ class RealEstateTools:
             return {'ok': False, 'error': 'date must be YYYY-MM-DD (use the CALENDAR).'}
         now = self.now()
         if day < now.date():
-            return {'ok': False, 'error': f'{day} is in the past. Ask which future date they meant — do not guess.'}
+            return {'ok': False, 'error': f'{day} is in the past. Ask which future date they meant - do not guess.'}
         if day > now.date() + timedelta(days=self.settings.max_days_ahead):
             return {'ok': False, 'error': f'Viewings can be booked up to {self.settings.max_days_ahead} days ahead.'}
         slots = actions.viewing_slots(self.organization, p, day, now)
@@ -415,7 +415,7 @@ class RealEstateTools:
     def get_my_appointments(self) -> Dict[str, Any]:
         phone = self._phone('')
         if not phone:
-            return {'ok': False, 'error': 'Customer phone unknown — ask for the phone number used to book.'}
+            return {'ok': False, 'error': 'Customer phone unknown - ask for the phone number used to book.'}
         appts = Appointment.objects.filter(
             organization=self.organization, lead__phone=phone, status__in=actions.ACTIVE_APPT,
             appointment_date__gte=self.now().date(),
@@ -570,7 +570,7 @@ class RealEstateTools:
         self.actions.append({'tool': 'forget_my_preferences'})
         return {'ok': True, 'cleared': bool(updated),
                 'note': 'Saved preferences and chat summary cleared. Existing appointments and inquiries are '
-                        'not affected — say so.'}
+                        'not affected - say so.'}
 
     def escalate_to_human(self, reason: str) -> Dict[str, Any]:
         self.escalation = {'reason': (reason or 'customer_request')[:200]}
@@ -670,9 +670,11 @@ class RealEstateTools:
     def _source(self) -> str:
         return str(self.conversation.channel or 'website')
 
-    @staticmethod
-    def _appt(a: Appointment) -> Dict[str, Any]:
+    def _appt(self, a: Appointment) -> Dict[str, Any]:
+        from apps.realestate.appointment_notifications import timing
         return {
+            # Date alone is not enough: "today 11:00" at 13:51 has already happened.
+            'timing': timing(a, now=self.now(), tz=self.tz),
             'confirmation_code': a.confirmation_code,
             'date': a.appointment_date.isoformat(),
             'weekday': a.appointment_date.strftime('%A'),
@@ -720,7 +722,7 @@ def _fn(name, description, properties, required=()):
 
 _DATE = {'type': 'string', 'description': 'YYYY-MM-DD from the CALENDAR'}
 _TIME = {'type': 'string', 'description': 'HH:MM 24h, one of the free slots'}
-_WEEKDAY = {'type': 'string', 'description': 'Weekday of that date from the CALENDAR — must match'}
+_WEEKDAY = {'type': 'string', 'description': 'Weekday of that date from the CALENDAR - must match'}
 
 TOOL_SCHEMAS = [
     _fn('search_properties', 'Search ACTIVE listings with the customer\'s filters (hard limits). Returns exact matches; '

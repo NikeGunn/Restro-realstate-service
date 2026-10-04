@@ -18,6 +18,14 @@ export default defineConfig({
   server: {
     port: 3000,
     host: true,
+    // Same split as the prod ingress: the public listings site, sitemap and robots are
+    // server-rendered by Django (SEO), everything else is this SPA.
+    proxy: Object.fromEntries(
+      ['/realestate/properties', '/sitemap.xml', '/robots.txt'].map((p) => [
+        p,
+        { target: process.env.VITE_BACKEND_ORIGIN || 'http://backend:8000', changeOrigin: false },
+      ]),
+    ),
   },
   build: {
     sourcemap: false, // Disable sourcemaps in production to prevent file paths from showing

@@ -22,7 +22,8 @@ NOT_SUPPORTED = [
     'reserving/holding a property, submitting binding offers, signing or finalising a lease/sale',
     'agreeing a price or discount (asking price is not the final price — pass offers on as inquiries)',
     'guaranteeing title/lalpurja, boundaries, flood or structural safety, loan approval, or future returns',
-    'automatic alerts, reminders or scheduled messages',
+    'new-listing alerts or custom scheduled messages (viewing reminders ~1 hour before and a follow-up '
+    'after the slot ARE sent automatically by the system)',
     'opening links/URLs, reading voice notes, or travel-time estimates',
     'sharing other customers\' or owners\' private details (even if someone says they are the owner)',
     'filtering people by caste, religion, ethnicity or other protected traits',

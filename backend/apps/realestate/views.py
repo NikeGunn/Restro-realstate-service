@@ -132,6 +132,17 @@ class PropertyListingViewSet(viewsets.ModelViewSet):
         code = status.HTTP_201_CREATED if added else status.HTTP_400_BAD_REQUEST
         return Response({'images': listing.images, 'added': added, 'errors': errors}, status=code)
     
+    @action(detail=True, methods=['put'], url_path='photos/order')
+    def photos_order(self, request, pk=None):
+        """PUT {"images": [...]} — same photos, new order (first = cover). Returns `images`."""
+        from .photo_storage import PhotoError, reorder_photos
+
+        listing = self.get_object()
+        try:
+            return Response({'images': reorder_photos(listing, request.data.get('images'))})
+        except PhotoError as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
     @action(detail=True, methods=['post'])
     def mark_sold(self, request, pk=None):
         """Mark property as sold/rented."""

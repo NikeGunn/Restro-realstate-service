@@ -100,8 +100,9 @@ class PropertyListing(models.Model):
     address_line1 = models.CharField(max_length=255)
     address_line2 = models.CharField(max_length=255, blank=True)
     city = models.CharField(max_length=100)
-    state = models.CharField(max_length=100)
-    postal_code = models.CharField(max_length=20)
+    # Nepal (and many markets) have no usable postal code / state on a listing — optional.
+    state = models.CharField(max_length=100, blank=True)
+    postal_code = models.CharField(max_length=20, blank=True)
     country = models.CharField(max_length=100, default='USA')
     neighborhood = models.CharField(max_length=100, blank=True)
     
@@ -171,6 +172,11 @@ class PropertyListing(models.Model):
     # Visibility
     is_featured = models.BooleanField(default=False)
     is_published = models.BooleanField(default=True)
+
+    # Public website engagement (kribaat.com/realestate/properties): detail-page views and
+    # "Chat on WhatsApp" clicks. Counted with F() updates; never edited by hand.
+    view_count = models.PositiveIntegerField(default=0, editable=False)
+    whatsapp_clicks = models.PositiveIntegerField(default=0, editable=False)
     
     # Dates
     listed_date = models.DateField(null=True, blank=True)
@@ -564,6 +570,9 @@ class Appointment(models.Model):
     # Reminders
     reminder_sent = models.BooleanField(default=False)
     reminder_sent_at = models.DateTimeField(null=True, blank=True)
+    # "We hope the viewing went well / need a new time?" — sent once after the slot ends
+    # (appointment_notifications.py). Null = not sent.
+    followup_sent_at = models.DateTimeField(null=True, blank=True)
     
     # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)

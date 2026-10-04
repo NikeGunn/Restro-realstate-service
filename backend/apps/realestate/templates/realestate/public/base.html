@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>{{ title }}</title>
+<meta name="description" content="{{ description|truncatechars:300 }}">
+<link rel="canonical" href="{{ canonical }}">
+{% if noindex %}<meta name="robots" content="noindex, follow">{% else %}<meta name="robots" content="index, follow, max-image-preview:large">{% endif %}
+<meta name="theme-color" content="#14231F">
+<meta property="og:site_name" content="{{ org.name }}">
+<meta property="og:type" content="{% block og_type %}website{% endblock %}">
+<meta property="og:title" content="{{ title }}">
+<meta property="og:description" content="{{ description|truncatechars:200 }}">
+<meta property="og:url" content="{{ canonical }}">
+<meta property="og:image" content="{% if og_image %}{{ og_image }}{% else %}{{ site }}/static/realestate/og-kribaat.png{% endif %}">
+<meta property="og:locale" content="en_US"><meta property="og:locale:alternate" content="ne_NP">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="geo.region" content="NP"><meta name="geo.placename" content="Kathmandu">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Hanken+Grotesk:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;600&display=swap" rel="stylesheet">
+<script type="application/ld+json">{{ jsonld|safe }}</script>
+<style>
+:root{
+  --paper:#F5F0E6;--paper-2:#EDE4D3;--card:#FFFDF8;--ink:#14231F;--pine:#1F4D3F;--pine-2:#2E6A57;
+  --brick:#B4532A;--brick-2:#8F3E1D;--gold:#C99A3C;--muted:#5F6159;--line:#DDD2BF;--wa:#128C4A;--wa-2:#0E7A40;
+  --radius:18px;--shadow:0 1px 2px rgba(20,35,31,.06),0 8px 24px -12px rgba(20,35,31,.18);
+  --serif:'Fraunces',Georgia,serif;--sans:'Hanken Grotesk','Noto Sans Devanagari',system-ui,sans-serif;
+  --deva:'Noto Sans Devanagari','Hanken Grotesk',sans-serif;
+}
+*{box-sizing:border-box}html{-webkit-text-size-adjust:100%;scroll-behavior:smooth}
+body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.6 var(--sans);
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3CfeColorMatrix values='0 0 0 0 0.08 0 0 0 0 0.14 0 0 0 0 0.12 0 0 0 .035 0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E")}
+a{color:inherit}img{max-width:100%;display:block}
+.wrap{max-width:1180px;margin:0 auto;padding:0 20px}
+.deva{font-family:var(--deva)}
+.skip{position:absolute;left:-999px}.skip:focus{left:12px;top:12px;background:#fff;padding:8px 12px;z-index:99}
+:focus-visible{outline:3px solid var(--gold);outline-offset:2px;border-radius:6px}
+
+/* header */
+.top{position:sticky;top:0;z-index:30;background:rgba(245,240,230,.88);backdrop-filter:saturate(1.4) blur(10px);border-bottom:1px solid var(--line)}
+.top .wrap{display:flex;align-items:center;gap:18px;height:64px}
+.brand{display:flex;align-items:center;gap:10px;text-decoration:none;font:700 19px/1 var(--serif);letter-spacing:-.01em}
+.brand svg{flex:none}
+.brand small{display:block;font:600 10px/1 var(--sans);letter-spacing:.18em;text-transform:uppercase;color:var(--brick);margin-top:4px}
+.nav{display:flex;gap:4px;margin-left:auto;overflow-x:auto;scrollbar-width:none}
+.nav a{padding:8px 12px;border-radius:999px;text-decoration:none;font-weight:600;font-size:14px;white-space:nowrap;color:var(--muted)}
+.nav a:hover,.nav a[aria-current=page]{background:var(--paper-2);color:var(--ink)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:0;cursor:pointer;text-decoration:none;
+  font:700 15px/1 var(--sans);padding:14px 20px;border-radius:999px;transition:transform .15s,background .15s,box-shadow .15s}
+.btn:active{transform:translateY(1px)}
+.btn-wa{background:var(--wa);color:#fff;box-shadow:0 8px 20px -10px rgba(18,140,74,.8)}.btn-wa:hover{background:var(--wa-2)}
+.btn-ink{background:var(--ink);color:var(--paper)}.btn-ink:hover{background:var(--pine)}
+.btn-ghost{background:transparent;color:var(--ink);box-shadow:inset 0 0 0 1.5px var(--line)}.btn-ghost:hover{box-shadow:inset 0 0 0 1.5px var(--ink)}
+.btn-sm{padding:10px 14px;font-size:14px}
+.top .btn{display:none}
+@media(min-width:900px){.top .btn{display:inline-flex}}
+
+/* cards */
+.grid{display:grid;gap:22px;grid-template-columns:repeat(auto-fill,minmax(280px,1fr))}
+.card{position:relative;background:var(--card);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow);
+  display:flex;flex-direction:column;transition:transform .25s ease,box-shadow .25s ease;animation:rise .6s both}
+.card:hover{transform:translateY(-4px);box-shadow:0 2px 4px rgba(20,35,31,.06),0 22px 40px -18px rgba(20,35,31,.35)}
+.card .ph{position:relative;aspect-ratio:4/3;background:var(--paper-2);overflow:hidden}
+.card .ph img{width:100%;height:100%;object-fit:cover;transition:transform .6s ease}
+.card:hover .ph img{transform:scale(1.04)}
+.noimg{width:100%;height:100%;display:grid;place-items:center;background:
+  linear-gradient(180deg,#E8DFCC 0 62%,#D9CDB4 62%);color:var(--pine)}
+.badges{position:absolute;left:12px;top:12px;display:flex;gap:6px;flex-wrap:wrap}
+.badge{font:700 11px/1 var(--sans);letter-spacing:.06em;text-transform:uppercase;padding:7px 9px;border-radius:999px;background:rgba(255,253,248,.94);color:var(--ink)}
+.badge.rent{background:var(--pine);color:#fff}.badge.sale{background:var(--brick);color:#fff}
+.badge.feat{background:var(--gold);color:var(--ink)}
+.pcount{position:absolute;right:12px;bottom:12px;font:600 12px/1 var(--sans);padding:6px 9px;border-radius:999px;background:rgba(20,35,31,.72);color:#fff}
+.card .bd{padding:18px 18px 16px;display:flex;flex-direction:column;gap:6px;flex:1}
+.price{font:600 26px/1.1 var(--serif);letter-spacing:-.02em;color:var(--ink)}
+.card h3{margin:0;font:600 16px/1.35 var(--sans)}
+.card h3 a{text-decoration:none}.card h3 a::after{content:"";position:absolute;inset:0}
+.place{color:var(--muted);font-size:14px;display:flex;gap:6px;align-items:center}
+.facts{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
+.facts span{font-size:12.5px;font-weight:600;color:var(--pine);background:#EEF3EE;border-radius:8px;padding:5px 8px}
+.card .ft{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:auto;padding-top:12px;border-top:1px dashed var(--line)}
+.ref{font:600 12px/1 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted);letter-spacing:.04em}
+.card .wa-mini{position:relative;z-index:2}
+
+/* sections */
+.eyebrow{font:700 12px/1 var(--sans);letter-spacing:.2em;text-transform:uppercase;color:var(--brick)}
+h1,h2{font-family:var(--serif);letter-spacing:-.02em;margin:0}
+.sec{padding:56px 0}.sec h2{font-size:clamp(26px,3.6vw,38px);line-height:1.1;margin-bottom:22px}
+.chips{display:flex;flex-wrap:wrap;gap:10px}
+.chip{display:inline-flex;align-items:center;gap:10px;text-decoration:none;background:var(--card);border:1px solid var(--line);
+  padding:10px 14px;border-radius:14px;font-weight:600;transition:border-color .15s,transform .15s}
+.chip:hover{border-color:var(--ink);transform:translateY(-2px)}
+.chip small{color:var(--muted);font-weight:500}.chip b{font:600 13px/1 var(--sans);background:var(--paper-2);border-radius:999px;padding:5px 8px}
+.crumbs{font-size:13.5px;color:var(--muted);display:flex;gap:8px;flex-wrap:wrap;padding:18px 0 4px}
+.crumbs a{text-decoration:none}.crumbs a:hover{text-decoration:underline}
+
+/* footer */
+.foot{margin-top:40px;background:var(--ink);color:#D9D3C4;padding:48px 0 calc(40px + env(safe-area-inset-bottom))}
+.foot a{color:#F5F0E6;text-decoration:none}.foot a:hover{text-decoration:underline}
+.foot .cols{display:grid;gap:28px;grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}
+.foot h4{font:600 13px/1 var(--sans);letter-spacing:.16em;text-transform:uppercase;color:var(--gold);margin:0 0 14px}
+.foot ul{list-style:none;margin:0;padding:0;display:grid;gap:8px;font-size:14.5px}
+.ridge{display:block;width:100%;height:auto;color:var(--pine)}
+
+.fab{position:fixed;right:16px;bottom:calc(16px + env(safe-area-inset-bottom));z-index:40;border-radius:999px;box-shadow:0 14px 30px -12px rgba(18,140,74,.9)}
+@media(min-width:900px){.fab{display:none}}
+@keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+{% block style %}{% endblock %}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to listings</a>
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="/realestate/properties/" aria-label="{{ org.name }}, all properties">
+      <svg width="34" height="34" viewBox="0 0 34 34" aria-hidden="true"><rect width="34" height="34" rx="10" fill="#14231F"/><path d="M5 25 L13 13 L18 19 L22 14 L29 25 Z" fill="#C99A3C"/><path d="M13 13 L15.5 16.6 L11.2 16.6 Z M22 14 L24 17 L20.3 17 Z" fill="#F5F0E6"/></svg>
+      <span>{{ org.name }}<small>Nepal property</small></span>
+    </a>
+    <nav class="nav" aria-label="Property categories">
+      {% for c in categories_nav|slice:":5" %}<a href="/realestate/properties/{{ c.slug }}/"{% if category == c.slug %} aria-current="page"{% endif %}>{{ c.title }}</a>{% endfor %}
+    </nav>
+    {% if wa_general %}<a class="btn btn-wa btn-sm" href="{{ wa_general }}" rel="nofollow noopener" target="_blank">{% include "realestate/public/_wa_icon.html" %} Chat on WhatsApp</a>{% endif %}
+  </div>
+</header>
+<main id="main">
+{% block content %}{% endblock %}
+</main>
+<footer class="foot">
+  <div class="wrap">
+    <svg class="ridge" viewBox="0 0 1200 60" preserveAspectRatio="none" aria-hidden="true" style="color:#2E6A57;margin-bottom:28px"><path d="M0 58 L90 30 L150 44 L240 8 L300 36 L380 18 L470 46 L560 4 L640 34 L720 20 L800 50 L890 12 L960 38 L1040 22 L1120 46 L1200 26" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+    <div class="cols">
+      <div>
+        <h4>{{ org.name }}</h4>
+        <p style="margin:0 0 10px;font-size:14.5px">Rooms, flats, houses, shops and land across Nepal. Ask in English or <span class="deva">नेपाली</span>, we reply on WhatsApp.</p>
+        {% if office %}<p style="margin:0;font-size:14px">{{ office.name }}{% if office.address_line1 %}, {{ office.address_line1 }}{% endif %}{% if office.city %}, {{ office.city }}{% endif %}</p>{% endif %}
+        {% if wa_number %}<p style="margin:6px 0 0;font-size:14px">WhatsApp: <a href="{{ wa_general }}" rel="nofollow noopener" target="_blank">+{{ wa_number }}</a></p>{% endif %}
+      </div>
+      <div><h4>Browse</h4><ul>{% for c in categories_nav %}<li><a href="/realestate/properties/{{ c.slug }}/">{{ c.title }}</a> <span class="deva" style="opacity:.6">· {{ c.ne }}</span></li>{% endfor %}</ul></div>
+      <div><h4>Places</h4><ul>{% for c in cities_nav|slice:":8" %}<li><a href="/realestate/properties/?q={{ c.name|urlencode }}">{{ c.name }}</a> <span style="opacity:.6">({{ c.count }})</span></li>{% endfor %}</ul></div>
+    </div>
+    <p style="margin:34px 0 0;font-size:13px;opacity:.7">© {% now "Y" %} {{ org.name }} · Listing details are as recorded by the agency; confirm with our team before any payment. · <a href="/">Powered by Kribaat</a></p>
+  </div>
+</footer>
+{% block fab %}{% if wa_general %}<a class="btn btn-wa fab" href="{{ wa_general }}" rel="nofollow noopener" target="_blank" aria-label="Chat with us on WhatsApp">{% include "realestate/public/_wa_icon.html" %} Chat</a>{% endif %}{% endblock %}
+</body>
+</html>

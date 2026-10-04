@@ -260,8 +260,8 @@ class InventoryAIEngine:
                 'data_points_used': [],
             }
         try:
-            import openai
-            client = openai.OpenAI(api_key=api_key)
+            from apps.ai_engine.llm import chat_client
+            client = chat_client()
             response = client.chat.completions.create(
                 model=self.model,
                 messages=[{'role': 'user', 'content': prompt}],

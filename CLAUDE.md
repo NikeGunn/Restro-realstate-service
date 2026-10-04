@@ -109,14 +109,21 @@ Loop per message: build prompt → model calls tools → real results → draft 
   a successful tool call this turn.
 - The live PORTFOLIO (all active listings, ≤40) is injected into the prompt every turn; tool
   results from the last 3 turns are carried in `AILog.context['tool_facts']`.
-- Model: `AI_AGENT_MODEL` in the configmap (`gpt-4.1-mini`; gpt-4o-mini invented listing facts in
-  evals). Restaurant path still uses `OPENAI_MODEL`.
-- If every reply fails: check OpenAI credits first (a zero-credit key returns 429 on every call).
+- Model: `AI_AGENT_MODEL` / `OPENAI_MODEL` = `deepseek-chat` via `OPENAI_BASE_URL=https://api.deepseek.com`
+  (since 2026-10-04). Every chat call goes through `ai_engine/llm.py` (failover to OpenAI
+  `LLM_FALLBACK_*`). Use `deepseek-chat`, not the thinking model: tool loops would need reasoning_content.
+- `agent/tone.py` + `prompts/tone.md`: honorific register gate (one rewrite pass) and no em/en dashes
+  in any chat reply (`AIService.process_message` sanitizes every vertical).
+- Viewing reminders / missed-viewing follow-ups: `realestate/appointment_notifications.py` (beat, 5 min).
+- If every reply fails: check DeepSeek balance (`GET https://api.deepseek.com/user/balance`) and the
+  OpenAI fallback credits (a zero-credit key returns 402/429 on every call).
 - **Live eval:** `python manage.py run_agent_evals [--cases RE-043 --repeat 5] [--report f.md]` runs
   the spec scenarios (`ai_engine/evals/scenarios.py`, from `kribaat_agent_harness_130_conversations.md`)
   against the real model on a throwaway tenant. Run it after any prompt/tool change.
-- **Listing photos:** `realestate/photo_storage.py` → Cloudflare R2 bucket `kribaat-media`
-  (public `pub-296eb79cd8404023a4b91caa9c0e6bd0.r2.dev`), re-encoded JPEG ≤1600px, EXIF/GPS stripped.
+- **Public site:** `realestate/public_site.py` serves `/realestate/properties` (+ sitemap.xml, robots.txt)
+  server-rendered for SEO; ingress routes those paths to Django. Dashboard manager: `/realestate/listings`.
+- **Listing photos:** `realestate/photo_storage.py` → Cloudflare R2 bucket `kribaat-media`, served at
+  `media.kribaat.com` by `realestate/media_proxy.py` (old `pub-296eb79cd8404023a4b91caa9c0e6bd0.r2.dev` URLs still work), re-encoded JPEG ≤1600px, EXIF/GPS stripped.
   Falls back to the media-pvc if any `R2_*` setting is missing. WhatsApp sends them as image messages.
   r2.dev blocks Python's default user-agent (error 1010) — test with a browser/`facebookexternalua` UA.
 

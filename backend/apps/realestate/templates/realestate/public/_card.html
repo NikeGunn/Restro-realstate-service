@@ -1,0 +1,27 @@
+<article class="card" style="animation-delay:{{ c.delay|default:0 }}ms">
+  <div class="ph">
+    {% if c.image %}<img src="{{ c.image }}" alt="{{ c.obj.title }}, {{ c.place }}" loading="lazy" decoding="async" width="640" height="480">
+    {% else %}<div class="noimg" role="img" aria-label="No photo yet"><svg width="86" height="60" viewBox="0 0 86 60" aria-hidden="true"><path d="M2 58 L28 20 L40 36 L54 14 L84 58 Z" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round"/><path d="M28 20 L33 27 L23 27 Z M54 14 L59 22 L49 22 Z" fill="currentColor"/></svg></div>{% endif %}
+    <div class="badges">
+      <span class="badge {% if c.obj.listing_type == 'sale' %}sale{% else %}rent{% endif %}">{{ c.deal_label }}</span>
+      <span class="badge">{{ c.type_label }}</span>
+      {% if c.obj.is_featured %}<span class="badge feat">Featured</span>{% endif %}
+    </div>
+    {% if c.photo_count > 1 %}<span class="pcount">{{ c.photo_count }} photos</span>{% endif %}
+  </div>
+  <div class="bd">
+    <div class="price">{{ c.price }}</div>
+    <h3><a href="{{ c.url }}">{{ c.obj.title }}</a></h3>
+    {% if c.place %}<div class="place"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21Z"/><circle cx="12" cy="9.5" r="2.5"/></svg>{{ c.place }}</div>{% endif %}
+    <div class="facts">
+      {% if c.obj.bedrooms %}<span>{{ c.obj.bedrooms }} bed</span>{% endif %}
+      {% if c.obj.bathrooms %}<span>{{ c.obj.bathrooms|floatformat:"-1" }} bath</span>{% endif %}
+      {% if c.obj.square_feet %}<span>{{ c.obj.square_feet }} sq ft</span>{% elif c.obj.lot_size %}<span>{{ c.obj.lot_size }} sq ft plot</span>{% endif %}
+      {% if c.obj.parking_spaces %}<span>Parking</span>{% endif %}
+    </div>
+    <div class="ft">
+      <span class="ref">{{ c.obj.reference_number }}</span>
+      {% if wa_number %}<a class="btn btn-wa btn-sm wa-mini" href="/realestate/properties/{{ c.obj.reference_number|lower }}/chat/" rel="nofollow noopener" target="_blank" aria-label="Chat on WhatsApp about {{ c.obj.title }}">{% include "realestate/public/_wa_icon.html" %} Chat</a>{% endif %}
+    </div>
+  </div>
+</article>

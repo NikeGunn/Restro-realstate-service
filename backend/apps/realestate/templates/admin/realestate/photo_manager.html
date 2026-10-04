@@ -1,0 +1,109 @@
+<div class="kp" data-for="{{ field_id }}" data-max="{{ max_photos }}">
+  <style>
+    .kp{max-width:900px}
+    .kp-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;margin:6px 0 14px}
+    .kp-tile{position:relative;aspect-ratio:4/3;border-radius:10px;overflow:hidden;border:1px solid var(--border-color,#ccc);background:#f4f1ea;cursor:grab}
+    .kp-tile img{width:100%;height:100%;object-fit:cover;display:block;pointer-events:none}
+    .kp-tile.drag{opacity:.4}.kp-tile.over{outline:3px solid #1F4D3F;outline-offset:2px}
+    .kp-tile.removed{opacity:.35;filter:grayscale(1)}
+    .kp-tag{position:absolute;left:6px;top:6px;background:rgba(0,0,0,.65);color:#fff;font:600 11px/1 sans-serif;padding:4px 6px;border-radius:6px}
+    .kp-tile.removed .kp-tag::after{content:" · will be removed"}
+    .kp-act{position:absolute;right:6px;top:6px;display:flex;gap:4px}
+    .kp-act button{border:0;border-radius:6px;padding:4px 7px;font:600 12px/1 sans-serif;cursor:pointer;background:#fff;color:#222;box-shadow:0 1px 3px rgba(0,0,0,.3)}
+    .kp-act .kp-del{color:#b42318}
+    .kp-drop{border:2px dashed #b9ad97;border-radius:12px;padding:26px;text-align:center;cursor:pointer;background:#faf7f0;color:#444;transition:.15s}
+    .kp-drop:hover,.kp-drop.hot{border-color:#1F4D3F;background:#eef3ee;color:#1F4D3F}
+    .kp-drop b{display:block;font-size:15px;margin-bottom:4px}
+    .kp-new{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px;margin-top:10px}
+    .kp-new figure{margin:0;position:relative;aspect-ratio:4/3;border-radius:8px;overflow:hidden;border:1px dashed #1F4D3F}
+    .kp-new img{width:100%;height:100%;object-fit:cover}
+    .kp-new figcaption{position:absolute;inset:auto 0 0 0;background:rgba(31,77,63,.85);color:#fff;font:600 10px/1.4 sans-serif;padding:2px 5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .kp-help{color:var(--body-quiet-color,#666);font-size:12px;margin:6px 0 0}
+  </style>
+  <div class="kp-grid" data-grid>
+    {% for url in urls %}
+    <div class="kp-tile" draggable="true" data-url="{{ url }}">
+      <img src="{{ url }}" alt="Photo {{ forloop.counter }}" loading="lazy">
+      <span class="kp-tag" data-tag></span>
+      <span class="kp-act"><button type="button" class="kp-cover" title="Make cover photo">★ Cover</button><button type="button" class="kp-del" title="Remove / undo">✕</button></span>
+    </div>
+    {% endfor %}
+  </div>
+  <div class="kp-drop" data-drop tabindex="0" role="button" aria-label="Add photos">
+    <b>Drag & drop photos here, or click to choose</b>
+    JPG, PNG or WebP · up to 10 MB each · {{ max_photos }} photos per listing. New photos upload when you click <em>Save</em>.
+  </div>
+  <div class="kp-new" data-new></div>
+  <p class="kp-help">Drag thumbnails to reorder. The first photo is the cover on kribaat.com and in WhatsApp chats. Photos are resized and their GPS/location data removed automatically.</p>
+  <script>
+  (function () {
+    var root = document.currentScript.closest('.kp');
+    var hidden = document.getElementById(root.dataset.for);
+    var grid = root.querySelector('[data-grid]');
+    var drop = root.querySelector('[data-drop]');
+    var newBox = root.querySelector('[data-new]');
+    var input = document.querySelector('input[data-photo-input]');
+    var max = +root.dataset.max;
+    if (input) { input.style.display = 'none'; var row = input.closest('.form-row'); if (row) row.style.display = 'none'; }
+    var queued = new DataTransfer();
+
+    function tiles() { return Array.prototype.slice.call(grid.querySelectorAll('.kp-tile')); }
+    function sync() {
+      var keep = tiles().filter(function (t) { return !t.classList.contains('removed'); });
+      hidden.value = JSON.stringify(keep.map(function (t) { return t.dataset.url; }));
+      var n = 0;
+      tiles().forEach(function (t) {
+        var tag = t.querySelector('[data-tag]');
+        if (t.classList.contains('removed')) { tag.textContent = 'Photo'; return; }
+        n += 1; tag.textContent = n === 1 ? 'Cover' : String(n);
+      });
+    }
+    var dragged = null;
+    grid.addEventListener('dragstart', function (e) { var t = e.target.closest('.kp-tile'); if (!t) return; dragged = t; t.classList.add('drag'); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', 'tile'); });
+    grid.addEventListener('dragend', function () { if (dragged) dragged.classList.remove('drag'); dragged = null; tiles().forEach(function (t) { t.classList.remove('over'); }); });
+    grid.addEventListener('dragover', function (e) {
+      var t = e.target.closest('.kp-tile'); if (!dragged || !t || t === dragged) return;
+      e.preventDefault(); tiles().forEach(function (x) { x.classList.toggle('over', x === t); });
+    });
+    grid.addEventListener('drop', function (e) {
+      var t = e.target.closest('.kp-tile'); if (!dragged || !t || t === dragged) return;
+      e.preventDefault();
+      var all = tiles(); var after = all.indexOf(dragged) < all.indexOf(t);
+      grid.insertBefore(dragged, after ? t.nextSibling : t); sync();
+    });
+    grid.addEventListener('click', function (e) {
+      var t = e.target.closest('.kp-tile'); if (!t) return;
+      if (e.target.closest('.kp-del')) { t.classList.toggle('removed'); sync(); }
+      if (e.target.closest('.kp-cover')) { t.classList.remove('removed'); grid.insertBefore(t, grid.firstChild); sync(); }
+    });
+
+    function kept() { return tiles().filter(function (t) { return !t.classList.contains('removed'); }).length; }
+    function addFiles(list) {
+      var ok = ['image/jpeg', 'image/png', 'image/webp'], skipped = [];
+      Array.prototype.forEach.call(list, function (f) {
+        if (ok.indexOf(f.type) === -1) { skipped.push(f.name + ' (type)'); return; }
+        if (f.size > 10 * 1024 * 1024) { skipped.push(f.name + ' (over 10 MB)'); return; }
+        if (kept() + queued.files.length >= max) { skipped.push(f.name + ' (limit ' + max + ')'); return; }
+        queued.items.add(f);
+      });
+      if (input) input.files = queued.files;
+      newBox.innerHTML = '';
+      Array.prototype.forEach.call(queued.files, function (f) {
+        var fig = document.createElement('figure'), img = document.createElement('img'), cap = document.createElement('figcaption');
+        img.src = URL.createObjectURL(f); cap.textContent = 'New: ' + f.name; fig.appendChild(img); fig.appendChild(cap); newBox.appendChild(fig);
+      });
+      if (skipped.length) alert('Skipped: ' + skipped.join(', '));
+    }
+    var picker = document.createElement('input');
+    picker.type = 'file'; picker.multiple = true; picker.accept = 'image/jpeg,image/png,image/webp'; picker.hidden = true;
+    root.appendChild(picker);
+    picker.addEventListener('change', function () { addFiles(picker.files); picker.value = ''; });
+    drop.addEventListener('click', function () { picker.click(); });
+    drop.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); picker.click(); } });
+    ['dragenter', 'dragover'].forEach(function (ev) { drop.addEventListener(ev, function (e) { if (e.dataTransfer.types.indexOf('Files') > -1) { e.preventDefault(); drop.classList.add('hot'); } }); });
+    ['dragleave', 'drop'].forEach(function (ev) { drop.addEventListener(ev, function () { drop.classList.remove('hot'); }); });
+    drop.addEventListener('drop', function (e) { if (e.dataTransfer.files.length) { e.preventDefault(); addFiles(e.dataTransfer.files); } });
+    sync();
+  })();
+  </script>
+</div>

@@ -61,13 +61,15 @@ def generate_image(*, prompt: str, negative: str = '', size: str = '1024x1024',
     if provider != 'openai_gpt_image':
         raise ProviderError(f'Unsupported provider: {provider}')
 
-    api_key = getattr(settings, 'OPENAI_API_KEY', '')
+    # Images are OpenAI-only; the chat key may belong to DeepSeek (see settings.OPENAI_IMAGES_API_KEY).
+    api_key = getattr(settings, 'OPENAI_IMAGES_API_KEY', '') or (
+        '' if getattr(settings, 'OPENAI_BASE_URL', '') else getattr(settings, 'OPENAI_API_KEY', ''))
     if not api_key:
-        raise ProviderError('OPENAI_API_KEY is not configured.')
+        raise ProviderError('OPENAI_IMAGES_API_KEY is not configured.')
 
     try:
         from openai import OpenAI
-        client = OpenAI(api_key=api_key)
+        client = OpenAI(api_key=api_key, base_url='https://api.openai.com/v1')
         # gpt-image-* accepts negative steering folded into the prompt; the
         # Images API has no separate negative param, so we append it explicitly.
         full_prompt = prompt

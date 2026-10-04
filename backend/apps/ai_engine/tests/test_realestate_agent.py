@@ -1,6 +1,6 @@
 """
 Real-estate agent: tool loop, verification gate and persistent memory.
-OpenAI is mocked — these pin the guarantees, not model quality.
+OpenAI is mocked - these pin the guarantees, not model quality.
 """
 import json
 from datetime import timedelta
@@ -159,7 +159,7 @@ def test_salvage_refuses_false_action_claims():
 
 def test_vague_budget_turn_never_dead_ends(conv, listing):
     """The prod WhatsApp failure: model invents a budget twice -> must salvage, not fallback."""
-    bad = "Sorry, nothing under HK$15,000. The Wan Chai 2-bed is HK$32,000/month — want to see it?"
+    bad = "Sorry, nothing under HK$15,000. The Wan Chai 2-bed is HK$32,000/month - want to see it?"
     search = _msg(tool_calls=[_call('search_properties', {'listing_type': 'rent', 'sort': 'price_asc'})])
     replies = iter([search, _msg(bad), _msg(bad)])
     svc = _service(conv, [])

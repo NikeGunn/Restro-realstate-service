@@ -2,7 +2,7 @@
 Preview → customer confirmation → locked execution → stored receipt.
 
 The model can PROPOSE a write (prepare_*), but only code decides whether it runs:
-  1. The preview must come from an earlier turn — the customer has seen it.
+  1. The preview must come from an earlier turn - the customer has seen it.
   2. The customer's latest message must be a plain confirmation ("yes", "huncha", "हुन्छ",
      "好"), with no new details (a changed time/name means: prepare a new preview).
   3. Execution locks the preview row and the listing row, re-checks availability and the
@@ -44,7 +44,7 @@ _WORD = re.compile(r"[\w'ऀ-ॿ]+|[一-鿿]", re.UNICODE)
 
 
 def is_plain_confirmation(text: str) -> bool:
-    """True only for a bare yes — no negation and no new details (digits = changed date/time)."""
+    """True only for a bare yes - no negation and no new details (digits = changed date/time)."""
     text = (text or '').strip().lower()
     if not text or len(text) > 80 or '?' in text or '？' in text or re.search(r'\d', text):
         return False
@@ -112,7 +112,7 @@ def confirm(conversation, preview_id: str, customer_message: str, turn_started_a
                                           'Prepare a preview first and show it to the customer.'}
     if action.status == AgentAction.Status.EXECUTED:
         return {'ok': True, 'already_done': True, 'receipt': action.receipt,
-                'note': 'This was already done earlier — tell the customer no second booking was made.'}
+                'note': 'This was already done earlier - tell the customer no second booking was made.'}
     if action.status != AgentAction.Status.PREVIEWED:
         return {'ok': False, 'error': f'PREVIEW_{action.status.upper()}: that preview is no longer valid; '
                                       'prepare a new one if the customer still wants it.'}

@@ -39,8 +39,8 @@ class AIService:
         self.client = None
         self.detected_language = LanguageCode.ENGLISH  # Default language
 
-        if settings.OPENAI_API_KEY:
-            self.client = OpenAI(api_key=settings.OPENAI_API_KEY)
+        from .llm import chat_client
+        self.client = chat_client()  # DeepSeek → OpenAI failover (apps/ai_engine/llm.py)
     
     def _fast_path_greeting(self, user_message: str, detected_lang: str) -> Optional[Dict[str, Any]]:
         """
@@ -130,6 +130,15 @@ class AIService:
     }
 
     def process_message(self, user_message: str) -> Dict[str, Any]:
+        """Every AI reply, any vertical or channel, leaves without em/en dashes (house style)."""
+        from .agent.tone import no_dashes
+
+        result = self._process_message(user_message)
+        if isinstance(result, dict) and isinstance(result.get('content'), str):
+            result['content'] = no_dashes(result['content'])
+        return result
+
+    def _process_message(self, user_message: str) -> Dict[str, Any]:
         """
         Process a user message and generate AI response.
         Automatically detects language and responds in the same language.

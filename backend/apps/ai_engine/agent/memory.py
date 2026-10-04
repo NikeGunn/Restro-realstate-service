@@ -133,8 +133,8 @@ def summarize_customer(organization, key: str, client=None) -> Optional[AgentMem
         period=period, transcript="\n".join(lines),
     )
     if client is None:
-        from openai import OpenAI
-        client = OpenAI(api_key=settings.OPENAI_API_KEY)
+        from apps.ai_engine.llm import chat_client
+        client = chat_client()
     resp = client.chat.completions.create(
         model=settings.OPENAI_MODEL, temperature=0.1, max_tokens=700,
         messages=[{'role': 'user', 'content': prompt}],

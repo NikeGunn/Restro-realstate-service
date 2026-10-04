@@ -1,0 +1,164 @@
+{% extends "realestate/public/base.html" %}
+{% block style %}
+.hero{position:relative;overflow:hidden;background:var(--ink);color:var(--paper)}
+.hero::before{content:"";position:absolute;inset:0;background:
+  radial-gradient(900px 420px at 85% -10%,rgba(201,154,60,.28),transparent 60%),
+  radial-gradient(700px 380px at -10% 110%,rgba(46,106,87,.55),transparent 60%)}
+.hero .wrap{position:relative;display:grid;gap:36px;padding-top:56px;padding-bottom:120px}
+@media(min-width:960px){.hero .wrap{grid-template-columns:1.15fr .85fr;align-items:center;padding-top:80px;padding-bottom:150px}}
+.hero h1{font-size:clamp(36px,6vw,66px);line-height:1.02;font-weight:600;max-width:14ch;animation:rise .7s both}
+.hero h1 em{font-style:italic;color:var(--gold);font-weight:400}
+.hero .lede{font-size:18px;max-width:46ch;color:#D7D2C3;margin:20px 0 0;animation:rise .7s .12s both}
+.hero .lede .deva{color:#fff}
+.stats{display:flex;gap:28px;margin-top:30px;animation:rise .7s .2s both}
+.stats b{display:block;font:600 30px/1 var(--serif);color:#fff}.stats span{font-size:13px;color:#BDB7A6;letter-spacing:.04em}
+.ridges{position:absolute;left:0;right:0;bottom:-1px;width:100%;height:120px}
+.needs{background:var(--card);color:var(--ink);border-radius:24px;padding:24px;box-shadow:0 30px 60px -30px rgba(0,0,0,.6);animation:rise .7s .18s both}
+.needs h2{font-size:24px;margin:0 0 4px}.needs p{margin:0 0 16px;color:var(--muted);font-size:14.5px}
+.field{display:grid;gap:6px;margin-bottom:12px}
+.field label{font:700 12px/1 var(--sans);letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.field input,.field select{width:100%;font:500 16px/1.2 var(--sans);color:var(--ink);background:var(--paper);border:1.5px solid var(--line);border-radius:12px;padding:13px 14px;appearance:none}
+.field input:focus,.field select:focus{outline:none;border-color:var(--pine);background:#fff}
+.seg{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;background:var(--paper);padding:5px;border-radius:14px;border:1.5px solid var(--line)}
+.seg input{position:absolute;opacity:0}.seg label{text-align:center;padding:10px 6px;border-radius:10px;font:600 14px/1 var(--sans);cursor:pointer;letter-spacing:0;text-transform:none;color:var(--ink)}
+.seg input:checked+label{background:var(--ink);color:var(--paper)}
+.seg input:focus-visible+label{outline:3px solid var(--gold)}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.needs .acts{display:grid;gap:10px;margin-top:6px}
+.needs .lang{font-size:13px;color:var(--muted);text-align:center;margin-top:10px}
+.needs .lang button{background:none;border:0;color:var(--pine);font:600 13px var(--deva);text-decoration:underline;cursor:pointer;padding:0}
+.bar{display:flex;flex-wrap:wrap;gap:10px;align-items:end;background:var(--card);border:1px solid var(--line);border-radius:18px;padding:14px;margin:18px 0 26px}
+.bar .field{margin:0;flex:1 1 150px}.bar .field input,.bar .field select{padding:11px 12px;font-size:15px}
+.head{display:flex;flex-wrap:wrap;align-items:end;justify-content:space-between;gap:12px}
+.head h1{font-size:clamp(30px,4.5vw,48px);line-height:1.05}
+.count{color:var(--muted);font-weight:600}
+.steps{display:grid;gap:18px;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));counter-reset:s}
+.step{background:var(--card);border-radius:var(--radius);padding:22px;border:1px solid var(--line);position:relative}
+.step::before{counter-increment:s;content:counter(s,decimal-leading-zero);font:600 40px/1 var(--serif);color:var(--brick);opacity:.9}
+.step h3{margin:10px 0 6px;font-size:18px}.step p{margin:0;color:var(--muted);font-size:15px}
+.faq details{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 18px;margin-bottom:10px}
+.faq summary{cursor:pointer;font-weight:700;list-style:none;display:flex;justify-content:space-between;gap:12px}
+.faq summary::after{content:"+";font:600 22px/1 var(--serif);color:var(--brick)}.faq details[open] summary::after{content:"-"}
+.faq p{margin:10px 0 0;color:var(--muted)}
+.empty{background:var(--card);border:1px dashed var(--line);border-radius:var(--radius);padding:40px 24px;text-align:center}
+.pager{display:flex;gap:8px;justify-content:center;margin-top:30px}
+{% endblock %}
+{% block content %}
+{% if is_home %}
+<section class="hero">
+  <div class="wrap">
+    <div>
+      <p class="eyebrow" style="color:var(--gold)">{% for c in cities_nav|slice:":4" %}{{ c.name }}{% if not forloop.last %} · {% endif %}{% endfor %}</p>
+      <h1>Find your <em>kotha</em>, flat or <em>jagga</em>, then just say namaste.</h1>
+      <p class="lede">Real listings from {{ org.name }} with real prices. Tap <b>Chat on WhatsApp</b> and our assistant sends photos, answers in English or <span class="deva">नेपाली</span>, and books your viewing.</p>
+      <div class="stats">
+        <div><b>{{ total }}</b><span>live listings</span></div>
+        <div><b>{{ cities_nav|length }}</b><span>areas</span></div>
+        <div><b>24/7</b><span>WhatsApp replies</span></div>
+      </div>
+    </div>
+    <form class="needs" method="get" action="/realestate/properties/" id="needs">
+      <h2>What are you looking for?</h2>
+      <p>Search the listings, or send your needs straight to WhatsApp.</p>
+      <div class="field"><label>I want to</label>
+        <div class="seg" role="radiogroup" aria-label="Rent or buy">
+          <input type="radio" name="deal" id="d-rent" value="rent" checked><label for="d-rent">Rent</label>
+          <input type="radio" name="deal" id="d-sale" value="sale"><label for="d-sale">Buy</label>
+          <input type="radio" name="deal" id="d-any" value=""><label for="d-any">Either</label>
+        </div>
+      </div>
+      <div class="row2">
+        <div class="field"><label for="f-type">Property</label>
+          <select id="f-type" name="type"><option value="">Any type</option>{% for k, v in type_choices %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select></div>
+        <div class="field"><label for="f-max">Budget up to (Rs)</label>
+          <input id="f-max" name="max" inputmode="numeric" placeholder="e.g. 15000" autocomplete="off"></div>
+      </div>
+      <div class="field"><label for="f-q">Area</label>
+        <input id="f-q" name="q" placeholder="Chabahil, Lalitpur, Pokhara…" list="areas" autocomplete="off">
+        <datalist id="areas">{% for c in cities_nav %}<option value="{{ c.name }}">{% endfor %}</datalist></div>
+      <div class="acts">
+        <button class="btn btn-ink" type="submit">See matching listings</button>
+        {% if wa_number %}<button class="btn btn-wa" type="submit" formaction="/realestate/properties/chat/" formtarget="_blank" data-wa>{% include "realestate/public/_wa_icon.html" %} Ask on WhatsApp</button>{% endif %}
+      </div>
+      {% if wa_number %}<p class="lang">Prefer Nepali? <button type="submit" formaction="/realestate/properties/chat/" formtarget="_blank" name="lang" value="ne">नेपालीमा सोध्नुहोस्</button></p>{% endif %}
+    </form>
+  </div>
+  <svg class="ridges" viewBox="0 0 1440 120" preserveAspectRatio="none" aria-hidden="true">
+    <path d="M0 120 L0 70 L110 40 L190 62 L300 18 L380 52 L470 30 L560 64 L660 10 L760 50 L850 34 L960 70 L1060 24 L1150 56 L1250 36 L1350 66 L1440 44 L1440 120 Z" fill="#2E6A57" opacity=".55"/>
+    <path d="M0 120 L0 92 L140 70 L260 88 L380 62 L520 94 L640 72 L780 98 L900 76 L1040 96 L1180 74 L1300 92 L1440 80 L1440 120 Z" fill="#F5F0E6"/>
+  </svg>
+</section>
+{% endif %}
+
+<div class="wrap">
+  {% if not is_home %}
+  <nav class="crumbs" aria-label="Breadcrumb"><a href="/realestate/properties/">Properties</a>{% if category_obj %}<span>›</span><a href="/realestate/properties/{{ category }}/">{{ category_obj.title }}</a>{% endif %}{% if city_name %}<span>›</span><span>{{ city_name }}</span>{% endif %}</nav>
+  {% endif %}
+
+  {% if is_home and categories_nav %}
+  <section class="sec" style="padding-bottom:10px" aria-labelledby="browse">
+    <p class="eyebrow">Browse</p><h2 id="browse">What can we find you?</h2>
+    <div class="chips">{% for c in categories_nav %}<a class="chip" href="/realestate/properties/{{ c.slug }}/">{{ c.title }} <small class="deva">{{ c.ne }}</small> <b>{{ c.count }}</b></a>{% endfor %}</div>
+  </section>
+  {% endif %}
+
+  <section class="sec" style="padding-top:{% if is_home %}30px{% else %}12px{% endif %}" aria-labelledby="results">
+    <div class="head">
+      <div>{% if is_home %}<p class="eyebrow">Latest</p>{% endif %}<h1 id="results" {% if is_home %}style="font-size:clamp(26px,3.6vw,38px)"{% endif %}>{% if is_home %}All listings{% else %}{{ heading }}{% endif %}</h1></div>
+      <span class="count">{{ total }} listing{{ total|pluralize }}</span>
+    </div>
+    {% if category_obj and not city_name and cities_nav %}
+    <div class="chips" style="margin-top:14px">{% for c in cities_nav %}<a class="chip" href="/realestate/properties/{{ category }}/{{ c.slug }}/">{{ c.name }}</a>{% endfor %}</div>
+    {% endif %}
+    <form class="bar" method="get" action="{{ request.path }}" role="search" aria-label="Filter listings">
+      <div class="field"><label for="b-q">Search</label><input id="b-q" name="q" value="{{ params.q }}" placeholder="Area, title or PROP code"></div>
+      {% if not category_obj %}
+      <div class="field"><label for="b-deal">Rent / buy</label><select id="b-deal" name="deal"><option value="">Any</option><option value="rent"{% if params.deal == 'rent' %} selected{% endif %}>Rent</option><option value="sale"{% if params.deal == 'sale' %} selected{% endif %}>Buy</option></select></div>
+      <div class="field"><label for="b-type">Type</label><select id="b-type" name="type"><option value="">Any</option>{% for k, v in type_choices %}<option value="{{ k }}"{% if params.type == k %} selected{% endif %}>{{ v }}</option>{% endfor %}</select></div>
+      {% endif %}
+      <div class="field"><label for="b-max">Max price (Rs)</label><input id="b-max" name="max" inputmode="numeric" value="{{ params.max }}" placeholder="Any"></div>
+      <div class="field"><label for="b-sort">Sort</label><select id="b-sort" name="sort"><option value="">Featured</option><option value="price_asc"{% if params.sort == 'price_asc' %} selected{% endif %}>Price: low to high</option><option value="price_desc"{% if params.sort == 'price_desc' %} selected{% endif %}>Price: high to low</option><option value="newest"{% if params.sort == 'newest' %} selected{% endif %}>Newest</option></select></div>
+      <button class="btn btn-ink btn-sm" type="submit">Apply</button>
+    </form>
+
+    {% if cards %}
+    <div class="grid">{% for c in cards %}{% include "realestate/public/_card.html" with c=c %}{% endfor %}</div>
+    {% if page.has_other_pages %}
+    <nav class="pager" aria-label="Pages">
+      {% if page.has_previous %}<a class="btn btn-ghost btn-sm" rel="prev" href="?{% if querystring %}{{ querystring }}&amp;{% endif %}page={{ page.previous_page_number }}">← Previous</a>{% endif %}
+      <span class="btn btn-sm" style="cursor:default">Page {{ page.number }} of {{ page.paginator.num_pages }}</span>
+      {% if page.has_next %}<a class="btn btn-ghost btn-sm" rel="next" href="?{% if querystring %}{{ querystring }}&amp;{% endif %}page={{ page.next_page_number }}">Next →</a>{% endif %}
+    </nav>
+    {% endif %}
+    {% else %}
+    <div class="empty">
+      <h2 style="font-size:26px">Nothing matches that yet</h2>
+      <p style="color:var(--muted);max-width:52ch;margin:10px auto 18px">New rooms and land come in every week. Tell us what you need on WhatsApp and our team will look for you, or loosen the filters.</p>
+      <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+        {% if wa_number %}<a class="btn btn-wa" href="/realestate/properties/chat/?{{ querystring }}" rel="nofollow noopener" target="_blank">{% include "realestate/public/_wa_icon.html" %} Send my needs on WhatsApp</a>{% endif %}
+        <a class="btn btn-ghost" href="/realestate/properties/">See all listings</a>
+      </div>
+    </div>
+    {% endif %}
+  </section>
+
+  <section class="sec" aria-labelledby="how">
+    <p class="eyebrow">How it works</p><h2 id="how">From search to site visit in one chat</h2>
+    <div class="steps">
+      <div class="step"><h3>Pick a listing</h3><p>Every price here comes straight from the agency's records, rent per month or total price in lakh / crore.</p></div>
+      <div class="step"><h3>Tap “Chat on WhatsApp”</h3><p>Your message already names the property. Ask anything, photos, water, parking, road access, in English or Nepali.</p></div>
+      <div class="step"><h3>Book a viewing</h3><p>The assistant shows free times and confirms your visit with a booking code. Our team takes over whenever you want a person.</p></div>
+    </div>
+  </section>
+
+  {% if is_home %}
+  <section class="sec faq" aria-labelledby="faq" style="padding-top:10px">
+    <p class="eyebrow">Questions</p><h2 id="faq">Good to know</h2>
+    <details><summary>How do I book a viewing?</summary><p>Tap “Chat on WhatsApp” on any listing. Our assistant replies in English or Nepali, shares photos, checks free viewing times and confirms your visit with a booking code.</p></details>
+    <details><summary>Are the prices final?</summary><p>Prices shown are the asking price or monthly rent recorded for the listing. Any negotiation is passed to our team; nothing is agreed until the owner confirms.</p></details>
+    <details><summary>Can I ask in Nepali?</summary><p>Yes. Write in Nepali (<span class="deva">नेपाली</span>) or Romanized Nepali (e.g. “malai kotha chaiyo”), the reply comes in the same language.</p></details>
+    <details><summary>Do you charge to view a property?</summary><p>Viewings are arranged free of charge through WhatsApp. Ask the assistant about any agency fees that apply to a listing.</p></details>
+  </section>
+  {% endif %}
+</div>
+{% endblock %}

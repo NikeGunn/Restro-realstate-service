@@ -32,10 +32,10 @@ class PropertyListingSerializer(serializers.ModelSerializer):
             'features', 'amenities', 'images', 'virtual_tour_url',
             'agent_name', 'agent_phone', 'agent_email',
             'status', 'status_display', 'is_featured', 'is_published',
-            'listed_date', 'sold_date', 'leads_count',
+            'listed_date', 'sold_date', 'leads_count', 'view_count', 'whatsapp_clicks',
             'created_at', 'updated_at'
         ]
-        read_only_fields = ['id', 'reference_number', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'reference_number', 'view_count', 'whatsapp_clicks', 'created_at', 'updated_at']
     
     def get_leads_count(self, obj):
         return obj.leads.count()
@@ -79,8 +79,8 @@ class PropertyListingListSerializer(serializers.ModelSerializer):
             'property_type', 'property_type_display', 'reference_number',
             'price', 'rent_period', 'city', 'state', 'country', 'neighborhood',
             'bedrooms', 'bathrooms', 'square_feet', 'lot_size',
-            'status', 'status_display', 'is_featured', 'primary_image',
-            'created_at'
+            'status', 'status_display', 'is_featured', 'is_published', 'primary_image',
+            'view_count', 'whatsapp_clicks', 'created_at'
         ]
     
     def get_primary_image(self, obj):

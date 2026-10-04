@@ -1,5 +1,5 @@
 """
-Action safety for the real-estate agent — the release-critical cases of the
+Action safety for the real-estate agent - the release-critical cases of the
 kribaat_agent_harness spec (RE-041…060, RE-092…100, RT-116). OpenAI is mocked:
 these pin what CODE guarantees regardless of what the model writes.
 """
@@ -54,7 +54,9 @@ def _tomorrow(conv):
 def _turn(tools, message):
     """Simulate the start of a new customer turn."""
     tools.current_message = message
-    tools.turn_started_at = timezone.now()
+    # +1 ms: on a coarse clock a preview created just before can share the exact timestamp,
+    # which the gate (correctly) treats as "same turn".
+    tools.turn_started_at = timezone.now() + timedelta(milliseconds=1)
     return tools
 
 

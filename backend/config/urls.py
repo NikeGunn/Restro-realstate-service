@@ -2,6 +2,8 @@
 URL configuration for AI Business Chat Platform.
 """
 from django.contrib import admin
+from apps.realestate import media_proxy as realestate_media
+from apps.realestate import public_site as realestate_public
 from django.urls import path, include, re_path
 from django.conf import settings
 from django.conf.urls.static import static
@@ -31,6 +33,13 @@ urlpatterns = [
     path('api/health/', health_check, name='health-check'),
 
     path('admin/', admin.site.urls),
+
+    # Public listings website (server-rendered for SEO) + sitemap/robots — ingress routes these to Django.
+    path('realestate/properties/', include('apps.realestate.public_site_urls')),
+    path('sitemap.xml', realestate_public.sitemap, name='sitemap'),
+    path('robots.txt', realestate_public.robots, name='robots'),
+    # media.kribaat.com/listings/... → listing photos streamed from R2 (realestate/media_proxy.py)
+    path('listings/<path:key>', realestate_media.listing_photo, name='listing-photo'),
 
     # API Documentation
     path('api/schema/', SpectacularAPIView.as_view(), name='schema'),

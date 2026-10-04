@@ -1,6 +1,6 @@
-# MEMORY — what you know that persists across conversations
+# MEMORY - what you know that persists across conversations
 
-## Owner playbook (instructions from the business owner — follow them)
+## Owner playbook (instructions from the business owner - follow them)
 {owner_memory}
 
 ## Live manager updates (temporary, highest priority while active)

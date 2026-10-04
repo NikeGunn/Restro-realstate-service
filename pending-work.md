@@ -80,6 +80,30 @@ Root causes fixed (prod chats: "jagga" → English "could you clarify?" loop; in
 - Live eval: 45/45 scenarios, 57/57 on 3× critical repeats (gpt-4.1-mini). CI tests now blocking.
 - Listing photos on Cloudflare R2 + agent sends them on WhatsApp.
 
+## Shipped (2026-10-04, round 4): DeepSeek, respect gate, public site, reminders
+
+- **LLM provider: DeepSeek** (`deepseek-chat`, OpenAI-compatible) with automatic failover to OpenAI
+  (`apps/ai_engine/llm.py`): any provider error (no balance 402, 429, 5xx, timeout) retries the same
+  request on the fallback; a provider down for credit/auth is skipped for 2 min. Keys: GitHub Secrets
+  `OPENAI_API_KEY` (DeepSeek) + `LLM_FALLBACK_API_KEY` (OpenAI). Live eval on DeepSeek: 41/46.
+- **Respect / tone gate** (`agent/tone.py` + `prompts/tone.md`): honorific register in Romanized and
+  Devanagari Nepali (hajur/tapai, -nuhunchha/-nuhola), courteous English, 您 in Chinese. A low-register
+  draft ("Aru sodhna cha?") gets one tool-less rewrite pass; safe phrase upgrades always applied.
+  No em/en dashes in any chat message (house style, enforced for every AI reply).
+- **Property save bug**: Nepal listings have no postal code and the API required one, so every edit
+  failed ("Failed to save property"). state/postal_code optional; dashboard statuses match the API;
+  field errors shown. Photos: drag & drop upload, drag to reorder / set cover, queued photos on create.
+- **Public SEO site** `kribaat.com/realestate/properties` (Django SSR: JSON-LD, canonical, sitemap.xml,
+  robots.txt, category + city landing pages, OG image). Every page funnels to WhatsApp with a
+  pre-filled message naming the listing (or the visitor's needs). Views/WhatsApp clicks counted.
+  Dashboard listing manager moved to `/realestate/listings`.
+- **Django admin** listing manager: thumbnails, drag & drop photo manager, bulk publish/rented/sold.
+- **Viewing reminders + missed-viewing follow-ups** (Celery beat every 5 min,
+  `realestate/appointment_notifications.py`): ~1 h before, and 30 min after the slot if staff did not
+  close it. WhatsApp only inside Meta's 24 h window, else email, else recorded honestly. The agent now
+  sees each appointment's timing (a passed 11:00 slot is never "confirmed for today").
+- **media.kribaat.com**: photos served by our ingress → `media_proxy` (authenticated R2 S3 API).
+
 ## Pending — product features (requested, not built)
 
 1. **Landlord self-serve "rooms" product** (the subscription you described): landlord signs up,
@@ -104,8 +128,10 @@ Root causes fixed (prod chats: "jagga" → English "could you clarify?" loop; in
     The model + API-side reads exist; today it is edited in Django admin.
 11. **Remaining spec scenarios**: 45 of 130 are executable live evals; add the rest (journeys
     RE-101–110, restaurant RT-111–130) and a restaurant tool-calling agent like the real-estate one.
-12. **Custom photo domain**: r2.dev is rate-limited; put `media.kribaat.com` on the bucket (Cloudflare
-    DNS needed) and change `R2_PUBLIC_DOMAIN`.
+12. **Optional CDN for media.kribaat.com**: the zone is in another Cloudflare account; turning the
+    record to Proxied (orange cloud, SSL Full strict) adds Cloudflare caching in front of the cluster.
+13. **WhatsApp template for reminders** outside the 24 h window (needs a Meta-approved UTILITY template);
+    today those fall back to email or are recorded as not delivered.
 
 ## Pending — MCP server + website crawler (design only, needs your go/no-go)
 

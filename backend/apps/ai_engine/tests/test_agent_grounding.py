@@ -5,7 +5,7 @@ Regression tests for the 2026-10-03 production failures on the Nepal agency:
 2. Invented rooms/prices written as "HK₨7,500" slipped through the gate (₨ not recognised,
    and a made-up max_price in the tool ARGUMENTS counted as evidence).
 3. Follow-ups lost the facts from the previous turn's tool results.
-OpenAI is mocked — these pin the guarantees, not model quality.
+OpenAI is mocked - these pin the guarantees, not model quality.
 """
 import json
 from decimal import Decimal
@@ -112,7 +112,7 @@ def test_portfolio_overview_lists_every_category(nepal_conv):
     cats = {c['category']: c for c in RealEstateTools(nepal_conv).get_portfolio_overview()['categories']}
     assert cats['Land for sale']['listings'] == 2
     assert cats['Land for sale']['districts'] == ['Bhaktapur', 'Lalitpur']
-    assert cats['Room for rent']['price_range'] == 'Rs 6,000 – Rs 12,000'
+    assert cats['Room for rent']['price_range'] == 'Rs 6,000 - Rs 12,000'
 
 
 # ------------------------------------------------------------------ language
@@ -157,7 +157,7 @@ def test_gate_ignores_codes_dates_and_phones():
 
 
 def test_made_up_search_argument_cannot_verify_itself(nepal_conv):
-    """The model invents max_price=7500 and then quotes it — previously the args counted as evidence."""
+    """The model invents max_price=7500 and then quotes it - previously the args counted as evidence."""
     svc = _service(nepal_conv, [
         _msg(tool_calls=[_call('search_properties', {'property_type': 'room', 'max_price': 7500})]),
         _msg('Kirtipur ma Rs 7,500 samma ko kotha cha.'),
