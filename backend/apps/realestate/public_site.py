@@ -312,7 +312,7 @@ def listings(request, category: str = '', city: str = ''):
         'querystring': urlencode({k: v for k, v in params.items() if v and k != 'city'}),
         'is_home': not category and not city and not filtered,
     })
-    ctx['jsonld'] = json.dumps(_list_jsonld(ctx), ensure_ascii=False)
+    ctx['jsonld'] = _script_json(_list_jsonld(ctx))
     return _cache_headers(render(request, 'realestate/public/list.html', ctx))
 
 
@@ -361,7 +361,7 @@ def detail(request, ref_slug: str):
                        if cat['type'] == listing.property_type
                        and cat['deal'] in ('', 'rent' if listing.listing_type in ('rent', 'lease') else 'sale')), None),
     })
-    ctx['jsonld'] = json.dumps(_detail_jsonld(ctx), ensure_ascii=False)
+    ctx['jsonld'] = _script_json(_detail_jsonld(ctx))
     return _cache_headers(render(request, 'realestate/public/detail.html', ctx, status=200), 120)
 
 
@@ -444,6 +444,12 @@ def robots(request):
 
 
 # ------------------------------------------------------------------------ JSON-LD
+def _script_json(data) -> str:
+    """JSON safe to inline in <script>: a title like '</script><script>…' cannot break out."""
+    return (json.dumps(data, ensure_ascii=False)
+            .replace('<', r'\u003c').replace('>', r'\u003e').replace('&', r'\u0026'))
+
+
 def _org_jsonld(ctx) -> dict:
     org, office = ctx['org'], ctx.get('office')
     data = {'@type': 'RealEstateAgent', '@id': ctx['site'] + '/#agency', 'name': org.name,

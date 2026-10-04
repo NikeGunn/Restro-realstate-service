@@ -133,30 +133,10 @@ Root causes fixed (prod chats: "jagga" → English "could you clarify?" loop; in
 13. **WhatsApp template for reminders** outside the 24 h window (needs a Meta-approved UTILITY template);
     today those fall back to email or are recorded as not delivered.
 
-## Pending — MCP server + website crawler (design only, needs your go/no-go)
+## Decided: no MCP server / web crawler (2026-10-04)
 
-Requested: MCP server (client + server architecture), crawler/scanner of the top property
-websites, an autonomous 24/7 agent that brings leads back with the source URL so the user can
-verify, plus deep crawling skills with terminal commands.
-
-Constraints to decide first:
-- **Terms of service**: most portals forbid automated scraping. Prefer official APIs, partner
-  feeds, or listings the owners submit themselves.
-- **Privacy**: harvesting people's phone numbers/names as "leads" for marketing falls under
-  Nepal's Privacy Act 2075 (and Hong Kong's PDPO for HK). Collect public listing data (price, area,
-  type, URL), not personal contact data, unless the person opted in.
-- Respect robots.txt, rate-limit, identify the crawler, cache, and always store the source URL
-  and fetch time so each result is verifiable ("found on <site>, checked <time>, please confirm").
-
-Proposed design (to write as a REQUIREMENTS.md phase before coding):
-- `mcp-crawler` service (Python, MCP SDK, HTTP/SSE transport): tools `search_market(area, type,
-  budget)`, `get_listing(url)`, `watch(query)`; per-site adapters behind an allowlist; Redis queue;
-  Postgres `market_listings` table with source_url, fetched_at, content hash (dedupe).
-- Celery beat job for 24/7 watches; matches go to the landlord/agent as "market insights" in the
-  dashboard and optionally WhatsApp, each with its source link.
-- The chat agent gets a read-only `market_compare` tool (clearly labelled "from <site>, verify").
-- Skill doc for crawling: robots.txt check, polite fetching, pagination, change detection, parser
-  tests per site, failure alerts.
+The MCP crawler idea is dropped for now: the agent must not go out on the internet. It answers
+only from this agency's own listings, knowledge base and tools.
 
 ## Pending — housekeeping
 

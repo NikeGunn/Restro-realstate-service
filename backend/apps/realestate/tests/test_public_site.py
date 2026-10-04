@@ -166,3 +166,14 @@ def test_no_whatsapp_number_hides_chat_buttons(client, settings, room):
     html = client.get(canonical_path(room)).content.decode()
     assert '/chat/' not in html
     assert client.get(f"/realestate/properties/{room.reference_number}/chat/").status_code == 404
+
+
+def test_listing_text_cannot_break_out_of_json_ld(client, org):
+    """Security review: titles are member-written and land inside <script type=application/ld+json>."""
+    evil = _listing(org, title='Room </script><script>alert(1)</script> & co')
+    for url in ('/realestate/properties/', canonical_path(evil)):
+        html = client.get(url).content.decode()
+        block = re.search(r'<script type="application/ld\+json">(.*?)</script>', html, re.S).group(1)
+        assert '<' not in block and '</script><script>alert' not in html
+        assert r'Room \u003c/script\u003e' in block
+        json.loads(block)                                    # still valid JSON for Google
