@@ -109,7 +109,9 @@ class RealEstateAgent:
             channel_note = (f"\nThe customer's phone is already known ({self.conversation.customer_phone}); "
                             "never ask for it.\n")
         if self.conversation.customer_name and self.conversation.customer_name not in ('WhatsApp User', 'Website Visitor'):
-            channel_note += f"Profile name on the channel: {self.conversation.customer_name} (confirm before using as booking name).\n"
+            channel_note += (f"Profile name on the channel: {self.conversation.customer_name}. It is NOT a confirmed "
+                             "booking name: before prepare_viewing, ask whose name the viewing should be under "
+                             "unless the customer already wrote it.\n")
 
         from datetime import timedelta
         calendar = "\n".join(

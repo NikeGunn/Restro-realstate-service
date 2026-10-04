@@ -121,12 +121,20 @@ class Command(BaseCommand):
                 out.append(f"forbidden text '{m.group(0)}'")
         for pattern in c.get('unhedged', []):
             for m in re.finditer(pattern, reply, re.I):
-                start = max(reply.rfind('.', 0, m.start()), reply.rfind('\n', 0, m.start())) + 1
+                start = max(reply.rfind(ch, 0, m.start()) for ch in '.!?।\n') + 1  # sentence start
                 sentence = re.split(r'(?<=[.!?।])\s', reply[start:])[0]
                 if not HEDGE.search(sentence):
                     out.append(f"unhedged claim '{m.group(0)}'")
         if c.get('style') and not _style_ok(reply, c['style']):
             out.append(f"reply language is not {c['style']}")
+        # Global invariants on EVERY turn: honorific register and no em/en dashes (house style).
+        from apps.ai_engine.agent.language import detect_reply_style
+        from apps.ai_engine.agent.tone import register_problems
+        style = c.get('style') or detect_reply_style(reply)
+        for problem in register_problems(reply, style):
+            out.append(f"impolite ({style}): {problem}")
+        if '\u2014' in reply or '\u2013' in reply:
+            out.append("em/en dash in reply")
         if 'appts' in c and Appointment.objects.filter(organization=org, conversation=conv).count() != c['appts']:
             out.append(f"appointments for this chat != {c['appts']}")
         if 'leads' in c and Lead.objects.filter(organization=org, conversation=conv).count() != c['leads']:

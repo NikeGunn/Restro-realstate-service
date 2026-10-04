@@ -116,7 +116,8 @@ def confirm(conversation, preview_id: str, customer_message: str, turn_started_a
     if action.status != AgentAction.Status.PREVIEWED:
         return {'ok': False, 'error': f'PREVIEW_{action.status.upper()}: that preview is no longer valid; '
                                       'prepare a new one if the customer still wants it.'}
-    if action.created_at >= turn_started_at:
+    if action.created_at >= turn_started_at and not name_only_amendment(conversation, action, turn_started_at,
+                                                                         customer_message):
         return {'ok': False, 'error': 'NOT_CONFIRMED_YET: the customer has not seen this preview. Show it and '
                                       'ask them to confirm; do not claim it is done.'}
     if not is_plain_confirmation(customer_message):
@@ -140,6 +141,42 @@ def confirm(conversation, preview_id: str, customer_message: str, turn_started_a
         action.status, action.receipt, action.executed_at = AgentAction.Status.EXECUTED, receipt, timezone.now()
         action.save(update_fields=['status', 'receipt', 'executed_at'])
     return {'ok': True, 'receipt': receipt}
+
+
+# What the customer's consent is about. The booking NAME is not on this list: it is the customer's
+# own fact, typed by them, so correcting it does not change what they agreed to.
+_NAME_FIELDS = {'name'}
+
+
+def name_only_amendment(conversation, action: AgentAction, turn_started_at, customer_message: str) -> bool:
+    """
+    A preview created in THIS turn is still confirmable when it only corrects the customer's name on a
+    preview the customer already saw in an EARLIER turn, using a name the customer typed themselves.
+
+    Root cause (eval RE-043): the customer answered the first preview with their real name; the model
+    asked "book it under Martas instead?", and on "Yes, confirm" re-prepared with the new name and
+    confirmed. Listing, date, time and price were exactly what the customer had already seen and
+    approved, yet the same-turn rule forced a second "yes". Any other difference (listing, date,
+    time, price, staff-approval) still needs a fresh confirmation.
+    """
+    from apps.messaging.models import MessageSender
+
+    new_name = str(action.payload.get('name') or '').strip()
+    if not new_name:
+        return False
+    earlier = (AgentAction.objects.filter(conversation=conversation, kind=action.kind,
+                                          created_at__lt=turn_started_at,
+                                          status__in=[AgentAction.Status.SUPERSEDED, AgentAction.Status.PREVIEWED])
+               .exclude(pk=action.pk).order_by('-created_at').first())
+    if earlier is None:
+        return False
+    keys = (set(earlier.payload) | set(action.payload)) - _NAME_FIELDS
+    if any(earlier.payload.get(k) != action.payload.get(k) for k in keys):
+        return False
+    said = list(conversation.messages.filter(sender=MessageSender.CUSTOMER)
+                .values_list('content', flat=True)) + [customer_message or '']
+    pattern = re.compile(r'(?<!\w)' + re.escape(new_name) + r'(?!\w)', re.I)
+    return any(pattern.search(text or '') for text in said)
 
 
 class ActionRejected(Exception):

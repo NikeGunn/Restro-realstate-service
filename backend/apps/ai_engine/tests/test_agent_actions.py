@@ -43,8 +43,11 @@ def plot(org):
 
 @pytest.fixture
 def conv(org):
-    return Conversation.objects.create(organization=org, channel=Channel.WHATSAPP, customer_phone='9779800000001',
-                                       customer_name='Martas')
+    c = Conversation.objects.create(organization=org, channel=Channel.WHATSAPP, customer_phone='9779800000001',
+                                    customer_name='Martas')
+    # Booking names must come from the customer (tools._name_from_customer): they introduced themselves.
+    Message.objects.create(conversation=c, sender=MessageSender.CUSTOMER, content='Namaste, naam Martas.')
+    return c
 
 
 def _tomorrow(conv):
@@ -60,7 +63,13 @@ def _turn(tools, message):
     return tools
 
 
+def _says_name(conv, name):
+    """The customer introduces themselves (a booking name must come from the customer)."""
+    Message.objects.create(conversation=conv, sender=MessageSender.CUSTOMER, content=f'Mero naam {name}.')
+
+
 def _preview(conv, plot, time='11:00', name='Martas'):
+    _says_name(conv, name)
     tools = RealEstateTools(conv)
     day = _tomorrow(conv)
     res = tools.prepare_viewing(reference=plot.reference_number, date=day.isoformat(), time=time,
@@ -421,6 +430,7 @@ def test_re043_changed_name_is_prepared_before_the_customer_is_asked(conv, plot)
     day = _tomorrow(conv)
     args = {'reference': plot.reference_number, 'date': day.isoformat(), 'time': '11:00',
             'weekday': day.strftime('%A')}
+    _says_name(conv, 'Eval Customer')       # first name given, later corrected to Martas
     _svc(conv, [_msg(tool_calls=[_call('prepare_viewing', dict(args, name='Eval Customer'))]),
                 _msg(f'Viewing {plot.reference_number}, {day.isoformat()} 11:00, name Eval Customer. Shall I confirm?')
                 ]).process_message(f'Book {plot.reference_number} tomorrow at 11 am.')
@@ -445,5 +455,55 @@ def test_confirm_in_the_same_turn_as_prepare_is_still_refused(conv, plot):
     t = _turn(RealEstateTools(conv), 'Yes, confirm.')
     day = _tomorrow(conv)
     p = t.prepare_viewing(plot.reference_number, day.isoformat(), '11:00', day.strftime('%A'), name='Martas')
+    res = t.confirm_pending_action(p['preview_id'])
+    assert not res['ok'] and 'NOT_CONFIRMED_YET' in res['error'] and Appointment.objects.count() == 0
+
+
+def _prior_preview(conv, plot, name):
+    """A preview the customer saw in an earlier turn."""
+    res = _preview(conv, plot, name=name)
+    AgentAction.objects.filter(id=res['preview_id']).update(created_at=timezone.now() - timedelta(minutes=2))
+    return res
+
+
+def test_name_correction_typed_by_customer_needs_only_one_yes(conv, plot):
+    """RE-043 live path: preview under a profile name -> customer types 'Martas.' -> model asks to switch ->
+    'Yes, confirm.' -> model re-prepares with Martas and confirms in the same turn. One booking, one yes."""
+    _prior_preview(conv, plot, name='Eval Customer')
+    Message.objects.create(conversation=conv, sender=MessageSender.CUSTOMER, content='Martas.')
+    t = _turn(RealEstateTools(conv), 'Yes, confirm.')
+    day = _tomorrow(conv)
+    p = t.prepare_viewing(plot.reference_number, day.isoformat(), '11:00', day.strftime('%A'), name='Martas')
+    res = t.confirm_pending_action(p['preview_id'])
+    assert res['ok'], res
+    assert Appointment.objects.get().lead.name == 'Martas'
+
+
+def test_profile_name_never_becomes_the_booking_name(org, plot):
+    """Root cause of live RE-043 stalls: the preview used the WhatsApp profile name the customer never gave."""
+    c = Conversation.objects.create(organization=org, channel=Channel.WHATSAPP, customer_phone='9779800000077',
+                                    customer_name='Eval Customer')
+    day = _tomorrow(c)
+    t = _turn(RealEstateTools(c), 'Book it tomorrow at 11 am.')
+    res = t.prepare_viewing(plot.reference_number, day.isoformat(), '11:00', day.strftime('%A'), name='Eval Customer')
+    assert not res['ok'] and 'NAME_NOT_GIVEN' in res['error']
+    t = _turn(RealEstateTools(c), 'Martas.')                     # customer answers the name question
+    assert t.prepare_viewing(plot.reference_number, day.isoformat(), '11:00', day.strftime('%A'), name='Martas')['ok']
+    # A returning customer: the name on their earlier lead is known, no need to ask again.
+    Lead.objects.create(organization=org, name='Sita Rai', phone='9779800000078')
+    c2 = Conversation.objects.create(organization=org, channel=Channel.WHATSAPP, customer_phone='9779800000078')
+    t2 = _turn(RealEstateTools(c2), 'Book again tomorrow 15:00')
+    assert t2.prepare_viewing(plot.reference_number, day.isoformat(), '15:00', day.strftime('%A'), name='Sita Rai')['ok']
+
+
+@pytest.mark.parametrize('change', ['time', 'no_earlier_preview'])
+def test_anything_else_changed_in_the_same_turn_still_needs_a_fresh_yes(conv, plot, change):
+    day = _tomorrow(conv)
+    if change != 'no_earlier_preview':
+        _prior_preview(conv, plot, name='Eval Customer')
+    Message.objects.create(conversation=conv, sender=MessageSender.CUSTOMER, content='Martas.')
+    t = _turn(RealEstateTools(conv), 'Yes, confirm.')
+    time = '15:00' if change == 'time' else '11:00'
+    p = t.prepare_viewing(plot.reference_number, day.isoformat(), time, day.strftime('%A'), name='Martas')
     res = t.confirm_pending_action(p['preview_id'])
     assert not res['ok'] and 'NOT_CONFIRMED_YET' in res['error'] and Appointment.objects.count() == 0

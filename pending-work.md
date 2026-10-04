@@ -104,6 +104,30 @@ Root causes fixed (prod chats: "jagga" → English "could you clarify?" loop; in
   sees each appointment's timing (a passed 11:00 slot is never "confirmed for today").
 - **media.kribaat.com**: photos served by our ingress → `media_proxy` (authenticated R2 S3 API).
 
+## Shipped (2026-10-04, round 5): booking-name root cause + live eval hardening
+
+- Root cause of "customer must say yes twice" (live eval RE-043): previews used the WhatsApp
+  profile name the customer never gave. `prepare_viewing` now only accepts a name the customer typed
+  in this chat (or the name on their earlier lead); otherwise NAME_NOT_GIVEN -> the agent asks.
+- Gate: the customer is only ever asked to confirm the preview actually stored in the AgentAction
+  ledger (`verifier.preview_problems`); a same-turn re-preview that only corrects the customer's own
+  typed name keeps the earlier consent (`actions.name_only_amendment`). Everything else still needs
+  a fresh yes.
+- Live eval (local, DeepSeek): 50/51 single run; booking + politeness cases 24/24 on 3x repeats.
+  New TONE-01..05 scenarios (Romanized, Devanagari, casual, angry, English); every turn of every
+  case is now checked for impolite register and em/en dashes. Evaluator false positives fixed
+  (negated sentences, curly apostrophe, labelled near matches, PORTFOLIO answers).
+- Prod verified: public site, sitemap, media.kribaat.com (TLS issued), the original property save
+  (200), missed-viewing follow-up delivered and read on WhatsApp.
+
+## Next session (start here)
+
+1. Run `python manage.py run_agent_evals --repeat 3` on prod after this deploy; RE-043 should be 3/3.
+2. Settings screen for AgentSettings (bookings on/off, staff approval, viewing hours, daily cap).
+3. WhatsApp UTILITY template for reminders outside Meta's 24 h window (today: email or recorded only).
+4. Optional: Cloudflare orange-cloud on media.kribaat.com (zone is in the other Cloudflare account;
+   SSL mode Full (strict)).
+
 ## Pending — product features (requested, not built)
 
 1. **Landlord self-serve "rooms" product** (the subscription you described): landlord signs up,

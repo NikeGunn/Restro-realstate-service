@@ -17,7 +17,7 @@ from django.db.models import Q
 from django.utils import timezone
 
 from apps.ai_engine.models import AgentAction, AgentSettings
-from apps.realestate.models import Appointment, PropertyListing
+from apps.realestate.models import Appointment, Lead, PropertyListing
 
 from . import actions, capabilities, vocab
 from . import memory as agent_memory
@@ -473,6 +473,12 @@ class RealEstateTools:
             return {'ok': False, 'error': 'MISSING_FIELD phone: ask for a contact number for updates.'}
         if not name or name.lower() in ('whatsapp user', 'customer', 'guest', 'website visitor'):
             return {'ok': False, 'error': "MISSING_FIELD name: ask whose name the viewing should be under."}
+        if not self._name_from_customer(name, phone):
+            # Root cause of eval RE-043: the preview silently used the WhatsApp profile name; when the
+            # customer then typed their real name the model stalled between the two and never booked.
+            return {'ok': False, 'error': f"NAME_NOT_GIVEN: the customer has not told you the name '{name}' "
+                                          "(a channel profile name is not confirmed). Ask politely whose name "
+                                          "the viewing should be under, then use it exactly as they write it."}
         try:
             d, t = _parse_day_time(date, time)
         except ValueError:
@@ -666,6 +672,19 @@ class RealEstateTools:
         raw = (self.conversation.customer_phone or given or '').strip()
         digits = ''.join(ch for ch in raw if ch.isdigit())
         return digits if len(digits) >= 7 else ''
+
+    def _name_from_customer(self, name: str, phone: str) -> bool:
+        """A booking name must be one the customer typed in this chat, or the name already on their
+        lead from an earlier booking with this phone. Never an unconfirmed channel profile name."""
+        import re as _re
+        from apps.messaging.models import MessageSender
+
+        pattern = _re.compile(r'(?<!\w)' + _re.escape(name) + r'(?!\w)', _re.I)
+        said = list(self.conversation.messages.filter(sender=MessageSender.CUSTOMER)
+                    .values_list('content', flat=True)) + [getattr(self, 'current_message', '') or '']
+        if any(pattern.search(text or '') for text in said):
+            return True
+        return Lead.objects.filter(organization=self.organization, phone=phone, name__iexact=name).exists()
 
     def _source(self) -> str:
         return str(self.conversation.channel or 'website')
