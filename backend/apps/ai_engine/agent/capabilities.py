@@ -11,7 +11,8 @@ READ_TOOLS = {
     'search_properties', 'list_locations', 'get_portfolio_overview', 'get_property_details', 'send_property_photos',
     'compare_properties', 'get_viewing_slots', 'get_my_appointments',
 }
-INQUIRY_TOOLS = {'save_lead', 'remember_customer_fact', 'forget_my_preferences', 'escalate_to_human'}
+INQUIRY_TOOLS = {'save_lead', 'remember_customer_fact', 'forget_my_preferences', 'escalate_to_human',
+                 'request_team_followup'}
 BOOKING_TOOLS = {'prepare_viewing', 'prepare_cancellation', 'prepare_reschedule',
                  'confirm_pending_action', 'decline_pending_action'}
 
@@ -42,6 +43,7 @@ def allowed_tools(organization, settings) -> Set[str]:
 def describe(organization, settings) -> str:
     can = ['search and explain listings, locations and comparisons',
            'record inquiries, callback requests and seller listing requests for the team',
+           'pass requests to the team (more photos, details that are not recorded) with request_team_followup',
            'hand the chat to staff']
     if settings.bookings_enabled:
         can.insert(1, 'arrange viewings (preview → customer confirms → booked'

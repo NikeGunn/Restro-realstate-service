@@ -134,7 +134,9 @@ def test_reply_style_detection(text, style):
     ('10000', ['Kathmandu ma room chaiyeko thyo?'], reply_lang.NEPALI_ROMAN),
     ('Kirtipur', ['Malai kotha chaiyo', '10000'], reply_lang.NEPALI_ROMAN),
     ('10000', ['I need a room in Kathmandu'], 'en'),
-    ('Yes please', ['Malai kotha chaiyo'], 'en'),
+    # A bare acknowledgement is not a language choice (prod 2026-10-04: "yes" in a Nepali chat got English).
+    ('Yes please', ['Malai kotha chaiyo'], reply_lang.NEPALI_ROMAN),
+    ('Please explain in English now.', ['Malai kotha chaiyo'], 'en'),
 ])
 def test_neutral_replies_keep_the_conversation_language(current, previous, style):
     assert reply_lang.sticky_reply_style(current, previous, fallback='en') == style

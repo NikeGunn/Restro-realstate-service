@@ -213,7 +213,7 @@ class AppointmentSerializer(serializers.ModelSerializer):
         model = Appointment
         fields = [
             'id', 'organization', 'location', 'location_name',
-            'lead', 'lead_name', 'lead_phone',
+            'lead', 'lead_name', 'lead_phone', 'attendee_name',
             'property_listing', 'property_title', 'property_address',
             'conversation',
             'appointment_type', 'appointment_type_display',

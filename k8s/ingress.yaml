@@ -216,6 +216,14 @@ spec:
                 name: backend
                 port:
                   number: 8000
+          # Showcase videos (apps/showcase/views.py: range requests for seeking)
+          - path: /showcase
+            pathType: Prefix
+            backend:
+              service:
+                name: backend
+                port:
+                  number: 8000
 
 # Note: HTTP to HTTPS redirect and middlewares removed
 # Nginx handles SSL termination and redirects at the edge

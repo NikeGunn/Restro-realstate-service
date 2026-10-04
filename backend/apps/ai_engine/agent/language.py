@@ -25,7 +25,19 @@ STRONG = {
     'ajhai', 'ahile', 'aile', 'aba', 'abo', 'esko', 'yesko', 'tesko', 'mero', 'hamro', 'timro', 'bholi',
     'parsi', 'hijo', 'baje', 'dinchha', 'dinchhau', 'milchha', 'herna', 'jane', 'gara', 'garnu', 'bhannus',
     'hoina', 'hunna', 'pardaina', 'chahidaina', 'samma', 'bhitra', 'matra', 'pugcha', 'dekhaunu',
+    # Casual spellings seen in prod chats (2026-10-04: "i schedule gardeu voli after 1 pm" got English).
+    'gardeu', 'gardinu', 'gardinus', 'garideu', 'garidinu', 'garidinus', 'gardiyo', 'garnus', 'garnuhos',
+    'voli', 'vholi', 'vannu', 'bhannu', 'vanera', 'bhanera', 'vaexa', 'bhaexa', 'vayo', 'bhayo', 'vayeko',
+    'bhayeko', 'chaenxa', 'chaincha', 'chainchha', 'chaiyena', 'maily', 'afno', 'aafno', 'feri', 'pheri',
+    'pathaunu', 'pathau', 'pathaideu', 'pathaidinu', 'magera', 'ekchoti', 'ekchhoti', 'euta', 'wala', 'wali',
+    'thyo', 'kinna', 'kinne', 'bechne', 'bechna', 'dekhau', 'dekhaideu', 'dekhaunus', 'khojna', 'khojdai',
+    'chu', 'chhu', 'xu', 'xau', 'paam', 'aaja', 'aja', 'bihana', 'beluka', 'diuso', 'vitra', 'kasari',
+    'kaile', 'kahile', 'kura', 'garera', 'herera', 'sakchu', 'sakxu', 'sakdina', 'milena', 'bujhina',
+    'bujhena', 'chha', 'chaina', 'ahh', 'hajurko', 'tapaiko', 'mero', 'naam', 'baje', 'jani', 'jaam',
 }
+# Nepali verb endings; any word carrying one counts as a Nepali signal ("pathaideu", "bhayeko").
+NEPALI_SUFFIXES = ('deu', 'nuhos', 'nuhola', 'nuhunchha', 'eko', 'chha', 'thyo', 'thiyo', 'dinus', 'idinu', 'xa')
+_SUFFIX_EXCEPTIONS = {'eko', 'xa', 'chha', 'deu'}
 # Short words also used in English text; they only count alongside a strong word.
 WEAK = {'ma', 'ho', 'ra', 'ko', 'ka', 'ki', 'ni', 'ta', 'la', 'na'}
 
@@ -41,7 +53,8 @@ def detect_reply_style(text: str, fallback: str = 'en') -> str:
     if deva and deva >= latin * 0.5:
         return NEPALI_DEVANAGARI
     words = _WORD.findall(text.lower())
-    strong = sum(1 for w in words if w in STRONG)
+    strong = sum(1 for w in words if w in STRONG or (
+        len(w) >= 4 and w not in _SUFFIX_EXCEPTIONS and w.endswith(NEPALI_SUFFIXES)))
     weak = sum(1 for w in words if w in WEAK)
     english = sum(1 for w in words if w in ENGLISH_MARKERS)
     if words and (strong >= 2 or (strong == 1 and (weak >= 1 or len(words) <= 3 or not english))):
@@ -78,10 +91,17 @@ ENGLISH_MARKERS = {
 }
 
 
+# Bare acknowledgements carry no language choice: "yes" in a Nepali chat must not switch to English.
+ACKS = {'yes', 'yeah', 'yep', 'yup', 'ok', 'okay', 'k', 'kk', 'no', 'sure', 'thanks', 'thank', 'you', 'please',
+        'hi', 'hello', 'confirm', 'done', 'go', 'ahead'}
+
+
 def is_neutral(text: str) -> bool:
-    """'10000', 'Kirtipur', 'PROP123456' - no language signal of its own."""
+    """'10000', 'Kirtipur', 'PROP123456', 'yes', 'ok' - no language signal of its own."""
     words = _WORD.findall((text or '').lower())
-    return not _DEVANAGARI.search(text or '') and len(words) <= 3 and not (set(words) & (ENGLISH_MARKERS | STRONG))
+    if _DEVANAGARI.search(text or '') or len(words) > 3:
+        return False
+    return not (set(words) & (ENGLISH_MARKERS | STRONG)) or set(words) <= ACKS
 
 
 def sticky_reply_style(current: str, previous_customer_texts, fallback: str = 'en') -> str:

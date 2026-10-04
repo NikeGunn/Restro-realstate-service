@@ -133,8 +133,14 @@ class AIService:
         """Every AI reply, any vertical or channel, leaves without em/en dashes (house style)."""
         from .agent.tone import no_dashes
 
+        from .vertical_guard import enforce
+
         result = self._process_message(user_message)
-        if isinstance(result, dict) and isinstance(result.get('content'), str):
+        if isinstance(result, dict) and isinstance(result.get('content'), str) and result['content']:
+            style = (result.get('metadata') or {}).get('reply_style') or result.get('language') or 'en'
+            # A restaurant word in a real-estate chat (or the reverse) loses the customer: never send it.
+            if not (result.get('metadata') or {}).get('vertical_checked'):  # the agent's gate already did this
+                result['content'] = enforce(self.organization, result['content'], user_message, style)
             result['content'] = no_dashes(result['content'])
         return result
 
@@ -157,7 +163,11 @@ class AIService:
         # customers. If the customer is probing for stock/recipe/supplier
         # info, deflect immediately — no AI call, no knowledge lookup.
         # This guard MUST run before any path that reads business data.
-        should_deflect, deflection_text = InventoryContextFirewall.check(
+        # Real-estate orgs have no inventory plane, and "water supply" / "storage room" are normal
+        # property questions there (prod 2026-10-04: "afno storage ma hernu" got the restaurant
+        # menu deflection on a land agency).
+        is_real_estate = self.organization.business_type == 'real_estate'
+        should_deflect, deflection_text = (False, '') if is_real_estate else InventoryContextFirewall.check(
             user_message, language=detected_lang,
         )
         if should_deflect:
@@ -176,7 +186,6 @@ class AIService:
         # ⚡ FAST PATH: short greeting → instant reply, skip OpenAI entirely.
         # Saves the 5-20s round-trip for "hi"/"hello"/etc. — the most common
         # first message a customer sends. Real questions still go to AI.
-        is_real_estate = self.organization.business_type == 'real_estate'
         # Real-estate greetings go through the agent so returning customers are
         # recognised from memory instead of getting a canned restaurant line.
         fast_reply = None if is_real_estate else self._fast_path_greeting(user_message, detected_lang)

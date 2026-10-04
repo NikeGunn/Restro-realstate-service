@@ -72,8 +72,76 @@ _FOLLOWUP = {
               "म नयाँ समय मिलाइदिन्छु।"),
     'zh': "您好{name}！您的睇樓預約 {code} - {property} - 原定於 {when}（{tz}）。希望一切順利！如未能出席，請直接回覆，我會為您重新安排時間。",
 }
+# Changes made by staff in the dashboard. The customer is told in the chat (and the message is
+# stored in the conversation, so the agent sees it in its history). Root cause 2026-10-04: staff
+# cancelled APTK6XSXH in the dashboard, the customer was never told, and the agent said the
+# booking "was not in the record".
+_STAFF = {
+    'staff_cancelled': {
+        'en': ("Namaste{name}. Our team has cancelled your viewing {code} - {property} - that was set for "
+               "{when} ({tz}).{reason_line} We are sorry for the trouble. Reply here any time and I will "
+               "gladly arrange a new time for you."),
+        NE_ROMAN: ("Namaste{name}. Hamro team le hajur ko viewing {code} - {property} - ({when}, {tz}) cancel "
+                   "garnu bhayeko chha.{reason_line} Asubidha ko lagi maaf garnuhola. Naya samaya chahiyo bhane "
+                   "yahi reply garnuhola, ma khusi bhayera milaidinchhu."),
+        NE_DEVA: ("नमस्ते{name}। हाम्रो टिमले हजुरको भ्यूइङ {code} - {property} - ({when}, {tz}) रद्द गर्नुभएको छ।"
+                  "{reason_line} असुविधाका लागि माफ गर्नुहोला। नयाँ समय चाहियो भने यहीँ जवाफ दिनुहोला।"),
+        'zh': "您好{name}。我們的團隊已取消您的睇樓預約 {code} - {property}（原定 {when}，{tz}）。{reason_line}如需重新安排，請直接回覆。",
+    },
+    'staff_confirmed': {
+        'en': "Namaste{name}! Good news: our team has confirmed your viewing {code} - {property} - on {when} ({tz}).",
+        NE_ROMAN: "Namaste{name}! Hamro team le hajur ko viewing {code} - {property} - {when} ({tz}) confirm garnu bhayo.",
+        NE_DEVA: "नमस्ते{name}! हाम्रो टिमले हजुरको भ्यूइङ {code} - {property} - {when} ({tz}) पक्का गर्नुभयो।",
+        'zh': "您好{name}！我們的團隊已確認您的睇樓預約 {code} - {property}，時間 {when}（{tz}）。",
+    },
+    'staff_rescheduled': {
+        'en': ("Namaste{name}. Our team has moved your viewing {code} - {property} - to {when} ({tz}). "
+               "If this time does not suit you, just reply here and I will help."),
+        NE_ROMAN: ("Namaste{name}. Hamro team le hajur ko viewing {code} - {property} - aba {when} ({tz}) ma "
+                   "sarnu bhayeko chha. Yo samaya namilne bhaye yahi reply garnuhola."),
+        NE_DEVA: ("नमस्ते{name}। हाम्रो टिमले हजुरको भ्यूइङ {code} - {property} - अब {when} ({tz}) मा सार्नुभएको छ। "
+                  "यो समय नमिल्ने भए यहीँ जवाफ दिनुहोला।"),
+        'zh': "您好{name}。我們的團隊已將您的睇樓預約 {code} - {property} 改至 {when}（{tz}）。如時間不合適，請直接回覆。",
+    },
+    'staff_created': {
+        'en': ("Namaste{name}! Our team has arranged a viewing for you: {code} - {property} - on {when} ({tz}). "
+               "Reply here if you need to change anything."),
+        NE_ROMAN: ("Namaste{name}! Hamro team le hajur ko lagi viewing milaunu bhayeko chha: {code} - {property} - "
+                   "{when} ({tz}). Kehi parivartan chahiyo bhane yahi reply garnuhola."),
+        NE_DEVA: ("नमस्ते{name}! हाम्रो टिमले हजुरका लागि भ्यूइङ मिलाउनुभएको छ: {code} - {property} - {when} ({tz})। "
+                  "केही परिवर्तन चाहियो भने यहीँ जवाफ दिनुहोला।"),
+        'zh': "您好{name}！我們的團隊已為您安排睇樓 {code} - {property}，時間 {when}（{tz}）。如需更改，請直接回覆。",
+    },
+    'staff_completed': {
+        'en': ("Namaste{name}, thank you for visiting {property} ({code}). If you have any questions or would "
+               "like to see similar properties, just reply here."),
+        NE_ROMAN: ("Namaste{name}, {property} ({code}) herna aaunu bhayeko ma dhanyabad. Kehi jannu parne bhaye "
+                   "wa yesto aru property herna chahanu bhaye yahi reply garnuhola."),
+        NE_DEVA: "नमस्ते{name}, {property} ({code}) हेर्न आउनुभएकोमा धन्यवाद। केही जान्नुपर्ने भए यहीँ जवाफ दिनुहोला।",
+        'zh': "您好{name}，感謝您參觀 {property}（{code}）。如有任何問題或想看類似物業，請直接回覆。",
+    },
+    'staff_no_show': {
+        'en': ("Namaste{name}. We missed you at the viewing {code} - {property} - on {when} ({tz}). No problem "
+               "at all: reply here and I will arrange a new time for you."),
+        NE_ROMAN: ("Namaste{name}. Viewing {code} - {property} - ({when}, {tz}) ma hajur lai bhetna sakiyena. "
+                   "Chinta nagarnuhola, naya samaya chahiyo bhane yahi reply garnuhola."),
+        NE_DEVA: ("नमस्ते{name}। भ्यूइङ {code} - {property} - ({when}, {tz}) मा हजुरलाई भेट्न सकिएन। "
+                  "नयाँ समय चाहियो भने यहीँ जवाफ दिनुहोला।"),
+        'zh': "您好{name}。您未能出席睇樓預約 {code} - {property}（{when}，{tz}）。沒關係，請回覆，我會為您重新安排。",
+    },
+}
+_REASON_LINE = {'en': " Reason: {reason}.", NE_ROMAN: " Karan: {reason}.", NE_DEVA: " कारण: {reason}।",
+                'zh': "原因：{reason}。"}
+STAFF_KINDS = tuple(_STAFF)
+
 _EMAIL_SUBJECT = {'reminder': 'Reminder: your viewing {code} today at {time}',
-                  'followup': 'Your viewing {code} - need a new time?'}
+                  'followup': 'Your viewing {code} - need a new time?',
+                  'staff_cancelled': 'Your viewing {code} was cancelled',
+                  'staff_confirmed': 'Your viewing {code} is confirmed',
+                  'staff_rescheduled': 'Your viewing {code} has a new time',
+                  'staff_created': 'Viewing arranged: {code}',
+                  'staff_completed': 'Thank you for your visit ({code})',
+                  'staff_no_show': 'We missed you at viewing {code}'}
 
 
 # ------------------------------------------------------------------ time helpers
@@ -130,7 +198,8 @@ def _template(table: dict, style: str) -> str:
 
 
 def _fields(appt: Appointment, style: str, tz: ZoneInfo) -> dict:
-    first = (appt.lead.name or '').split()[0] if appt.lead and appt.lead.name else ''
+    who = appt.attendee_name or (appt.lead.name if appt.lead else '') or ''
+    first = who.split()[0] if who.strip() else ''
     if first.lower() in ('whatsapp', 'website', 'customer', 'guest'):
         first = ''
     start = starts_at(appt, tz)
@@ -166,15 +235,19 @@ def _email(appt: Appointment, kind: str, text: str, fields: dict) -> bool:
 
 
 def deliver(appt: Appointment, kind: str, now: datetime) -> str:
-    """Send `kind` ('reminder' | 'followup'). Returns the channel used, '' if only recorded."""
+    """Send `kind` ('reminder' | 'followup' | one of STAFF_KINDS). Returns the channel used, '' if only
+    recorded. The text is always stored in the conversation, so the agent knows what the customer was told."""
     from apps.messaging.models import Message, MessageSender
 
     tz = market_tz(appt.organization)
-    conv = appt.conversation
+    conv = appt.conversation or (appt.lead.conversation if appt.lead_id else None)
     style = reply_style(conv)
     fields = _fields(appt, style, tz)
+    reason = (appt.cancellation_reason or '').strip() if kind == 'staff_cancelled' else ''
+    fields['reason_line'] = _template(_REASON_LINE, style).format(reason=reason[:300]) if reason else ''
     from apps.ai_engine.agent.tone import no_dashes
-    text = no_dashes(_template(_REMINDER if kind == 'reminder' else _FOLLOWUP, style).format(**fields))
+    table = _STAFF.get(kind) or (_REMINDER if kind == 'reminder' else _FOLLOWUP)
+    text = no_dashes(_template(table, style).format(**fields))
 
     channel = ''
     wa_id = None
@@ -251,3 +324,15 @@ def send_missed_followups(now: Optional[datetime] = None) -> int:
         except Exception:
             logger.exception("Follow-up for %s failed", appt.confirmation_code)
     return sent
+
+
+def notify_staff_change(appt: Appointment, kind: str) -> str:
+    """Tell the customer about a change staff made in the dashboard. The dashboard action has already
+    succeeded, so a delivery problem is logged and reported back as '' instead of failing the request."""
+    if kind not in _STAFF:
+        raise ValueError(f"unknown staff change {kind}")
+    try:
+        return deliver(appt, kind, timezone.now())
+    except Exception:
+        logger.exception("Could not notify customer about %s on %s", kind, appt.confirmation_code)
+        return ''

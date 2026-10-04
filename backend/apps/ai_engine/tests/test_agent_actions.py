@@ -65,7 +65,7 @@ def _turn(tools, message):
 
 def _says_name(conv, name):
     """The customer introduces themselves (a booking name must come from the customer)."""
-    Message.objects.create(conversation=conv, sender=MessageSender.CUSTOMER, content=f'Mero naam {name}.')
+    Message.objects.create(conversation=conv, sender=MessageSender.CUSTOMER, content=f'Mero naam {name}. Bholi 11 baje wa 3 baje herna milchha?')
 
 
 def _preview(conv, plot, time='11:00', name='Martas'):
@@ -452,6 +452,7 @@ def test_re043_changed_name_is_prepared_before_the_customer_is_asked(conv, plot)
 
 def test_confirm_in_the_same_turn_as_prepare_is_still_refused(conv, plot):
     """The strict rule stays: a preview created this turn can never be confirmed in this turn."""
+    _says_name(conv, 'Martas')
     t = _turn(RealEstateTools(conv), 'Yes, confirm.')
     day = _tomorrow(conv)
     p = t.prepare_viewing(plot.reference_number, day.isoformat(), '11:00', day.strftime('%A'), name='Martas')
@@ -484,6 +485,7 @@ def test_profile_name_never_becomes_the_booking_name(org, plot):
     c = Conversation.objects.create(organization=org, channel=Channel.WHATSAPP, customer_phone='9779800000077',
                                     customer_name='Eval Customer')
     day = _tomorrow(c)
+    Message.objects.create(conversation=c, sender=MessageSender.CUSTOMER, content='Book it tomorrow at 11 am.')
     t = _turn(RealEstateTools(c), 'Book it tomorrow at 11 am.')
     res = t.prepare_viewing(plot.reference_number, day.isoformat(), '11:00', day.strftime('%A'), name='Eval Customer')
     assert not res['ok'] and 'NAME_NOT_GIVEN' in res['error']
@@ -501,9 +503,9 @@ def test_anything_else_changed_in_the_same_turn_still_needs_a_fresh_yes(conv, pl
     day = _tomorrow(conv)
     if change != 'no_earlier_preview':
         _prior_preview(conv, plot, name='Eval Customer')
-    Message.objects.create(conversation=conv, sender=MessageSender.CUSTOMER, content='Martas.')
+    Message.objects.create(conversation=conv, sender=MessageSender.CUSTOMER, content='Bholi 11 baje. Martas.')
     t = _turn(RealEstateTools(conv), 'Yes, confirm.')
-    time = '15:00' if change == 'time' else '11:00'
+    time ='15:00' if change == 'time' else '11:00'
     p = t.prepare_viewing(plot.reference_number, day.isoformat(), time, day.strftime('%A'), name='Martas')
     res = t.confirm_pending_action(p['preview_id'])
     assert not res['ok'] and 'NOT_CONFIRMED_YET' in res['error'] and Appointment.objects.count() == 0

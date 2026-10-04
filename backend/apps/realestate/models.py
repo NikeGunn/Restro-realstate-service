@@ -539,6 +539,10 @@ class Appointment(models.Model):
     
     # Virtual meeting link (for virtual tours)
     virtual_meeting_url = models.URLField(blank=True)
+
+    # Who is actually coming. A customer may book for someone else ("naam Martas") while the lead
+    # (found by phone) still carries the WhatsApp profile name; staff must see the booked name.
+    attendee_name = models.CharField(max_length=200, blank=True, default='')
     
     # Status
     status = models.CharField(

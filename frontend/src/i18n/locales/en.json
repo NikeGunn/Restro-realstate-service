@@ -1032,8 +1032,11 @@
         "no_show": "{{code}} marked as no-show",
         "created": "Appointment {{code}} created",
         "copied": "Copied {{code}}",
-        "failed": "Action failed"
-      }
+        "failed": "Action failed",
+        "notified": "The customer was told in their chat ({{channel}}).",
+        "notNotified": "Could not reach the customer (no open WhatsApp window or email). It is saved in the chat."
+      },
+      "bookedBy": "booked by {{name}}"
     }
   },
   "landing": {
@@ -1828,6 +1831,106 @@
       "expiredPasses": "Expired passes",
       "suspendedPasses": "Suspended passes",
       "missingReceipt": "Redemptions without a receipt"
+    }
+  },
+  "home": {
+    "nav": {
+      "agent": "How it works",
+      "verticals": "Solutions",
+      "pricing": "Pricing",
+      "live": "Live properties",
+      "signIn": "Sign in",
+      "start": "Start free"
+    },
+    "hero": {
+      "eyebrow": "Agentic AI · Built in Kathmandu",
+      "title": "An AI agent that answers every customer,",
+      "titleEm": "and never makes things up.",
+      "sub": "Kribaat connects WhatsApp, Instagram and your website to an agent that looks up your own listings or menu, checks every price before it replies, books with a real confirmation code and hands the chat to your team the moment it is unsure. In Nepali, English and Chinese.",
+      "ctaPrimary": "Start free",
+      "ctaLive": "See a live agency",
+      "proof1": "Every price checked against your records",
+      "proof2": "Books only after the customer says yes",
+      "proof3": "Your team can take over any chat"
+    },
+    "demo": {
+      "name": "Kribaat Realestate agent",
+      "status": "online · replies in seconds",
+      "aria": "Example conversation with the Kribaat agent",
+      "footer": "Every reply passes the verification gate before it is sent"
+    },
+    "strip": {
+      "channels": "WhatsApp, Instagram and website chat",
+      "languages": "नेपाली · Romanized Nepali · English · 中文",
+      "human": "A person from your team is one tap away"
+    },
+    "agent": {
+      "eyebrow": "How the agent thinks",
+      "title": "Four steps on every message.",
+      "titleEm": "No guessing.",
+      "understand": {
+        "title": "Understand",
+        "body": "Reads the whole chat, the customer's language and script, and what a short \"hunxa\" is answering, even when they long-press an older message."
+      },
+      "lookup": {
+        "title": "Look up",
+        "body": "Calls tools on your live data: listings, photos, free slots, the customer's own bookings. Never from memory."
+      },
+      "verify": {
+        "title": "Verify",
+        "body": "Every price, reference and code in the draft must match a tool result or your knowledge base. If not, it rewrites, or says honestly that it is not recorded."
+      },
+      "act": {
+        "title": "Act",
+        "body": "Shows a preview, waits for the customer's yes, books with a locked re-check and quotes the receipt. Your staff see everything and can step in."
+      }
+    },
+    "verticals": {
+      "eyebrow": "Built for",
+      "title": "Two businesses. One careful agent.",
+      "realEstate": {
+        "title": "Real estate",
+        "body": "Rooms, flats, houses, shops and land. The agent searches your live portfolio, sends real photos and books viewings.",
+        "link": "Visit a live agency"
+      },
+      "restaurant": {
+        "title": "Restaurants",
+        "body": "Menu questions, table bookings and loyalty, answered from your own menu and hours.",
+        "link": "Set up your restaurant"
+      },
+      "isolated": "Each business runs in its own sealed space: a property agent never talks menus, and a restaurant agent never talks listings."
+    },
+    "live": {
+      "eyebrow": "Live now",
+      "title": "Kribaat Realestate runs on Kribaat.",
+      "body": "Rooms, flats, houses, shops and land across Nepal. Search the site, tap Chat on WhatsApp and talk to the agent yourself.",
+      "ne": "नेपालीमा सोध्नुहोस्, नेपालीमै जवाफ पाउनुहुन्छ।",
+      "cta": "Browse live properties"
+    },
+    "features": {
+      "eyebrow": "Included",
+      "title": "The quiet tools behind every good reply"
+    },
+    "cta": {
+      "title": "Give every customer an honest answer,",
+      "titleEm": "in seconds.",
+      "body": "Bring your listings or menu, set your rules, keep your team in control.",
+      "primary": "Start free",
+      "secondary": "Sign in"
+    },
+    "footer": {
+      "tagline": "An AI agent that never makes things up.",
+      "origin": "Built in Kathmandu. Works anywhere.",
+      "live": "Live agency",
+      "land": "Land for sale",
+      "rooms": "Rooms for rent"
+    },
+    "video": {
+      "nav": "Demo",
+      "watch": "Watch the demo",
+      "eyebrow": "Watch the demo",
+      "play": "Play video",
+      "close": "Close video"
     }
   }
 }

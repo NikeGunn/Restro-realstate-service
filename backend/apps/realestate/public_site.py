@@ -14,6 +14,7 @@ URLs (all GET, no auth):
   /realestate/properties/chat/                          count + redirect to wa.me (needs message)
   /sitemap.xml, /robots.txt
 """
+from decimal import Decimal, InvalidOperation
 import json
 import logging
 import re
@@ -43,14 +44,14 @@ REF_RE = re.compile(r'^(prop\d{6})(?:-[a-z0-9-]*)?$', re.I)
 
 # Category landing pages: slug → (filters, H1 / title text, Nepali keyword for search snippets)
 CATEGORIES: Dict[str, dict] = {
-    'rooms-for-rent': dict(type='room', deal='rent', title='Rooms for rent', ne='कोठा भाडामा'),
-    'flats-for-rent': dict(type='apartment', deal='rent', title='Flats & apartments for rent', ne='फ्ल्याट भाडामा'),
-    'houses-for-rent': dict(type='house', deal='rent', title='Houses for rent', ne='घर भाडामा'),
-    'houses-for-sale': dict(type='house', deal='sale', title='Houses for sale', ne='घर बिक्रीमा'),
-    'land-for-sale': dict(type='land', deal='sale', title='Land for sale', ne='जग्गा बिक्रीमा'),
-    'shops-for-rent': dict(type='retail', deal='rent', title='Shops & shutters for rent', ne='सटर भाडामा'),
-    'offices-for-rent': dict(type='office', deal='rent', title='Office space for rent', ne='अफिस भाडामा'),
-    'commercial': dict(type='commercial', deal='', title='Commercial property', ne='व्यापारिक'),
+    'rooms-for-rent': dict(type='room', deal='rent', title='Rooms for rent', ne='कोठा भाडामा', short='Rooms'),
+    'flats-for-rent': dict(type='apartment', deal='rent', title='Flats & apartments for rent', ne='फ्ल्याट भाडामा', short='Flats'),
+    'houses-for-rent': dict(type='house', deal='rent', title='Houses for rent', ne='घर भाडामा', short='Houses to rent'),
+    'houses-for-sale': dict(type='house', deal='sale', title='Houses for sale', ne='घर बिक्रीमा', short='Houses to buy'),
+    'land-for-sale': dict(type='land', deal='sale', title='Land for sale', ne='जग्गा बिक्रीमा', short='Land'),
+    'shops-for-rent': dict(type='retail', deal='rent', title='Shops & shutters for rent', ne='सटर भाडामा', short='Shops'),
+    'offices-for-rent': dict(type='office', deal='rent', title='Office space for rent', ne='अफिस भाडामा', short='Offices'),
+    'commercial': dict(type='commercial', deal='', title='Commercial property', ne='व्यापारिक', short='Commercial'),
 }
 TYPE_LABELS = {
     'room': 'Room', 'apartment': 'Flat', 'house': 'House', 'land': 'Land', 'retail': 'Shop / shutter',
@@ -181,26 +182,73 @@ def _base_qs(org):
             .order_by('-is_featured', '-created_at'))
 
 
+_DEVA_DIGITS = str.maketrans('०१२३४५६७८९', '0123456789')
+_BUDGET_RE = re.compile(r'(\d+(?:\.\d+)?)\s*(crore|cr|करोड|lakhs?|lacs?|लाख|k|thousand|hajar|hazar|हजार)?\b', re.I)
+_UNITS = {'crore': 10_000_000, 'cr': 10_000_000, 'करोड': 10_000_000, 'lakh': 100_000, 'lakhs': 100_000,
+          'lac': 100_000, 'lacs': 100_000, 'लाख': 100_000, 'k': 1_000, 'thousand': 1_000, 'hajar': 1_000,
+          'hazar': 1_000, 'हजार': 1_000}
+
+
+def parse_budget(raw) -> Optional[Decimal]:
+    """'15000', '15,000', 'Rs 15000', '50 lakh', '1.2 crore', '15k', '15 hajar', '५० लाख' -> amount.
+    Unreadable input returns None (the filter is skipped and the page says so) - never a wrong number."""
+    text = str(raw or '').translate(_DEVA_DIGITS).lower().replace(',', '')
+    m = _BUDGET_RE.search(text)
+    if not m:
+        return None
+    try:
+        value = Decimal(m.group(1)) * _UNITS.get((m.group(2) or '').lower(), 1)
+    except InvalidOperation:
+        return None
+    return value if value > 0 else None
+
+
+def _area_groups(q: str):
+    """'Chabahil, Lalitpur' / 'ktm or patan' -> [['Chabahil'], ['Lalitpur']]: any group may match,
+    every word inside a group must. Type and rent/buy words ('kotha', 'bhada') are pulled out."""
+    from apps.ai_engine.agent import vocab
+
+    groups, ptype, deal = [], '', ''
+    for part in re.split(r'[,/;|]+|\s+(?:or|wa|athawa|अथवा)\s+', q):
+        words, t, d = vocab.split_keywords(part)
+        ptype, deal = ptype or t, deal or d
+        words = [vocab.normalize_area(w) for w in words]
+        whole = vocab.normalize_area(part.strip().lower())
+        if whole != part.strip().lower() and whole:      # a multi-word alias ("kathmandu valley")
+            words = [whole]
+        words = [w for w in words if w]
+        if words:
+            groups.append(words[:5])
+    return groups, ptype, deal
+
+
 def _apply_filters(qs, params: dict):
-    if params.get('type') in TYPE_LABELS:
-        qs = qs.filter(property_type=params['type'])
-    if params.get('deal') == 'rent':
+    q = (params.get('q') or '').strip()[:80]
+    groups, q_type, q_deal = _area_groups(q) if q else ([], '', '')
+    ptype = params.get('type') if params.get('type') in TYPE_LABELS else q_type
+    if ptype:
+        qs = qs.filter(property_type=ptype)
+    deal = params.get('deal') or ('' if params.get('deal_set') else q_deal)
+    if deal == 'rent':
         qs = qs.filter(listing_type__in=('rent', 'lease'))
-    elif params.get('deal') == 'sale':
+    elif deal == 'sale':
         qs = qs.filter(listing_type='sale')
     if params.get('city'):
         c = params['city']
         qs = qs.filter(Q(city__iexact=c) | Q(neighborhood__iexact=c) | Q(state__iexact=c))
-    q = (params.get('q') or '').strip()[:80]
-    if q:
-        for word in q.split()[:5]:
-            qs = qs.filter(Q(title__icontains=word) | Q(neighborhood__icontains=word) | Q(city__icontains=word)
-                           | Q(address_line1__icontains=word) | Q(reference_number__iexact=word))
-    try:
-        if params.get('max'):
-            qs = qs.filter(price__lte=float(str(params['max']).replace(',', '')))
-    except ValueError:
-        pass
+    if groups:
+        any_group = Q()
+        for words in groups:
+            group = Q()
+            for word in words:
+                group &= (Q(title__icontains=word) | Q(neighborhood__icontains=word) | Q(city__icontains=word)
+                          | Q(address_line1__icontains=word) | Q(state__icontains=word)
+                          | Q(reference_number__iexact=word))
+            any_group |= group
+        qs = qs.filter(any_group)
+    budget = parse_budget(params.get('max'))
+    if budget:
+        qs = qs.filter(price__lte=budget)
     sort = params.get('sort')
     if sort == 'price_asc':
         qs = qs.order_by('price')
@@ -209,6 +257,24 @@ def _apply_filters(qs, params: dict):
     elif sort == 'newest':
         qs = qs.order_by('-created_at')
     return qs
+
+
+# Rent/buy is relaxed before type: "Rent + Land" should show land for sale, not rooms.
+RELAX_ORDER = (('max', 'without the budget limit'), ('deal', 'for both rent and sale'), ('q', 'in other areas'),
+               ('type', 'of other types'))
+
+
+def closest_matches(org, params: dict, limit: int = 6):
+    """Nothing matches every filter: drop one filter at a time (budget first) and say which one, so a
+    visitor who picked 'Rent + Land' learns land is for sale here instead of meeting an empty page."""
+    for key, label in RELAX_ORDER:
+        if not params.get(key):
+            continue
+        relaxed = dict(params, **{key: ''}, deal_set=params.get('deal_set') and key != 'deal')
+        rows = list(_apply_filters(_base_qs(org), relaxed)[:limit])
+        if rows:
+            return label, rows
+    return '', []
 
 
 def _city_slug(name: str) -> str:
@@ -229,7 +295,7 @@ def _category_counts(org) -> List[dict]:
     for slug, cat in CATEGORIES.items():
         n = _apply_filters(base, cat).count()
         if n:
-            out.append({'slug': slug, 'title': cat['title'], 'ne': cat['ne'], 'count': n})
+            out.append({'slug': slug, 'title': cat['title'], 'short': cat['short'], 'ne': cat['ne'], 'count': n})
     return out
 
 
@@ -277,6 +343,9 @@ def listings(request, category: str = '', city: str = ''):
     if org is None:
         raise Http404('No public listings')
     params = {k: request.GET.get(k, '') for k in ('q', 'deal', 'type', 'max', 'sort')}
+    # "Either" in the hero sends deal="" on purpose: then words like "bhada" in the area box must not
+    # silently narrow it to rentals.
+    params['deal_set'] = 'deal' in request.GET
     cat = None
     if category:
         cat = CATEGORIES.get(category)
@@ -309,9 +378,18 @@ def listings(request, category: str = '', city: str = ''):
         # Filtered/paginated variants point at the clean landing page; noindex avoids thin duplicates.
         'canonical': ctx['site'] + path + (f"?page={page.number}" if page.number > 1 and not filtered else ''),
         'noindex': filtered or total == 0,
-        'querystring': urlencode({k: v for k, v in params.items() if v and k != 'city'}),
+        'querystring': urlencode({k: v for k, v in params.items() if v and k not in ('city', 'deal_set')}),
         'is_home': not category and not city and not filtered,
     })
+    if ctx['is_home']:
+        from apps.showcase.models import ShowcaseVideo
+        ctx['showcase'] = ShowcaseVideo.public(ShowcaseVideo.Placement.PROPERTIES).first()
+    if params.get('max') and parse_budget(params['max']) is None:
+        ctx['budget_ignored'] = params['max']
+    if total == 0 and filtered:
+        label, rows = closest_matches(org, params)
+        ctx['near_label'] = label
+        ctx['near_cards'] = [_card(p) for p in rows]
     ctx['jsonld'] = _script_json(_list_jsonld(ctx))
     return _cache_headers(render(request, 'realestate/public/list.html', ctx))
 

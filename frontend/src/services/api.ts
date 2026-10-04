@@ -1324,3 +1324,20 @@ export const channelsApi = {
     },
   },
 }
+
+// Public showcase videos (uploaded by a superuser in Django admin → Showcase videos)
+export type ShowcaseVideo = {
+  id: string
+  title: string
+  caption: string
+  video_url: string
+  type: string
+  poster_url: string
+}
+
+export const showcaseApi = {
+  list: async (placement: 'landing' | 'properties' = 'landing'): Promise<ShowcaseVideo[]> => {
+    const response = await api.get('/public/showcase/', { params: { placement } })
+    return response.data.videos ?? []
+  },
+}

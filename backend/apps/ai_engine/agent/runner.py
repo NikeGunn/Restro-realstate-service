@@ -14,6 +14,7 @@ import json
 import logging
 import time
 from pathlib import Path
+from datetime import datetime, timedelta
 from typing import Any, Dict, List
 
 from django.conf import settings
@@ -24,6 +25,7 @@ from . import language as reply_lang
 from . import memory as agent_memory
 from . import actions as agent_actions
 from . import capabilities
+from . import dialogue
 from . import tone
 from .tools import RealEstateTools, format_money
 from .verifier import preview_problems, salvage, verify_reply
@@ -32,10 +34,21 @@ logger = logging.getLogger(__name__)
 
 PROMPT_DIR = Path(__file__).resolve().parent / 'prompts'
 MAX_TOOL_ROUNDS = 6
-HISTORY_MESSAGES = 16
 CATALOG_LIMIT = 40          # full one-line catalog in the prompt up to this many active listings
 CARRYOVER_TURNS = 3         # tool results from the last N turns stay usable as evidence
 CARRYOVER_CHARS = 6000
+
+# Context budget. A big window (up to 40 messages) so a long chat stays coherent, but every section
+# has a hard cap so one huge message, knowledge base or tool result can never crowd out the rest.
+# Older turns than the window are folded into AgentMemory.summary (see memory.py) - never dropped.
+HISTORY_MESSAGES = 40
+HISTORY_CHARS = 18000       # newest messages first until this budget is used
+MESSAGE_CHARS = 1500        # one very long message is shortened in the middle
+KNOWLEDGE_CHARS = 9000
+TOOL_RESULT_CHARS = 8000    # what the model sees of one tool result (evidence keeps the full text)
+TEAM_NOTES = 6
+DISCUSSED_LISTINGS = 8      # listings named in the visible chat, with their LIVE status
+RETURN_GAP_HOURS = 6        # customer back after this long → reconnect to where we left off
 
 SAFE_FALLBACK = {
     'en': "I want to be sure I give you accurate information on that. Could you rephrase it, or would you like me to connect you with one of our agents?",
@@ -56,6 +69,23 @@ def _timing_label(t: Dict[str, Any]) -> str:
     m = t['minutes_since_end']
     return (f"TIME PASSED, ended {m // 60}h {m % 60}m ago: never describe it as upcoming or 'confirmed for "
             "today'; ask kindly whether the viewing happened and offer a new time if they missed it")
+
+
+def _ago(delta) -> str:
+    minutes = int(delta.total_seconds() // 60)
+    if minutes < 60:
+        return f"{max(minutes, 1)} min ago"
+    if minutes < 48 * 60:
+        return f"{minutes // 60} h ago"
+    return f"{minutes // (24 * 60)} days ago"
+
+
+def _clip(text: str, limit: int) -> str:
+    """Keep the start and the end of an over-long text (both usually matter)."""
+    if len(text) <= limit:
+        return text
+    head = int(limit * 0.7)
+    return text[:head] + " [...shortened...] " + text[-(limit - head - 20):]
 
 
 def _load(name: str) -> str:
@@ -100,10 +130,10 @@ class RealEstateAgent:
         mem = _load('memory.md').format(
             owner_memory=agent_memory.owner_memory_text(self.organization),
             overrides=overrides,
-            customer_memory=agent_memory.customer_memory_text(self.conversation),
+            customer_memory=self._customer_memory(),
             appointments=appt_text,
         )
-        knowledge = self.svc._get_knowledge_context()
+        knowledge = _clip(self.svc._get_knowledge_context() or '', KNOWLEDGE_CHARS)
         channel_note = ""
         if self.conversation.customer_phone:
             channel_note = (f"\nThe customer's phone is already known ({self.conversation.customer_phone}); "
@@ -113,7 +143,6 @@ class RealEstateAgent:
                              "booking name: before prepare_viewing, ask whose name the viewing should be under "
                              "unless the customer already wrote it.\n")
 
-        from datetime import timedelta
         calendar = "\n".join(
             f"- {(now + timedelta(days=i)):%A %Y-%m-%d}" + (" (today)" if i == 0 else " (tomorrow)" if i == 1 else "")
             for i in range(15)
@@ -134,8 +163,107 @@ class RealEstateAgent:
             "# CAPABILITIES (set by the agency owner - never offer anything outside this)\n"
             + capabilities.describe(self.organization, self.tools.settings),
             "# PENDING DECISION\n" + self._pending_text(),
+            "# TEAM REQUESTS FOR THIS CUSTOMER (staff notes are facts you may repeat)\n" + self._team_text(),
+            "# LISTINGS ALREADY DISCUSSED IN THIS CHAT (newest first, LIVE status now; resolve 'tyo / yo wala / "
+            "that one / the second one' with this, and say so if a price or status changed since)\n"
+            + self._discussed_text(),
             channel_note,
         ])
+
+    def _connect_dots(self, brief) -> None:
+        """What a person would notice before answering: the message the customer pointed at, and how
+        long they were away."""
+        from django.utils import timezone as dj_tz
+
+        quoted = ((getattr(self, 'current_msg', None) and self.current_msg.ai_metadata) or {}).get('reply_to')
+        if quoted and quoted.get('found'):
+            ago = dj_tz.now() - datetime.fromisoformat(quoted['at'])
+            brief.lines.insert(0, (
+                f"The customer long-pressed and REPLIED TO an earlier {quoted['sender']} message from "
+                f"{_ago(ago)}: \"{_clip(quoted['content'], 400)}\". Their message is about THAT message, not "
+                "about the latest topic. Start by tying your answer to it in a few words (e.g. \"About the New "
+                "Road shutter you asked about earlier...\"), re-check anything that may have changed since "
+                "(listing, price, appointment) with a tool, then answer."))
+            brief.quoted = quoted
+        elif quoted:
+            brief.lines.insert(0, "The customer replied to an older message we cannot see any more. If their "
+                                  "message is unclear without it, ask which listing or booking they mean.")
+        prev = getattr(self, 'previous_at', None)
+        if prev and dj_tz.now() - prev > timedelta(hours=RETURN_GAP_HOURS):
+            brief.lines.append(f"The customer is back after {_ago(dj_tz.now() - prev)}. If it helps, connect to "
+                               "where you left off in ONE short line (from LISTINGS ALREADY DISCUSSED, APPOINTMENTS, "
+                               "TEAM REQUESTS), mention anything that changed since, then answer what they asked now.")
+
+    def _discussed_text(self) -> str:
+        """Every listing named in the visible chat, newest mention first, with what it was when we
+        said it and what it is NOW - the dots a person would connect when the customer comes back."""
+        import re as _re
+        from apps.realestate.models import PropertyListing
+
+        seen, order, numbered = {}, [], {}
+        msgs = list(self.conversation.messages.order_by('-created_at')[:HISTORY_MESSAGES])
+        for m in msgs:                                    # newest → oldest
+            refs = _re.findall(r'PROP\d{6}', m.content or '', _re.I)
+            for ref in refs:
+                ref = ref.upper()
+                if ref not in seen:
+                    seen[ref] = m
+                    order.append(ref)
+            if not numbered and m.sender != MessageSender.CUSTOMER:
+                for pos, ref in _re.findall(r'(?m)^\s*(\d+)\.\s*\*?(PROP\d{6})', m.content or ''):
+                    numbered[ref.upper()] = int(pos)
+        if not order:
+            return "(none yet)"
+        listings = {p.reference_number.upper(): p for p in PropertyListing.objects.filter(
+            organization=self.organization, reference_number__in=order[:DISCUSSED_LISTINGS])}
+        lines = []
+        for ref in order[:DISCUSSED_LISTINGS]:
+            p = listings.get(ref)
+            when = seen[ref].created_at
+            pos = f" (#{numbered[ref]} in your latest list)" if ref in numbered else ''
+            if not p:
+                lines.append(f"- {ref}{pos}: no longer in the system")
+                continue
+            live = 'available' if p.status == 'active' and p.is_published else f'NOT available now ({p.status})'
+            rent = p.listing_type in ('rent', 'lease')
+            price = format_money(p.price, self.tools.market) + ('/month' if rent else '')
+            changed = ''
+            if p.updated_at and p.updated_at > when:
+                changed = ' [updated after it was last mentioned: re-check with get_property_details]'
+            lines.append(f"- {ref}{pos}: {p.title}, {p.neighborhood or p.city} - {price} - {live}; last mentioned "
+                         f"{when:%Y-%m-%d %H:%M} UTC by {'customer' if seen[ref].sender == MessageSender.CUSTOMER else 'us'}"
+                         f"{changed}")
+        text = "\n".join(lines)
+        self.evidence.append(text)
+        return text
+
+    def _customer_memory(self) -> str:
+        """Long-term memory, minus anything a stale or foreign past would poison the prompt with
+        (old Hong Kong listings, restaurant bookings from before the org changed business)."""
+        from apps.ai_engine.vertical_guard import clean_memory
+        from apps.realestate.models import PropertyListing
+
+        refs = PropertyListing.objects.filter(organization=self.organization).values_list('reference_number', flat=True)
+        return clean_memory(agent_memory.customer_memory_text(self.conversation), 'real_estate', refs,
+                            self.tools.market['currency'])
+
+    def _team_text(self) -> str:
+        """Open requests the agent passed to staff, and what staff wrote when they resolved one -
+        so a later "did the team send the photos?" is answered from the record, not guessed."""
+        from apps.handoff.models import HandoffAlert
+
+        rows = (HandoffAlert.objects.filter(conversation=self.conversation)
+                .order_by('-created_at')[:TEAM_NOTES])
+        lines = []
+        for a in rows:
+            state = 'resolved' if a.is_resolved else 'open'
+            line = f"- [{state}, {a.created_at:%Y-%m-%d}] {a.reason[:240]}"
+            if a.is_resolved and a.resolution_notes:
+                line += f" -> staff: {a.resolution_notes[:240]}"
+            lines.append(line)
+        text = "\n".join(lines) or "(none)"
+        self.evidence.append(text)
+        return text
 
     def _pending_text(self) -> str:
         action = agent_actions.pending_preview(self.conversation)
@@ -181,18 +309,40 @@ class RealEstateAgent:
         return f"skills/{specific.name}" if market['name'] and specific.exists() else 'skills/real_estate.md'
 
     def _history(self, current: str) -> List[Dict[str, str]]:
-        msgs = list(self.conversation.messages.order_by('-created_at')[:HISTORY_MESSAGES])
-        msgs.reverse()
+        """Newest messages first, within HISTORY_MESSAGES and HISTORY_CHARS. Messages from staff and
+        automatic notices (reminders, "our team cancelled your viewing") are labelled, so the model
+        knows the customer was told them and does not contradict them."""
+        msgs = list(self.conversation.messages.order_by('-created_at')[:HISTORY_MESSAGES + 1])
         # The channel saved the current inbound message before calling us - drop it
         # so the model doesn't see the same user turn twice.
-        if msgs and msgs[-1].sender == MessageSender.CUSTOMER and msgs[-1].content.strip() == current.strip():
-            msgs = msgs[:-1]
-        out = []
-        for m in msgs:
-            if not (m.content or '').strip():
+        self.current_msg = None
+        if msgs and msgs[0].sender == MessageSender.CUSTOMER and msgs[0].content.strip() == current.strip():
+            self.current_msg = msgs[0]
+            msgs = msgs[1:]
+        self.previous_at = msgs[0].created_at if msgs else None
+        msgs = msgs[:HISTORY_MESSAGES]
+        out, used = [], 0
+        for m in msgs:                       # newest → oldest
+            text = (m.content or '').strip()
+            if not text:
                 continue
-            role = 'user' if m.sender == MessageSender.CUSTOMER else 'assistant'
-            out.append({'role': role, 'content': m.content})
+            text = _clip(text, MESSAGE_CHARS)
+            quoted = (m.ai_metadata or {}).get('reply_to') if m.sender == MessageSender.CUSTOMER else None
+            if quoted and quoted.get('found'):
+                text = f"[replying to the {quoted['sender']} message \"{_clip(quoted['content'], 200)}\"] " + text
+            if m.sender == MessageSender.HUMAN:
+                text = "[Message from our staff to the customer] " + text
+            elif m.sender == MessageSender.SYSTEM:
+                text = "[Automatic notice sent to the customer] " + text
+            if used + len(text) > HISTORY_CHARS and out:
+                break
+            used += len(text)
+            out.append({'role': 'user' if m.sender == MessageSender.CUSTOMER else 'assistant', 'content': text,
+                        '_at': m.created_at})
+        out.reverse()
+        self.history_oldest_at = out[0]['_at'] if out else None
+        for o in out:
+            o.pop('_at')
         return out
 
     # ---------------------------------------------------------------- loop
@@ -250,7 +400,7 @@ class RealEstateAgent:
                 if name == 'confirm_pending_action' and result.get('ok') and not result.get('already_done'):
                     entry['receipt'] = result.get('receipt')
                 self.tool_trace.append(entry)
-                messages.append({'role': 'tool', 'tool_call_id': c.id, 'content': payload})
+                messages.append({'role': 'tool', 'tool_call_id': c.id, 'content': _clip(payload, TOOL_RESULT_CHARS)})
         self.tokens = tokens
         return ''
 
@@ -270,11 +420,15 @@ class RealEstateAgent:
             user_message, [m['content'] for m in history if m['role'] == 'user'], fallback=language)
         messages = [{'role': 'system', 'content': self._system_prompt(language)}]
         messages += history
+        self.brief = dialogue.analyse(user_message, history,
+                                      pending_preview=agent_actions.pending_preview(self.conversation) is not None)
+        self._connect_dots(self.brief)
         # Last word before the customer's message, so it outweighs the language of older turns.
         messages.append({'role': 'system', 'content': (
             "REPLY LANGUAGE FOR THIS TURN: " + reply_lang.instruction_for(self.reply_style)
             + " Answer the customer's actual question with real data from PORTFOLIO/tools first; "
-              "ask at most ONE follow-up question after that.")})
+              "ask at most ONE follow-up question after that.\n"
+            "TURN BRIEF (decided by the system from this conversation - binding):\n" + self.brief.text())})
         messages.append({'role': 'user', 'content': user_message})
         # What the customer said is legitimate evidence (e.g. echoing their own budget).
         self.evidence.extend([m['content'] for m in history if m['role'] == 'user'] + [user_message])
@@ -331,7 +485,8 @@ class RealEstateAgent:
             'content': reply,
             'confidence': 0.95 if verified and not escalation else 0.5,
             'intent': intent,
-            'metadata': {'source': 'realestate_agent', 'tools': self.tool_trace,
+            'metadata': {'source': 'realestate_agent', 'tools': self.tool_trace, 'reply_style': self.reply_style,
+                         'vertical_checked': verified,
                          'actions': self.tools.actions, 'verified': verified},
             'needs_handoff': bool(escalation),
             'handoff_reason': (escalation or {}).get('reason', ''),
@@ -355,6 +510,8 @@ class RealEstateAgent:
             error='' if verified else 'gate:' + '; '.join(gate.problems if gate else ['empty']),
             language=language,
             context_extra={'reply_style': self.reply_style, 'tools': self.tool_trace,
+                           'brief': getattr(self, 'brief', None) and self.brief.lines,
+                           'context_chars': sum(len(str(m.get('content') or '')) for m in messages),
                            'tone_problems': getattr(self, 'tone_problems', []),
                            'tool_facts': self.tool_facts[-4:], 'suppressed': suppressed},
         )
@@ -432,14 +589,13 @@ class RealEstateAgent:
         from apps.ai_engine.models import AgentMemory
 
         try:
-            total = self.conversation.messages.count()
-            if total <= HISTORY_MESSAGES:
-                return
+            oldest_in_window = getattr(self, 'history_oldest_at', None)
+            if oldest_in_window is None or not self.conversation.messages.filter(
+                    created_at__lt=oldest_in_window).exists():
+                return  # everything still fits in the window
             key = agent_memory.customer_key(self.conversation)
             mem = AgentMemory.objects.filter(organization=self.organization, subject_type='customer',
                                              subject_key=key).first()
-            oldest_in_window = (self.conversation.messages.order_by('-created_at')
-                                .values_list('created_at', flat=True)[HISTORY_MESSAGES - 1])
             if mem and mem.summarized_until and mem.summarized_until >= oldest_in_window:
                 return
             from apps.ai_engine.tasks import summarize_customer_memory_task
@@ -457,6 +613,18 @@ class RealEstateAgent:
         pending = agent_actions.pending_preview(self.conversation)
         for problem, span in preview_problems(reply, pending.payload if pending else None, confirmed):
             gate.fail(problem, span)
+        from apps.ai_engine.vertical_guard import off_vertical
+        said = [m.content for m in self.conversation.messages.filter(sender=MessageSender.CUSTOMER)
+                .order_by('-created_at')[:20]] + [getattr(self.tools, 'current_message', '')]
+        leaked = off_vertical('real_estate', reply, said + self.evidence)  # listing facts may say 'restaurant'
+        if leaked:
+            gate.fail(f"OFF_VERTICAL: this is a property agency; never mention {', '.join(leaked)}. If the "
+                      "customer asks about something else, say politely that you help with property only.", fatal=True)
+        brief = getattr(self, 'brief', None)
+        if brief is not None:
+            for problem in dialogue.problems(reply, brief, [t['tool'] for t in self.tool_trace],
+                                             [t['tool'] for t in self.tool_trace if t.get('ok')]):
+                gate.fail(problem, fatal=True)
         return gate
 
     def _has_appts(self) -> bool:

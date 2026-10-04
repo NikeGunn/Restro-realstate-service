@@ -44,9 +44,15 @@ a{color:inherit}img{max-width:100%;display:block}
 .brand{display:flex;align-items:center;gap:10px;text-decoration:none;font:700 19px/1 var(--serif);letter-spacing:-.01em}
 .brand svg{flex:none}
 .brand small{display:block;font:600 10px/1 var(--sans);letter-spacing:.18em;text-transform:uppercase;color:var(--brick);margin-top:4px}
-.nav{display:flex;gap:4px;margin-left:auto;overflow-x:auto;scrollbar-width:none}
-.nav a{padding:8px 12px;border-radius:999px;text-decoration:none;font-weight:600;font-size:14px;white-space:nowrap;color:var(--muted)}
+.nav{display:none;gap:2px;margin-left:auto;min-width:0}
+@media(min-width:1040px){.nav{display:flex}}
+.nav a{padding:8px 12px;border-radius:999px;text-decoration:none;font-weight:600;font-size:14px;white-space:nowrap;color:var(--muted);transition:background .15s,color .15s}
 .nav a:hover,.nav a[aria-current=page]{background:var(--paper-2);color:var(--ink)}
+.nav a.agent{color:var(--pine)}
+.nav a.agent::before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--wa);margin-right:7px;vertical-align:1px;box-shadow:0 0 0 3px rgba(18,140,74,.18);animation:pulse 2.4s infinite}
+@keyframes pulse{50%{box-shadow:0 0 0 6px rgba(18,140,74,0)}}
+.top .wrap>.btn{margin-left:auto;white-space:nowrap;flex:none}
+@media(min-width:1040px){.top .wrap>.btn{margin-left:8px}}
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:0;cursor:pointer;text-decoration:none;
   font:700 15px/1 var(--sans);padding:14px 20px;border-radius:999px;transition:transform .15s,background .15s,box-shadow .15s}
 .btn:active{transform:translateY(1px)}
@@ -96,11 +102,22 @@ h1,h2{font-family:var(--serif);letter-spacing:-.02em;margin:0}
 .crumbs a{text-decoration:none}.crumbs a:hover{text-decoration:underline}
 
 /* footer */
-.foot{margin-top:40px;background:var(--ink);color:#D9D3C4;padding:48px 0 calc(40px + env(safe-area-inset-bottom))}
-.foot a{color:#F5F0E6;text-decoration:none}.foot a:hover{text-decoration:underline}
-.foot .cols{display:grid;gap:28px;grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}
-.foot h4{font:600 13px/1 var(--sans);letter-spacing:.16em;text-transform:uppercase;color:var(--gold);margin:0 0 14px}
-.foot ul{list-style:none;margin:0;padding:0;display:grid;gap:8px;font-size:14.5px}
+.foot{margin-top:40px;background:var(--ink);color:#C9C3B3;padding:0 0 calc(28px + env(safe-area-inset-bottom));position:relative}
+.foot a{color:#F5F0E6;text-decoration:none;transition:color .15s}.foot a:hover{color:var(--gold)}
+.foot .cols{display:grid;gap:36px 28px;grid-template-columns:1fr 1fr;padding-top:8px}
+@media(min-width:900px){.foot .cols{grid-template-columns:1.5fr 1fr 1fr 1fr;gap:40px}}
+.foot .brandcol{grid-column:1/-1}
+@media(min-width:900px){.foot .brandcol{grid-column:auto}}
+.foot h4{font:700 12px/1 var(--sans);letter-spacing:.18em;text-transform:uppercase;color:var(--gold);margin:0 0 16px}
+.foot ul{list-style:none;margin:0;padding:0;display:grid;gap:10px;font-size:14.5px}
+.foot ul.two{grid-template-columns:1fr 1fr;column-gap:16px}
+.foot .ne{opacity:.55;font-size:13px}
+.foot .lead{font:400 15px/1.6 var(--sans);margin:14px 0 18px;max-width:34ch}
+.foot .contact{display:grid;gap:6px;font-size:14px}
+.foot .agentcard{margin-top:18px;display:flex;gap:12px;align-items:center;background:rgba(245,240,230,.06);border:1px solid rgba(245,240,230,.12);border-radius:14px;padding:12px 14px;font-size:13.5px;line-height:1.45;max-width:340px}
+.foot .agentcard b{color:#fff;font-weight:600}
+.foot .bottom{display:flex;flex-wrap:wrap;gap:10px 24px;justify-content:space-between;align-items:center;border-top:1px solid rgba(245,240,230,.12);margin-top:44px;padding-top:22px;font-size:13px}
+.foot .bottom nav{display:flex;gap:18px;flex-wrap:wrap}
 .ridge{display:block;width:100%;height:auto;color:var(--pine)}
 
 .fab{position:fixed;right:16px;bottom:calc(16px + env(safe-area-inset-bottom));z-index:40;border-radius:999px;box-shadow:0 14px 30px -12px rgba(18,140,74,.9)}
@@ -119,7 +136,8 @@ h1,h2{font-family:var(--serif);letter-spacing:-.02em;margin:0}
       <span>{{ org.name }}<small>Nepal property</small></span>
     </a>
     <nav class="nav" aria-label="Property categories">
-      {% for c in categories_nav|slice:":5" %}<a href="/realestate/properties/{{ c.slug }}/"{% if category == c.slug %} aria-current="page"{% endif %}>{{ c.title }}</a>{% endfor %}
+      {% for c in categories_nav|slice:":5" %}<a href="/realestate/properties/{{ c.slug }}/" title="{{ c.title }}"{% if category == c.slug %} aria-current="page"{% endif %}>{{ c.short }}</a>{% endfor %}
+      <a class="agent" href="/realestate/properties/#how">AI agent</a>
     </nav>
     {% if wa_general %}<a class="btn btn-wa btn-sm" href="{{ wa_general }}" rel="nofollow noopener" target="_blank">{% include "realestate/public/_wa_icon.html" %} Chat on WhatsApp</a>{% endif %}
   </div>
@@ -128,21 +146,38 @@ h1,h2{font-family:var(--serif);letter-spacing:-.02em;margin:0}
 {% block content %}{% endblock %}
 </main>
 <footer class="foot">
+  <svg class="ridge" viewBox="0 0 1440 70" preserveAspectRatio="none" aria-hidden="true" style="height:70px;color:var(--paper);background:var(--ink);transform:translateY(-1px)"><path d="M0 0 H1440 V22 L1350 46 L1250 26 L1150 50 L1060 18 L960 52 L850 28 L760 44 L660 8 L560 48 L470 24 L380 46 L300 14 L190 44 L110 30 L0 52 Z" fill="currentColor"/></svg>
   <div class="wrap">
-    <svg class="ridge" viewBox="0 0 1200 60" preserveAspectRatio="none" aria-hidden="true" style="color:#2E6A57;margin-bottom:28px"><path d="M0 58 L90 30 L150 44 L240 8 L300 36 L380 18 L470 46 L560 4 L640 34 L720 20 L800 50 L890 12 L960 38 L1040 22 L1120 46 L1200 26" fill="none" stroke="currentColor" stroke-width="2"/></svg>
     <div class="cols">
-      <div>
-        <h4>{{ org.name }}</h4>
-        <p style="margin:0 0 10px;font-size:14.5px">Rooms, flats, houses, shops and land across Nepal. Ask in English or <span class="deva">नेपाली</span>, we reply on WhatsApp.</p>
-        {% if office %}<p style="margin:0;font-size:14px">{{ office.name }}{% if office.address_line1 %}, {{ office.address_line1 }}{% endif %}{% if office.city %}, {{ office.city }}{% endif %}</p>{% endif %}
-        {% if wa_number %}<p style="margin:6px 0 0;font-size:14px">WhatsApp: <a href="{{ wa_general }}" rel="nofollow noopener" target="_blank">+{{ wa_number }}</a></p>{% endif %}
+      <div class="brandcol">
+        <a class="brand" href="/realestate/properties/" style="color:#fff" aria-label="{{ org.name }}, all properties">
+          <svg width="34" height="34" viewBox="0 0 34 34" aria-hidden="true"><rect width="34" height="34" rx="10" fill="#F5F0E6"/><path d="M5 25 L13 13 L18 19 L22 14 L29 25 Z" fill="#C99A3C"/><path d="M13 13 L15.5 16.6 L11.2 16.6 Z M22 14 L24 17 L20.3 17 Z" fill="#14231F"/></svg>
+          <span>{{ org.name }}<small style="color:var(--gold)">Nepal property</small></span>
+        </a>
+        <p class="lead">Rooms, flats, houses, shops and land across Nepal. Ask in English or <span class="deva">नेपाली</span>; our AI agent replies on WhatsApp with real prices and photos.</p>
+        <div class="contact">
+          {% if office %}<span>{{ office.name }}{% if office.address_line1 %}, {{ office.address_line1 }}{% endif %}{% if office.city %}, {{ office.city }}{% endif %}</span>{% endif %}
+          {% if wa_number %}<span>WhatsApp <a href="{{ wa_general }}" rel="nofollow noopener" target="_blank">+{{ wa_number }}</a></span>{% endif %}
+        </div>
       </div>
-      <div><h4>Browse</h4><ul>{% for c in categories_nav %}<li><a href="/realestate/properties/{{ c.slug }}/">{{ c.title }}</a> <span class="deva" style="opacity:.6">· {{ c.ne }}</span></li>{% endfor %}</ul></div>
-      <div><h4>Places</h4><ul>{% for c in cities_nav|slice:":8" %}<li><a href="/realestate/properties/?q={{ c.name|urlencode }}">{{ c.name }}</a> <span style="opacity:.6">({{ c.count }})</span></li>{% endfor %}</ul></div>
+      <div><h4>Browse</h4><ul>{% for c in categories_nav %}<li><a href="/realestate/properties/{{ c.slug }}/">{{ c.title }}</a> <span class="deva ne">{{ c.ne }}</span></li>{% endfor %}</ul></div>
+      <div><h4>Places</h4><ul class="two">{% for c in cities_nav|slice:":10" %}<li><a href="/realestate/properties/?q={{ c.name|urlencode }}">{{ c.name }}</a> <span class="ne">{{ c.count }}</span></li>{% endfor %}</ul></div>
+      <div><h4>AI agent</h4><ul>
+        <li><a href="/realestate/properties/#how">How it works</a></li>
+        {% if wa_general %}<li><a href="{{ wa_general }}" rel="nofollow noopener" target="_blank">Chat on WhatsApp</a></li>
+        <li><a href="{{ wa_general_ne }}" rel="nofollow noopener" target="_blank" class="deva">नेपालीमा कुरा गर्नुहोस्</a></li>{% endif %}
+        <li><a href="/">Kribaat for businesses</a></li>
+      </ul>
+        <div class="agentcard"><svg width="30" height="30" viewBox="0 0 34 34" aria-hidden="true" style="flex:none"><rect width="34" height="34" rx="10" fill="#1F4D3F"/><path d="M9 17.5l5 5 11-11" fill="none" stroke="#C99A3C" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg><span><b>Every price is checked.</b> The agent only quotes what is in our records, and a person takes over whenever you ask.</span></div>
+      </div>
     </div>
-    <p style="margin:34px 0 0;font-size:13px;opacity:.7">© {% now "Y" %} {{ org.name }} · Listing details are as recorded by the agency; confirm with our team before any payment. · <a href="/">Powered by Kribaat</a></p>
+    <div class="bottom">
+      <span>© {% now "Y" %} {{ org.name }}. Listing details are as recorded by the agency; confirm with our team before any payment.</span>
+      <nav aria-label="Footer"><a href="/realestate/properties/sitemap.xml">Sitemap</a><a href="/privacy">Privacy</a><a href="/">Powered by Kribaat</a></nav>
+    </div>
   </div>
 </footer>
 {% block fab %}{% if wa_general %}<a class="btn btn-wa fab" href="{{ wa_general }}" rel="nofollow noopener" target="_blank" aria-label="Chat with us on WhatsApp">{% include "realestate/public/_wa_icon.html" %} Chat</a>{% endif %}{% endblock %}
+{% block scripts %}{% endblock %}
 </body>
 </html>

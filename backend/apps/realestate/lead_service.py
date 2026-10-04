@@ -539,6 +539,7 @@ class AppointmentService:
                 appointment_time=parsed_time,
                 duration_minutes=extracted_data.get('duration', 60),
                 notes=extracted_data.get('notes', ''),
+                attendee_name=(extracted_data.get('customer_name') or '').strip()[:200],
                 status=Appointment.Status.SCHEDULED
             )
             

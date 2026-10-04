@@ -100,6 +100,13 @@ Loop per message: build prompt → model calls tools → real results → draft 
 - Staff takeover during a run → reply `suppressed`; every channel stays silent.
 - Restaurant path: `ai_engine/booking_guard.py` blocks "table booked" claims without complete data
   and quotes the real booking code (fixes the 2026-06 false-confirmation screenshot).
+- `dialogue.py`: deterministic turn state (a "hunxa" answers WHICH offer, photo request, "check again",
+  long-press quote, customer back after hours) → binding TURN BRIEF + post-draft checks (repeated question,
+  team promise without `request_team_followup`, photo claims without the photo tool).
+- `ai_engine/vertical_guard.py`: restaurant and real-estate never leak into each other (output guard,
+  memory cleaning); `ai_engine/signals.py` clears customer memory when an org changes business type.
+- Staff actions in the dashboard are messaged to the customer and land in the agent's history
+  (`realestate/appointment_notifications.notify_staff_change`).
 - `vocab.py`: customer words → enums (jagga→land, kotha→room, ghar→house, shutter→retail, ktm→Kathmandu).
 - `language.py`: deterministic reply language (Devanagari / Romanized Nepali / English / Chinese),
   sticky across neutral replies like "10000".
@@ -126,6 +133,11 @@ Loop per message: build prompt → model calls tools → real results → draft 
   `media.kribaat.com` by `realestate/media_proxy.py` (old `pub-296eb79cd8404023a4b91caa9c0e6bd0.r2.dev` URLs still work), re-encoded JPEG ≤1600px, EXIF/GPS stripped.
   Falls back to the media-pvc if any `R2_*` setting is missing. WhatsApp sends them as image messages.
   r2.dev blocks Python's default user-agent (error 1010) — test with a browser/`facebookexternalua` UA.
+
+**Brand:** `brand-memory.md` (repo root) is the source of truth for colours, fonts, voice and video style;
+Tailwind tokens `kb-*`, `font-display` (Fraunces), `font-brand` (Hanken Grotesk).
+**Showcase videos:** `apps/showcase` (Django admin, superusers only) → `/api/public/showcase/` →
+kribaat.com "Watch the demo" + property site; files served from `media.kribaat.com/showcase/` (ranges).
 
 ## Frontend (`frontend/src/`)
 

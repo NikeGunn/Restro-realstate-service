@@ -40,6 +40,17 @@ export default {
           DEFAULT: "hsl(var(--popover))",
           foreground: "hsl(var(--popover-foreground))",
         },
+        kb: {
+          paper: "#F5F0E6", paper2: "#EDE4D3", card: "#FFFDF8", ink: "#14231F", pine: "#1F4D3F",
+          pine2: "#2E6A57", brick: "#B4532A", brick2: "#8F3E1D", gold: "#C99A3C", muted: "#5F6159",
+          line: "#DDD2BF", wa: "#128C4A",
+        },
+      },
+      // Kribaat brand (brand-memory.md at the repo root is the source of truth).
+      fontFamily: {
+        display: ["Fraunces", "Georgia", "serif"],
+        brand: ['"Hanken Grotesk"', '"Noto Sans Devanagari"', "system-ui", "sans-serif"],
+        deva: ['"Noto Sans Devanagari"', '"Hanken Grotesk"', "sans-serif"],
       },
       borderRadius: {
         lg: "var(--radius)",
@@ -66,12 +77,17 @@ export default {
           "0%, 100%": { transform: "translateY(0)" },
           "50%": { transform: "translateY(-10px)" },
         },
+        rise: {
+          from: { opacity: "0", transform: "translateY(14px)" },
+          to: { opacity: "1", transform: "none" },
+        },
       },
       animation: {
         "marquee-left": "marquee-left var(--marquee-duration, 60s) linear infinite",
         "marquee-right": "marquee-right var(--marquee-duration, 60s) linear infinite",
         "aurora-drift": "aurora-drift 18s ease-in-out infinite",
         "float-y": "float-y 6s ease-in-out infinite",
+        rise: "rise .7s cubic-bezier(.2,.7,.2,1) both",
       },
     },
   },

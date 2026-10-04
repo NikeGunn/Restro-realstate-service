@@ -120,7 +120,44 @@ Root causes fixed (prod chats: "jagga" → English "could you clarify?" loop; in
 - Prod verified: public site, sitemap, media.kribaat.com (TLS issued), the original property save
   (200), missed-viewing follow-up delivered and read on WhatsApp.
 
+## Shipped (2026-10-04, round 6): dialogue state, staff→chat sync, vertical isolation, new web
+
+Root causes from the prod chat of 2026-10-04 (see the tests named after each):
+- **Restaurant "menu" reply on a land agency**: the inventory firewall ran for every org ("storage",
+  "water supply" tripped it) → restaurant orgs only. Customer memory was built from archived restaurant
+  chats + an old HK portfolio → summarizer skips archived chats, `vertical_guard.clean_memory()` filters
+  the prompt, business-type change clears customer memory (`ai_engine/signals.py`), and every reply passes
+  `vertical_guard` (agent gate + shared exit in `AIService.process_message`).
+- **"Yes / hunxa" answered with the same question**: new `agent/dialogue.py` resolves the turn in code
+  (yes to which offer, photo request, "check again") into a binding TURN BRIEF; `dialogue.problems()` rejects
+  repeated questions, team promises without a record, photo claims without the photo tool, ignored rechecks.
+- **"Request sent to the team" with nothing recorded** → new tool `request_team_followup` (HandoffAlert,
+  AI keeps chatting); staff resolution notes show up in the agent prompt.
+- **Booking name lost** (lead found by phone kept the profile name) → `Appointment.attendee_name`.
+- **Staff cancelled in the dashboard, customer never told, agent said "not in the record"** → every
+  dashboard confirm/cancel/complete/no-show/reschedule/create messages the customer in their language
+  (`appointment_notifications.notify_staff_change`), is stored in the chat, and `get_my_appointments`
+  returns `recently_changed` with who cancelled and why.
+- **"gardeu / voli" answered in English**; bare "yes" flipped Nepali chats to English → language.py.
+- **Agent picked a viewing time the customer never chose** → `TIME_NOT_CHOSEN` in `prepare_viewing`.
+- **Long-press replies** (WhatsApp `context.id`, Instagram `reply_to.mid`) resolved by
+  `messaging/reply_context.py`; the agent is told which message was quoted and replies as a quote; sent photo
+  ids are stored. Prompt adds LISTINGS ALREADY DISCUSSED (live status, "#2 in your latest list", changed since).
+- Context: up to 40 messages within an 18k-char budget, clipped long messages / tool results / knowledge,
+  summarizer input capped at 30k chars; `context_chars` logged per turn.
+- Public site: budgets in lakh/crore/hajar, comma/"or" areas, ktm/patan aliases, type words in the search box,
+  closest matches instead of empty pages, Rent+Land auto-switch, short nav, new footer and hero copy.
+- kribaat.com landing redesigned (brand-memory.md), live agent demo, links to the property site.
+- Showcase videos: Django admin → Showcase videos (superusers only), up to 48 MB MP4, served with range
+  requests from media.kribaat.com/showcase/; shown on kribaat.com "Watch the demo" and the property site.
+- Prod data: 123 CC0 / public-domain photos (Openverse) added so every listing has 4-5 photos.
+- Tests: 1100+ backend; live evals PROD-01..12 and REPLY-01..03 added.
+
 ## Next session (start here)
+
+0. Produce the launch film (Higgsfield + HyperFrames, brand-memory.md) and upload it in Django admin →
+   Showcase videos (placement: kribaat.com landing page). Keep it ≤ 48 MB (1080p H.264 ~5 Mbps).
+   Add a 16:9 cover image so the poster frame is not blank.
 
 1. Run `python manage.py run_agent_evals --repeat 3` on prod after this deploy; RE-043 should be 3/3.
 2. Settings screen for AgentSettings (bookings on/off, staff approval, viewing hours, daily cap).

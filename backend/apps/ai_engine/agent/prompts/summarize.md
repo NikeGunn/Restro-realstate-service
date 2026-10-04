@@ -11,6 +11,8 @@ Rules:
 - Write in English, third person, as short dated bullet points grouped under:
   Profile · Requirements · Properties discussed · Appointments · Open items · Timeline of contact
 - Do not invent anything that is not in the inputs. Max ~350 words.
+- This is a PROPERTY agency. Drop anything about restaurants, menus, tables or food orders, and any
+  listing that the transcript shows was from another market or currency.
 
 EXISTING SUMMARY:
 {existing}

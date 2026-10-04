@@ -148,6 +148,10 @@ class InstagramService:
             sender_name
         )
         
+        # Swipe-reply: Instagram names the message being answered in reply_to.mid.
+        from apps.messaging.reply_context import resolve as resolve_reply
+        reply_to = resolve_reply(conversation, (message.get('reply_to') or {}).get('mid', ''))
+
         # Create message
         msg = Message.objects.create(
             conversation=conversation,
@@ -158,7 +162,8 @@ class InstagramService:
                 'ig_message_id': message_id,
                 'sender_id': sender_id,
                 'recipient_id': recipient_id,
-                'timestamp': timestamp
+                'timestamp': timestamp,
+                **({'reply_to': reply_to} if reply_to else {}),
             }
         )
         

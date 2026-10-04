@@ -563,6 +563,10 @@ export interface Appointment {
   lead: string;
   lead_name: string;
   lead_phone: string;
+  /** Name the viewing was booked under (may differ from the lead, e.g. booked for a friend). */
+  attendee_name?: string;
+  /** Set on staff actions: the channel the customer was told on, or null if not delivered. */
+  customer_notified_via?: string | null;
   property_listing: string | null;
   property_title: string | null;
   property_address: string | null;

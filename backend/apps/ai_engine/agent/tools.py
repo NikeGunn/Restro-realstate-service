@@ -25,6 +25,8 @@ from . import memory as agent_memory
 logger = logging.getLogger(__name__)
 
 SEARCH_LIMIT = 5
+RECENT_APPT_CHANGES = timedelta(days=14)
+TEAM_REQUEST_DEDUPE = timedelta(hours=12)
 GENERIC_ANYWHERE = {'anywhere', 'any', 'all', 'everywhere', 'all areas', 'any area', 'kahi pani', 'jaha pani', 'जहाँ पनि'}
 
 # Per-market conventions, chosen from the org's primary location country. Data-driven so
@@ -416,11 +418,21 @@ class RealEstateTools:
         phone = self._phone('')
         if not phone:
             return {'ok': False, 'error': 'Customer phone unknown - ask for the phone number used to book.'}
-        appts = Appointment.objects.filter(
+        today = self.now().date()
+        active = Appointment.objects.filter(
             organization=self.organization, lead__phone=phone, status__in=actions.ACTIVE_APPT,
-            appointment_date__gte=self.now().date(),
-        ).select_related('property_listing').order_by('appointment_date', 'appointment_time')[:5]
-        return {'ok': True, 'appointments': [self._appt(a) for a in appts]}
+            appointment_date__gte=today - timedelta(days=1),
+        ).select_related('property_listing').order_by('appointment_date', 'appointment_time')[:6]
+        # Root cause 2026-10-04: staff cancelled a booking in the dashboard and the agent, seeing only
+        # active rows, told the customer it "was not in the record". Recent changes are shown too.
+        recent = Appointment.objects.filter(
+            organization=self.organization, lead__phone=phone,
+            updated_at__gte=timezone.now() - RECENT_APPT_CHANGES,
+        ).exclude(status__in=actions.ACTIVE_APPT).select_related('property_listing').order_by('-updated_at')[:4]
+        return {'ok': True, 'appointments': [self._appt(a) for a in active],
+                'recently_changed': [self._appt(a) for a in recent],
+                'note': 'recently_changed are NOT active. Tell the customer exactly what happened (e.g. cancelled '
+                        'by our team, with the reason) and offer a new time.'}
 
     # ================================================================= writes
     def save_lead(self, intent: str, name: str = '', phone: str = '', email: str = '',
@@ -491,6 +503,12 @@ class RealEstateTools:
         if t.strftime('%H:%M') not in slots['free_slots']:
             return {'ok': False, 'error': 'SLOT_UNAVAILABLE', 'free_slots_that_day': slots['free_slots'],
                     'note': 'Tell the customer that time is not available and offer these. Do not pick one for them.'}
+        if not self._time_from_customer(t):
+            # Prod 2026-10-03: "Yes go ahead" (to "details or a viewing?") became a viewing at 11:00 the
+            # customer never chose. A time is the customer's decision unless they delegate it.
+            return {'ok': False, 'error': 'TIME_NOT_CHOSEN: the customer has not chosen this time.',
+                    'free_slots_that_day': slots['free_slots'],
+                    'note': 'Offer these free times and let the customer pick (or say "any time is fine").'}
         payload = {
             'listing_id': str(p.id), 'reference': p.reference_number, 'title': p.title,
             'price_seen': format_money(p.price, self.market), 'date': d.isoformat(), 'weekday': d.strftime('%A'),
@@ -577,6 +595,30 @@ class RealEstateTools:
         return {'ok': True, 'cleared': bool(updated),
                 'note': 'Saved preferences and chat summary cleared. Existing appointments and inquiries are '
                         'not affected - say so.'}
+
+    def request_team_followup(self, request: str, reference: str = '') -> Dict[str, Any]:
+        """Record something the customer wants from the TEAM (more photos, a fact that is not recorded,
+        a callback). Staff see it as an alert; the AI keeps handling the chat."""
+        from apps.handoff.models import HandoffAlert
+
+        request = (request or '').strip()
+        if len(request) < 5:
+            return {'ok': False, 'error': 'Say exactly what the customer wants from the team.'}
+        listing = self._listing(reference) if reference else None
+        reason = f"Customer request for the team: {request[:400]}"
+        if listing:
+            reason += f" [{listing.reference_number} {listing.title}]"
+        existing = HandoffAlert.objects.filter(
+            conversation=self.conversation, is_resolved=False, reason=reason,
+            created_at__gte=timezone.now() - TEAM_REQUEST_DEDUPE).first()
+        alert = existing or HandoffAlert.objects.create(
+            conversation=self.conversation, alert_type=HandoffAlert.AlertType.OTHER,
+            priority=HandoffAlert.Priority.MEDIUM, reason=reason)
+        self.actions.append({'tool': 'request_team_followup', 'alert_id': str(alert.id)})
+        self._remember(f"Asked the team: {request[:150]}" + (f" ({listing.reference_number})" if listing else ''))
+        return {'ok': True, 'recorded': True, 'already_requested': bool(existing),
+                'note': 'Recorded for the team. Say it has been passed on; do NOT promise when they will reply '
+                        'or that the item (e.g. photos) will definitely come.'}
 
     def escalate_to_human(self, reason: str) -> Dict[str, Any]:
         self.escalation = {'reason': (reason or 'customer_request')[:200]}
@@ -686,12 +728,32 @@ class RealEstateTools:
             return True
         return Lead.objects.filter(organization=self.organization, phone=phone, name__iexact=name).exists()
 
+    _DELEGATE_RE = None
+
+    def _time_from_customer(self, t) -> bool:
+        """The hour appears in what the customer wrote recently, or they let us choose ("any one")."""
+        import re as _re
+        from apps.messaging.models import MessageSender
+
+        texts = list(self.conversation.messages.filter(sender=MessageSender.CUSTOMER)
+                     .order_by('-created_at').values_list('content', flat=True)[:8])
+        texts.append(getattr(self, 'current_message', '') or '')
+        blob = ' '.join(texts).lower().translate(str.maketrans('०१२३४५६७८९', '0123456789'))
+        if _re.search(r"\bany\s?(one|time|slot)?\b|\bwhatever\b|you (can )?(choose|pick|decide)|jun ?sukai|"
+                      r"jati ?bela|kunai pani|jahile pani|tapai(le)? (nai )?(choose|chhan|rojnu)|जुनसुकै|जहिले पनि", blob):
+            return True
+        hours = {t.hour, t.hour % 12 or 12}
+        for m in _re.finditer(r"(?<![\d:])(\d{1,2})(?::(\d{2}))?(?![\d])", blob):
+            if int(m.group(1)) in hours and (m.group(2) in (None, t.strftime('%M'))):
+                return True
+        return False
+
     def _source(self) -> str:
         return str(self.conversation.channel or 'website')
 
     def _appt(self, a: Appointment) -> Dict[str, Any]:
         from apps.realestate.appointment_notifications import timing
-        return {
+        out = {
             # Date alone is not enough: "today 11:00" at 13:51 has already happened.
             'timing': timing(a, now=self.now(), tz=self.tz),
             'confirmation_code': a.confirmation_code,
@@ -701,8 +763,20 @@ class RealEstateTools:
             'type': a.get_appointment_type_display(),
             'property': a.property_listing.title if a.property_listing else None,
             'property_reference': a.property_listing.reference_number if a.property_listing else None,
-            'status': 'confirmed' if a.status == Appointment.Status.CONFIRMED else 'awaiting staff approval',
+            'booked_name': a.attendee_name or (a.lead.name if a.lead_id else ''),
+            'status': {Appointment.Status.CONFIRMED: 'confirmed',
+                       Appointment.Status.SCHEDULED: 'awaiting staff approval',
+                       Appointment.Status.COMPLETED: 'completed (marked by our team)',
+                       Appointment.Status.NO_SHOW: 'marked as missed (no-show) by our team'}.get(a.status, a.status),
         }
+        if a.status == Appointment.Status.CANCELLED:
+            by_customer = AgentAction.objects.filter(
+                conversation__organization=self.organization, kind=AgentAction.Kind.CANCEL_APPOINTMENT,
+                status=AgentAction.Status.EXECUTED, payload__code=a.confirmation_code).exists()
+            out['status'] = 'cancelled by the customer in chat' if by_customer else 'cancelled by our team'
+            if a.cancellation_reason and not by_customer:
+                out['cancellation_reason'] = a.cancellation_reason[:300]
+        return out
 
     def registry(self) -> Dict[str, Callable[..., Dict[str, Any]]]:
         allowed = capabilities.allowed_tools(self.organization, self.settings)
@@ -724,6 +798,7 @@ class RealEstateTools:
             'remember_customer_fact': self.remember_customer_fact,
             'forget_my_preferences': self.forget_my_preferences,
             'escalate_to_human': self.escalate_to_human,
+            'request_team_followup': self.request_team_followup,
         }
         return {k: v for k, v in tools.items() if k in allowed}
 
@@ -775,7 +850,7 @@ TOOL_SCHEMAS = [
         {'references': {'type': 'array', 'items': {'type': 'string'}}}, ['references']),
     _fn('get_viewing_slots', 'Free viewing times for a listing on a date. Call before offering or preparing a time.',
         {'reference': {'type': 'string'}, 'date': _DATE}, ['reference', 'date']),
-    _fn('get_my_appointments', 'This customer\'s upcoming appointments (their own only).', {}),
+    _fn('get_my_appointments', 'This customer\'s upcoming appointments AND recent changes (cancelled by our team with reason, completed, missed). Their own only.', {}),
     _fn('save_lead', 'Record an inquiry / callback / seller listing request / non-binding interest for the team. '
         'Only when the customer asked for follow-up.', {
         'intent': {'type': 'string', 'enum': ['buy', 'rent', 'sell', 'invest', 'general']},
@@ -803,6 +878,12 @@ TOOL_SCHEMAS = [
     _fn('remember_customer_fact', 'Persist a durable preference (not listing facts) for future chats.',
         {'fact': {'type': 'string'}}, ['fact']),
     _fn('forget_my_preferences', 'The customer asked you to forget their saved preferences / memory.', {}),
+    _fn('request_team_followup', 'Record a request for the TEAM when the customer wants something you cannot give '
+        'from the data: more/new photos, a not_recorded fact (deposit, road width, water), a callback, a check on '
+        'an appointment. The AI keeps chatting. Call it BEFORE saying anything was passed on.',
+        {'request': {'type': 'string', 'description': 'What exactly the customer wants, in English'},
+         'reference': {'type': 'string', 'description': 'Listing reference if it is about one listing'}},
+        ['request']),
     _fn('escalate_to_human', 'Hand the conversation to staff (explicit request, complaint, negotiation, legal/tax, '
         'repeated failure).', {'reason': {'type': 'string'}}, ['reason']),
 ]

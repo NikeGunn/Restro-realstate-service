@@ -79,20 +79,44 @@ class Command(BaseCommand):
             organization=org, channel=Channel.WHATSAPP, customer_name='Eval Customer',
             customer_phone=f'97798{uuid.uuid4().int % 10**8:08d}')
         failures, transcript, latencies = [], [], []
-        turns = [t.format(**{k: v for k, v in refs.items()}) for t in case['turns']]
+        # A turn may be {'text': ..., 'reply_to': k}: the customer long-presses the agent's reply to turn k.
+        from apps.messaging.reply_context import resolve
+        specs = [t if isinstance(t, dict) else {'text': t} for t in case['turns']]
+        turns = [s['text'].format(**refs) for s in specs]
         for i, text in enumerate(turns):
-            Message.objects.create(conversation=conv, sender=MessageSender.CUSTOMER, content=text)
+            meta = {}
+            if 'reply_to' in specs[i]:
+                meta['reply_to'] = resolve(conv, f"eval.{conv.id}.{specs[i]['reply_to']}")
+            Message.objects.create(conversation=conv, sender=MessageSender.CUSTOMER, content=text, ai_metadata=meta)
             t0 = time.time()
             out = AIService(conv).process_message(text)
             latencies.append(time.time() - t0)
             reply = out.get('content') or ''
-            Message.objects.create(conversation=conv, sender=MessageSender.AI, content=reply)
+            Message.objects.create(conversation=conv, sender=MessageSender.AI, content=reply,
+                                   channel_message_id=f"eval.{conv.id}.{i}")
             tools = [t['tool'] for t in out.get('metadata', {}).get('tools', [])]
             transcript.append((text, reply, tools))
             checks = case.get('per_turn', {}).get(i, {})
             if i == len(turns) - 1:
                 checks = {**{k: v for k, v in case.items() if k not in ('id', 'turns', 'per_turn')}, **checks}
+            for key in ('contains', 'contains_any'):   # checks may name fixture refs: '{RE-06}'
+                if key in checks:
+                    checks = {**checks, key: [s.format(**refs) for s in checks[key]]}
             failures += [f"turn {i + 1}: {f}" for f in self._check(checks, reply, tools, conv, org, Appointment, Lead)]
+            if case.get('no_repeat') and len(transcript) > 1:
+                from apps.ai_engine.agent.dialogue import is_affirmation, last_question
+                import difflib
+                before, now = last_question(transcript[-2][1]), last_question(reply)
+                if is_affirmation(text) and before and now and difflib.SequenceMatcher(
+                        None, before.lower(), now.lower()).ratio() > 0.75:
+                    failures.append(f"turn {i + 1}: repeated the question the customer said yes to: '{now}'")
+            if case.get('staff_cancel_after') == i:
+                # Staff cancel every booking of this chat in the dashboard (same code path as the API).
+                from apps.realestate.appointment_notifications import notify_staff_change
+                for appt in Appointment.objects.filter(organization=org, conversation=conv,
+                                                       status__in=['scheduled', 'confirmed']):
+                    appt.cancel(reason='Naam mismatch bhayo, maaf garnuhola')
+                    notify_staff_change(appt, 'staff_cancelled')
         if verbose:
             for text, reply, tools in transcript:
                 self.stdout.write(f"  > {text}\n  < [{', '.join(tools) or '-'}] {reply}\n")
@@ -137,6 +161,11 @@ class Command(BaseCommand):
             out.append("em/en dash in reply")
         if 'appts' in c and Appointment.objects.filter(organization=org, conversation=conv).count() != c['appts']:
             out.append(f"appointments for this chat != {c['appts']}")
+        if c.get('attendee'):
+            names = list(Appointment.objects.filter(organization=org, conversation=conv)
+                         .values_list('attendee_name', flat=True))
+            if c['attendee'] not in names:
+                out.append(f"booking name {names} is not {c['attendee']}")
         if 'leads' in c and Lead.objects.filter(organization=org, conversation=conv).count() != c['leads']:
             out.append(f"leads for this chat != {c['leads']}")
         return out

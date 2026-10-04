@@ -965,8 +965,11 @@
         "no_show": "{{code}} 已標記為失約",
         "created": "預約 {{code}} 已建立",
         "copied": "已複製 {{code}}",
-        "failed": "操作失敗"
-      }
+        "failed": "操作失敗",
+        "notified": "已在客戶的聊天中通知（{{channel}}）。",
+        "notNotified": "無法聯絡客戶（WhatsApp 視窗已關閉且無電郵），已保存在聊天記錄中。"
+      },
+      "bookedBy": "由 {{name}} 預約"
     }
   },
   "landing": {
@@ -1757,6 +1760,106 @@
       "expiredPasses": "過期通行證",
       "suspendedPasses": "暫停通行證",
       "missingReceipt": "冇收據嘅核銷"
+    }
+  },
+  "home": {
+    "nav": {
+      "agent": "運作方式",
+      "verticals": "解決方案",
+      "pricing": "價格",
+      "live": "線上房源",
+      "signIn": "登入",
+      "start": "免費開始"
+    },
+    "hero": {
+      "eyebrow": "智能體 AI · 誕生於加德滿都",
+      "title": "一個回覆每位客戶的 AI 智能體，",
+      "titleEm": "從不編造資訊。",
+      "sub": "Kribaat 將 WhatsApp、Instagram 和您的網站連接到一個智能體：它查詢您自己的房源或菜單，回覆前核對每一個價格，用真實的確認碼完成預約，一旦不確定就轉交給您的團隊。支援尼泊爾語、英語和中文。",
+      "ctaPrimary": "免費開始",
+      "ctaLive": "查看真實案例",
+      "proof1": "每個價格都與您的記錄核對",
+      "proof2": "客戶確認後才會預約",
+      "proof3": "團隊可隨時接手任何對話"
+    },
+    "demo": {
+      "name": "Kribaat Realestate 智能體",
+      "status": "在線 · 秒級回覆",
+      "aria": "與 Kribaat 智能體的示例對話",
+      "footer": "每則回覆發送前都經過核驗"
+    },
+    "strip": {
+      "channels": "WhatsApp、Instagram 與網站聊天",
+      "languages": "नेपाली · 羅馬化尼泊爾語 · English · 中文",
+      "human": "您的團隊一鍵即可接手"
+    },
+    "agent": {
+      "eyebrow": "智能體如何思考",
+      "title": "每則訊息四個步驟。",
+      "titleEm": "絕不猜測。",
+      "understand": {
+        "title": "理解",
+        "body": "閱讀整段對話、客戶的語言和文字，以及簡短的「好」在回答甚麼，即使客戶長按回覆了較早的訊息。"
+      },
+      "lookup": {
+        "title": "查詢",
+        "body": "調用工具讀取您的即時資料：房源、照片、空閒時段、客戶自己的預約。從不憑記憶。"
+      },
+      "verify": {
+        "title": "核驗",
+        "body": "草稿中的每個價格、編號和代碼都必須與工具結果或知識庫一致；否則重寫，或如實說明未記錄。"
+      },
+      "act": {
+        "title": "執行",
+        "body": "先展示預覽，等待客戶確認，鎖定複核後預約並引用回執。員工可看到一切並隨時介入。"
+      }
+    },
+    "verticals": {
+      "eyebrow": "適用於",
+      "title": "兩種業務，同一個謹慎的智能體。",
+      "realEstate": {
+        "title": "房地產",
+        "body": "房間、公寓、住宅、商鋪和土地。智能體搜尋您的即時房源、發送真實照片並預約睇樓。",
+        "link": "瀏覽真實地產代理"
+      },
+      "restaurant": {
+        "title": "餐廳",
+        "body": "菜單問題、訂座和會員，均根據您自己的菜單和營業時間回答。",
+        "link": "設定您的餐廳"
+      },
+      "isolated": "每項業務在獨立隔離的空間運行：地產智能體從不談菜單，餐廳智能體從不談房源。"
+    },
+    "live": {
+      "eyebrow": "已上線",
+      "title": "Kribaat Realestate 正在使用 Kribaat。",
+      "body": "覆蓋尼泊爾的房間、公寓、住宅、商鋪和土地。搜尋網站，點擊 WhatsApp 聊天，親自與智能體對話。",
+      "ne": "नेपालीमा सोध्नुहोस्, नेपालीमै जवाफ पाउनुहुन्छ।",
+      "cta": "瀏覽線上房源"
+    },
+    "features": {
+      "eyebrow": "全部包含",
+      "title": "每則好回覆背後的工具"
+    },
+    "cta": {
+      "title": "給每位客戶誠實的答覆，",
+      "titleEm": "只需幾秒。",
+      "body": "帶上您的房源或菜單，設定規則，團隊始終掌控。",
+      "primary": "免費開始",
+      "secondary": "登入"
+    },
+    "footer": {
+      "tagline": "一個從不編造資訊的 AI 智能體。",
+      "origin": "誕生於加德滿都，服務全球。",
+      "live": "真實案例",
+      "land": "出售土地",
+      "rooms": "出租房間"
+    },
+    "video": {
+      "nav": "示範",
+      "watch": "觀看示範",
+      "eyebrow": "觀看示範",
+      "play": "播放影片",
+      "close": "關閉影片"
     }
   }
 }

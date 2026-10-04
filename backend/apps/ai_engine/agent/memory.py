@@ -58,7 +58,7 @@ def customer_memory_text(conversation) -> str:
     if mem and mem.summary:
         until = f"{mem.summarized_until:%Y-%m-%d %H:%M} UTC" if mem.summarized_until else "latest"
         return (f"Key facts:\n{facts}\n\n"
-                f"History summary (covers all chats up to {until}):\n{mem.summary}")
+                f"History summary (covers all chats up to {until}):\n{mem.summary[-SUMMARY_PROMPT_CHARS:]}")
     return facts
 
 
@@ -96,6 +96,8 @@ def remember(organization, subject_type: str, key: str, fact: str,
 # Rolling summaries: nothing a customer said is ever lost. Raw messages stay in
 # messaging.Message forever; this folds them into the always-in-prompt summary.
 # ----------------------------------------------------------------------------
+SUMMARY_INPUT_CHARS = 30000   # one summarizer call never gets a runaway transcript
+SUMMARY_PROMPT_CHARS = 3500   # what the agent prompt shows of the summary
 SUMMARY_PROMPT = (Path(__file__).resolve().parent / 'prompts' / 'summarize.md')
 
 
@@ -117,16 +119,25 @@ def summarize_customer(organization, key: str, client=None) -> Optional[AgentMem
 
     mem = _get(organization, AgentMemory.SubjectType.CUSTOMER, key)
     since = mem.summarized_until if mem else None
-    msgs = Message.objects.filter(conversation__in=_conversations_for_key(organization, key))
+    # Archived chats belong to a closed chapter (e.g. the org's restaurant days, or a portfolio that was
+    # wiped): folding them in poisoned prod memory with "restaurant booking" and Hong Kong listings.
+    convs = _conversations_for_key(organization, key).exclude(state='archived')
+    msgs = Message.objects.filter(conversation__in=convs)
     if since:
         msgs = msgs.filter(created_at__gt=since)
     msgs = list(msgs.order_by('created_at')[:400])
     if not msgs:
         return mem
-    lines = []
+    lines, used, kept = [], 0, []
     for m in msgs:
         who = 'Customer' if m.sender == MessageSender.CUSTOMER else 'Agency'
-        lines.append(f"[{m.created_at:%Y-%m-%d %H:%M}] {who}: {m.content[:1000]}")
+        line = f"[{m.created_at:%Y-%m-%d %H:%M}] {who}: {(m.content or '')[:1000]}"
+        if used + len(line) > SUMMARY_INPUT_CHARS and kept:
+            break  # the rest is folded in by the next run (summarized_until only moves this far)
+        used += len(line)
+        lines.append(line)
+        kept.append(m)
+    msgs = kept
     period = f"{msgs[0].created_at:%Y-%m-%d} to {msgs[-1].created_at:%Y-%m-%d}"
     prompt = SUMMARY_PROMPT.read_text(encoding='utf-8').format(
         existing=(mem.summary if mem and mem.summary else '(none)'),

@@ -69,6 +69,7 @@ INSTALLED_APPS = [
     'apps.payments',
     # Coffee Pass — paid 30-day customer membership (customer money, not org money)
     'apps.coffee_pass',
+    'apps.showcase',
 ]
 
 MIDDLEWARE = [

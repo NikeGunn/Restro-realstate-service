@@ -490,9 +490,34 @@ class AppointmentViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
-        return Response(AppointmentSerializer(serializer.instance).data, status=status.HTTP_201_CREATED)
+        appointment = serializer.instance
+        data = dict(AppointmentSerializer(appointment).data)
+        if appointment.conversation_id or (appointment.lead_id and appointment.lead.conversation_id):
+            from .appointment_notifications import notify_staff_change
+            data['customer_notified_via'] = notify_staff_change(appointment, 'staff_created') or None
+        return Response(data, status=status.HTTP_201_CREATED)
 
     ACTIVE_STATUSES = (Appointment.Status.SCHEDULED, Appointment.Status.CONFIRMED)
+
+    @staticmethod
+    def _with_notice(appointment, kind):
+        """Every staff change is told to the customer in their chat (and so to the agent)."""
+        from .appointment_notifications import notify_staff_change
+        data = dict(AppointmentSerializer(appointment).data)
+        data['customer_notified_via'] = notify_staff_change(appointment, kind) or None
+        return Response(data)
+
+    def perform_update(self, serializer):
+        before = serializer.instance
+        moved_from = (before.appointment_date, before.appointment_time)
+        appointment = serializer.save()
+        if ((appointment.appointment_date, appointment.appointment_time) != moved_from
+                and appointment.status in self.ACTIVE_STATUSES):
+            from .appointment_notifications import notify_staff_change
+            # A new time needs a fresh reminder and follow-up.
+            Appointment.objects.filter(pk=appointment.pk).update(reminder_sent=False, reminder_sent_at=None,
+                                                                 followup_sent_at=None)
+            notify_staff_change(appointment, 'staff_rescheduled')
 
     def _guard(self, appointment, allowed, action_name):
         """Reject transitions out of a terminal state (e.g. cancelling a completed viewing)."""
@@ -511,7 +536,7 @@ class AppointmentViewSet(viewsets.ModelViewSet):
         if blocked:
             return blocked
         appointment.confirm()
-        return Response(AppointmentSerializer(appointment).data)
+        return self._with_notice(appointment, 'staff_confirmed')
     
     @action(detail=True, methods=['post'])
     def cancel(self, request, pk=None):
@@ -522,7 +547,7 @@ class AppointmentViewSet(viewsets.ModelViewSet):
             return blocked
         reason = request.data.get('reason') or request.data.get('cancellation_reason') or ''
         appointment.cancel(reason=str(reason)[:1000])
-        return Response(AppointmentSerializer(appointment).data)
+        return self._with_notice(appointment, 'staff_cancelled')
     
     @action(detail=True, methods=['post'])
     def complete(self, request, pk=None):
@@ -533,7 +558,7 @@ class AppointmentViewSet(viewsets.ModelViewSet):
             return blocked
         outcome = request.data.get('outcome') or request.data.get('outcome_notes') or ''
         appointment.complete(outcome=str(outcome)[:2000])
-        return Response(AppointmentSerializer(appointment).data)
+        return self._with_notice(appointment, 'staff_completed')
     
     @action(detail=True, methods=['post'])
     def no_show(self, request, pk=None):
@@ -543,7 +568,7 @@ class AppointmentViewSet(viewsets.ModelViewSet):
         if blocked:
             return blocked
         appointment.mark_no_show()
-        return Response(AppointmentSerializer(appointment).data)
+        return self._with_notice(appointment, 'staff_no_show')
     
     @action(detail=False, methods=['get'])
     def today(self, request):

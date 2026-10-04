@@ -130,7 +130,8 @@ class WhatsAppService:
             elif interactive.get('type') == 'list_reply':
                 content = interactive.get('list_reply', {}).get('title', '')
         elif message_type in ['image', 'audio', 'video', 'document']:
-            content = f"[{message_type.upper()}] Media message received"
+            caption = (msg.get(message_type) or {}).get('caption', '')
+            content = f"[{message_type.upper()}] {caption}" if caption else f"[{message_type.upper()}] Media message received"
         else:
             content = f"[{message_type.upper()}] Unsupported message type"
         
@@ -153,6 +154,10 @@ class WhatsAppService:
             sender_name
         )
         
+        # "Long-press → Reply": WhatsApp sends the id of the message being answered in `context`.
+        from apps.messaging.reply_context import resolve as resolve_reply
+        reply_to = resolve_reply(conversation, (msg.get('context') or {}).get('id', ''))
+
         # Create message
         message = Message.objects.create(
             conversation=conversation,
@@ -162,7 +167,8 @@ class WhatsAppService:
             ai_metadata={
                 'message_type': message_type,
                 'sender_phone': sender_phone,
-                'timestamp': timestamp
+                'timestamp': timestamp,
+                **({'reply_to': reply_to} if reply_to else {}),
             }
         )
         
@@ -283,19 +289,29 @@ class WhatsAppService:
                 
                 # Send via WhatsApp
                 logger.info(f"📤 Sending WhatsApp message to {conversation.customer_phone} in {detected_lang}")
+                # When the customer quoted an older message, our answer quotes theirs, so the thread
+                # reads like a person replying to that exact message.
+                quoted = (message.ai_metadata or {}).get('reply_to')
                 sent_message_id = self.send_message(
                     to=conversation.customer_phone,
-                    text=response['content']
+                    text=response['content'],
+                    reply_to=message.channel_message_id if quoted else '',
                 )
-                
+
                 if sent_message_id:
                     ai_message.channel_message_id = sent_message_id
-                    ai_message.save()
                     logger.info(f"✅ WhatsApp message sent successfully - ID: {sent_message_id}")
-                    # Listing photos the agent attached (real uploads only), after the text.
+                    # Listing photos the agent attached (real uploads only), after the text. Their ids are
+                    # kept so a later reply to one photo ("yo wala?") resolves to that listing.
+                    photo_ids = {}
                     for att in (response.get('attachments') or [])[:6]:
                         if att.get('type') == 'image':
-                            self.send_image(conversation.customer_phone, att['url'], att.get('caption', ''))
+                            pid = self.send_image(conversation.customer_phone, att['url'], att.get('caption', ''))
+                            if pid:
+                                photo_ids[pid] = att.get('caption', '')
+                    if photo_ids:
+                        ai_message.ai_metadata = {**(ai_message.ai_metadata or {}), 'attachment_ids': photo_ids}
+                    ai_message.save()
                 else:
                     logger.error(f"❌ CRITICAL: Failed to send WhatsApp message - check access_token and phone_number_id")
                     logger.error(f"Org: {self.organization.name}, Phone ID: {self.config.phone_number_id}")
@@ -433,7 +449,7 @@ class WhatsAppService:
         except Message.DoesNotExist:
             pass
     
-    def send_message(self, to: str, text: str) -> Optional[str]:
+    def send_message(self, to: str, text: str, reply_to: str = '') -> Optional[str]:
         """
         Send a text message via WhatsApp.
         Returns message ID on success.
@@ -470,6 +486,8 @@ class WhatsAppService:
                 "body": text
             }
         }
+        if reply_to:
+            payload["context"] = {"message_id": reply_to}
         
         try:
             response = requests.post(url, json=payload, headers=headers, timeout=30)

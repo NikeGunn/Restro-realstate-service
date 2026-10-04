@@ -4,6 +4,7 @@ URL configuration for AI Business Chat Platform.
 from django.contrib import admin
 from apps.realestate import media_proxy as realestate_media
 from apps.realestate import public_site as realestate_public
+from apps.showcase import views as showcase_views
 from django.urls import path, include, re_path
 from django.conf import settings
 from django.conf.urls.static import static
@@ -40,6 +41,9 @@ urlpatterns = [
     path('robots.txt', realestate_public.robots, name='robots'),
     # media.kribaat.com/listings/... → listing photos streamed from R2 (realestate/media_proxy.py)
     path('listings/<path:key>', realestate_media.listing_photo, name='listing-photo'),
+    # media.kribaat.com/showcase/... → showcase videos (range requests) + public list for the websites
+    path('showcase/<str:name>', showcase_views.media, name='showcase-media'),
+    path('api/public/showcase/', showcase_views.public_videos, name='showcase-public'),
 
     # API Documentation
     path('api/schema/', SpectacularAPIView.as_view(), name='schema'),

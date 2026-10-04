@@ -12,6 +12,12 @@
 .hero .lede .deva{color:#fff}
 .stats{display:flex;gap:28px;margin-top:30px;animation:rise .7s .2s both}
 .stats b{display:block;font:600 30px/1 var(--serif);color:#fff}.stats span{font-size:13px;color:#BDB7A6;letter-spacing:.04em}
+.agentline{list-style:none;display:flex;flex-wrap:wrap;gap:8px;margin:22px 0 0;padding:0;animation:rise .7s .16s both}
+.agentline li{font:600 13px/1 ui-monospace,SFMono-Regular,Menlo,monospace;color:#E8E2D2;background:rgba(245,240,230,.08);border:1px solid rgba(245,240,230,.16);border-radius:999px;padding:9px 12px}
+.agentline .tick{color:var(--gold);margin-right:4px}
+.hint{font-size:13px;color:var(--muted);margin:-4px 0 10px;min-height:1em}
+.near{margin-top:26px}.near h3{font:600 22px/1.2 var(--serif);margin:0 0 6px}.near p{color:var(--muted);margin:0 0 18px}
+.note{background:#FFF6E3;border:1px solid #EBD3A1;color:#6B4B12;border-radius:12px;padding:10px 14px;font-size:14px;margin:-10px 0 18px}
 .ridges{position:absolute;left:0;right:0;bottom:-1px;width:100%;height:120px}
 .needs{background:var(--card);color:var(--ink);border-radius:24px;padding:24px;box-shadow:0 30px 60px -30px rgba(0,0,0,.6);animation:rise .7s .18s both}
 .needs h2{font-size:24px;margin:0 0 4px}.needs p{margin:0 0 16px;color:var(--muted);font-size:14.5px}
@@ -43,14 +49,38 @@
 .empty{background:var(--card);border:1px dashed var(--line);border-radius:var(--radius);padding:40px 24px;text-align:center}
 .pager{display:flex;gap:8px;justify-content:center;margin-top:30px}
 {% endblock %}
+{% block scripts %}
+<script>
+(function(){
+  var form=document.getElementById('needs'); if(!form) return;
+  var max=document.getElementById('f-max'), type=document.getElementById('f-type'), hint=document.getElementById('f-hint');
+  var forSale={land:1}, rentOnly={room:1,apartment:1,retail:1,office:1};
+  function deal(){var c=form.querySelector('input[name=deal]:checked');return c?c.value:'';}
+  function setDeal(v){var r=form.querySelector('input[name=deal][value="'+v+'"]'); if(r){r.checked=true;}}
+  function sync(){
+    var d=deal(), t=type.value;
+    max.placeholder=d==='sale'?'e.g. 50 lakh or 1.2 crore':d==='rent'?'e.g. 15000 a month':'e.g. 15000 or 50 lakh';
+    hint.textContent='';
+    if(t&&forSale[t]&&d==='rent'){setDeal('sale');hint.textContent='Land is listed for sale, so we switched to Buy.';max.placeholder='e.g. 50 lakh or 1.2 crore';}
+    else if(t&&rentOnly[t]&&d==='sale'){hint.textContent='Most '+type.options[type.selectedIndex].text.toLowerCase()+' listings are for rent; choose Either to see all.';}
+  }
+  form.addEventListener('change',sync); sync();
+})();
+</script>
+{% endblock %}
 {% block content %}
 {% if is_home %}
 <section class="hero">
   <div class="wrap">
     <div>
       <p class="eyebrow" style="color:var(--gold)">{% for c in cities_nav|slice:":4" %}{{ c.name }}{% if not forloop.last %} · {% endif %}{% endfor %}</p>
-      <h1>Find your <em>kotha</em>, flat or <em>jagga</em>, then just say namaste.</h1>
-      <p class="lede">Real listings from {{ org.name }} with real prices. Tap <b>Chat on WhatsApp</b> and our assistant sends photos, answers in English or <span class="deva">नेपाली</span>, and books your viewing.</p>
+      <h1>Find your <em>kotha</em>, flat or <em>jagga</em>. Our AI agent does the legwork.</h1>
+      <p class="lede">Tell it what you need in English or <span class="deva">नेपाली</span>. It searches {{ org.name }}'s live listings, sends real photos, checks every price against our records and books your viewing with a confirmation code. Any time, on WhatsApp.</p>
+      <ul class="agentline" aria-label="What the AI agent does">
+        <li><span class="tick">✓</span> searches {{ total }} live listings</li>
+        <li><span class="tick">✓</span> verifies every price</li>
+        <li><span class="tick">✓</span> books with a code</li>
+      </ul>
       <div class="stats">
         <div><b>{{ total }}</b><span>live listings</span></div>
         <div><b>{{ cities_nav|length }}</b><span>areas</span></div>
@@ -71,8 +101,9 @@
         <div class="field"><label for="f-type">Property</label>
           <select id="f-type" name="type"><option value="">Any type</option>{% for k, v in type_choices %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select></div>
         <div class="field"><label for="f-max">Budget up to (Rs)</label>
-          <input id="f-max" name="max" inputmode="numeric" placeholder="e.g. 15000" autocomplete="off"></div>
+          <input id="f-max" name="max" placeholder="e.g. 15000 a month" autocomplete="off"></div>
       </div>
+      <p class="hint" id="f-hint" aria-live="polite"></p>
       <div class="field"><label for="f-q">Area</label>
         <input id="f-q" name="q" placeholder="Chabahil, Lalitpur, Pokhara…" list="areas" autocomplete="off">
         <datalist id="areas">{% for c in cities_nav %}<option value="{{ c.name }}">{% endfor %}</datalist></div>
@@ -116,11 +147,12 @@
       <div class="field"><label for="b-deal">Rent / buy</label><select id="b-deal" name="deal"><option value="">Any</option><option value="rent"{% if params.deal == 'rent' %} selected{% endif %}>Rent</option><option value="sale"{% if params.deal == 'sale' %} selected{% endif %}>Buy</option></select></div>
       <div class="field"><label for="b-type">Type</label><select id="b-type" name="type"><option value="">Any</option>{% for k, v in type_choices %}<option value="{{ k }}"{% if params.type == k %} selected{% endif %}>{{ v }}</option>{% endfor %}</select></div>
       {% endif %}
-      <div class="field"><label for="b-max">Max price (Rs)</label><input id="b-max" name="max" inputmode="numeric" value="{{ params.max }}" placeholder="Any"></div>
+      <div class="field"><label for="b-max">Max price (Rs)</label><input id="b-max" name="max" value="{{ params.max }}" placeholder="e.g. 50 lakh"></div>
       <div class="field"><label for="b-sort">Sort</label><select id="b-sort" name="sort"><option value="">Featured</option><option value="price_asc"{% if params.sort == 'price_asc' %} selected{% endif %}>Price: low to high</option><option value="price_desc"{% if params.sort == 'price_desc' %} selected{% endif %}>Price: high to low</option><option value="newest"{% if params.sort == 'newest' %} selected{% endif %}>Newest</option></select></div>
       <button class="btn btn-ink btn-sm" type="submit">Apply</button>
     </form>
 
+    {% if budget_ignored %}<p class="note" role="status">We could not read the budget "{{ budget_ignored }}", so it is not applied. Try 15000, 50 lakh or 1.2 crore.</p>{% endif %}
     {% if cards %}
     <div class="grid">{% for c in cards %}{% include "realestate/public/_card.html" with c=c %}{% endfor %}</div>
     {% if page.has_other_pages %}
@@ -139,15 +171,32 @@
         <a class="btn btn-ghost" href="/realestate/properties/">See all listings</a>
       </div>
     </div>
+    {% if near_cards %}
+    <div class="near">
+      <h3>Closest matches {{ near_label }}</h3>
+      <p>Nothing meets every filter, so here is what comes nearest. Our agent can keep looking for you on WhatsApp.</p>
+      <div class="grid">{% for c in near_cards %}{% include "realestate/public/_card.html" with c=c %}{% endfor %}</div>
+    </div>
+    {% endif %}
     {% endif %}
   </section>
 
-  <section class="sec" aria-labelledby="how">
+  {% if showcase %}
+  <section class="sec" aria-labelledby="film" style="padding-bottom:0">
+    <p class="eyebrow">Watch</p><h2 id="film">{{ showcase.title }}</h2>
+    {% if showcase.caption %}<p style="color:var(--muted);margin:-10px 0 18px">{{ showcase.caption }}</p>{% endif %}
+    <video controls playsinline preload="metadata" {% if showcase.poster %}poster="{{ showcase.poster.url }}"{% endif %}
+      style="width:100%;aspect-ratio:16/9;border-radius:24px;background:var(--ink);box-shadow:var(--shadow)">
+      <source src="{{ showcase.video.url }}" type="{{ showcase.content_type }}">
+    </video>
+  </section>
+  {% endif %}
+  <section class="sec" aria-labelledby="how" id="how">
     <p class="eyebrow">How it works</p><h2 id="how">From search to site visit in one chat</h2>
     <div class="steps">
       <div class="step"><h3>Pick a listing</h3><p>Every price here comes straight from the agency's records, rent per month or total price in lakh / crore.</p></div>
       <div class="step"><h3>Tap “Chat on WhatsApp”</h3><p>Your message already names the property. Ask anything, photos, water, parking, road access, in English or Nepali.</p></div>
-      <div class="step"><h3>Book a viewing</h3><p>The assistant shows free times and confirms your visit with a booking code. Our team takes over whenever you want a person.</p></div>
+      <div class="step"><h3>Book a viewing</h3><p>The AI agent shows free times, waits for your "yes" and confirms your visit with a booking code. Every price it quotes is checked against our records, and our team takes over whenever you want a person.</p></div>
     </div>
   </section>
 

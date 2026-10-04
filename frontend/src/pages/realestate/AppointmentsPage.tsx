@@ -119,8 +119,15 @@ export function AppointmentsPage() {
       if (kind === 'complete') return api.complete(appt.id, note)
       return api.noShow(appt.id)
     },
-    onSuccess: (_d, vars) => {
-      toast({ title: t(`realEstate.appointments.toast.${vars.kind}`, { code: vars.appt.confirmation_code }) })
+    onSuccess: (data: Appointment, vars) => {
+      // Every staff action is also told to the customer in their chat (and so to the AI agent).
+      const via = data?.customer_notified_via
+      toast({
+        title: t(`realEstate.appointments.toast.${vars.kind}`, { code: vars.appt.confirmation_code }),
+        description: via
+          ? t('realEstate.appointments.toast.notified', { channel: via })
+          : vars.appt.conversation ? t('realEstate.appointments.toast.notNotified') : undefined,
+      })
       setPending(null)
       setActionNote('')
       invalidate()
@@ -170,7 +177,7 @@ export function AppointmentsPage() {
     // "Upcoming" means still happening — cancelled/no-show rows live under Past/All or a status filter.
     const scoped = view === 'upcoming' && statusFilter === 'all' ? list.filter((a) => ACTIVE.includes(a.status)) : list
     const filtered = q
-      ? scoped.filter((a) => [a.lead_name, a.lead_phone, a.confirmation_code, a.property_title]
+      ? scoped.filter((a) => [a.lead_name, a.attendee_name, a.lead_phone, a.confirmation_code, a.property_title]
           .some((v) => (v ?? '').toLowerCase().includes(q)))
       : scoped
     const sorted = [...filtered].sort((a, b) => {
@@ -304,7 +311,14 @@ export function AppointmentsPage() {
 
                         <div className="min-w-0 flex-1 space-y-1">
                           <div className="flex flex-wrap items-center gap-2">
-                            <span className="font-medium">{a.lead_name || t('realEstate.appointments.unknownLead')}</span>
+                            <span className="font-medium">
+                              {a.attendee_name || a.lead_name || t('realEstate.appointments.unknownLead')}
+                            </span>
+                            {a.attendee_name && a.lead_name && a.attendee_name.toLowerCase() !== a.lead_name.toLowerCase() && (
+                              <span className="text-xs text-muted-foreground">
+                                {t('realEstate.appointments.bookedBy', { name: a.lead_name })}
+                              </span>
+                            )}
                             <Badge variant="outline" className={STATUS_STYLE[a.status] ?? ''}>
                               {t(`realEstate.appointments.status.${a.status}`, { defaultValue: a.status_display })}
                             </Badge>
