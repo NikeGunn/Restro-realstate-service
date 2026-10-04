@@ -393,28 +393,57 @@ def test_rt116_receipt_quotes_real_code_or_removes_claim():
     assert 'confirmed' not in reply['content'] and 'Nothing has been reserved' in reply['content']
 
 
-def test_re043_changed_name_shown_then_yes_books_once(conv, plot):
-    """The model showed the updated preview without re-preparing; on 'Yes, confirm' it prepares and
-    confirms in the same turn. The customer saw exactly these details, so one yes must be enough."""
+# --------------------------------------------- what the customer confirms IS the preview (RE-043)
+def test_preview_gate_flags_confirm_question_with_unprepared_details():
+    from apps.ai_engine.agent.verifier import preview_problems
+    pending = {'reference': 'PROP255528', 'date': '2026-10-05', 'time': '11:00', 'name': 'Eval Customer'}
+    shown = ("Thank you. *Viewing* - PROP255528, Monday 2026-10-05, 11:00 (Nepal time), name Martas.\n"
+             "Would you like me to confirm this viewing?")
+    problems = preview_problems(shown, pending, confirmed_this_turn=False)
+    assert problems and 'PREVIEW_MISMATCH' in problems[0][0] and 'name=Eval Customer' in problems[0][0]
+    assert problems[0][1].endswith('confirm this viewing?')
+    # Same details as prepared → fine. Different time → flagged. No preview at all → flagged.
+    assert preview_problems(shown.replace('Martas', 'Eval Customer'), pending, False) == []
+    assert preview_problems(shown.replace('Martas', 'Eval Customer').replace('11:00', '15:00'), pending, False)
+    assert 'PREVIEW_MISSING' in preview_problems(shown, None, False)[0][0]
+    # Not a confirmation request, or the booking just executed → nothing to check.
+    assert preview_problems('Your viewing APT1 is on 2026-10-05 at 11:00. Anything else?', None, False) == []
+    assert preview_problems(shown, None, confirmed_this_turn=True) == []
+    # Nepali / Devanagari confirmation questions are recognised too.
+    assert preview_problems('Viewing PROP255528, 2026-10-05, 15:00, naam Martas. Yo viewing confirm garidiu?',
+                            pending, False)
+    assert preview_problems('भ्यूइङ PROP255528, 2026-10-05, 15:00। पक्का गरिदिऊँ?', pending, False)
+
+
+def test_re043_changed_name_is_prepared_before_the_customer_is_asked(conv, plot):
+    """Turn 2: customer changes the name. The model's first draft shows the new name without preparing it;
+    the gate rejects it, the retry prepares the new preview. Turn 3: one plain yes books it."""
     day = _tomorrow(conv)
-    t = RealEstateTools(conv)
-    Message.objects.create(conversation=conv, sender=MessageSender.AI, content=(
-        f"*Viewing* - {plot.reference_number}, {plot.title}\n{day.strftime('%A')} {day.isoformat()}, 11:00 "
-        "(Nepal time)\nName: Martas\n\nWould you like me to confirm this viewing?"))
-    t = _turn(t, 'Yes, confirm.')
+    args = {'reference': plot.reference_number, 'date': day.isoformat(), 'time': '11:00',
+            'weekday': day.strftime('%A')}
+    _svc(conv, [_msg(tool_calls=[_call('prepare_viewing', dict(args, name='Eval Customer'))]),
+                _msg(f'Viewing {plot.reference_number}, {day.isoformat()} 11:00, name Eval Customer. Shall I confirm?')
+                ]).process_message(f'Book {plot.reference_number} tomorrow at 11 am.')
+    shown = f'Viewing {plot.reference_number}, {day.isoformat()} 11:00, name Martas. Shall I confirm?'
+    svc = _svc(conv, [_msg(shown),                                                   # draft: not prepared
+                      _msg(tool_calls=[_call('prepare_viewing', dict(args, name='Martas'), cid='c2')]),
+                      _msg(shown)])
+    out = svc.process_message('Martas.')
+    sent = svc.client.chat.completions.create.call_args_list[1].kwargs['messages']
+    assert any('PREVIEW_MISMATCH' in (m.get('content') or '') for m in sent if m['role'] == 'system')
+    assert out['metadata']['verified'] is True
+    assert actions.pending_preview(conv).payload['name'] == 'Martas'
+
+    out = _svc(conv, [_msg(tool_calls=[_call('confirm_pending_action', {})]), _msg('Confirmed, thank you!')]
+               ).process_message('Yes, confirm.')
+    appt = Appointment.objects.get()
+    assert appt.lead.name == 'Martas' and appt.confirmation_code in out['content']
+
+
+def test_confirm_in_the_same_turn_as_prepare_is_still_refused(conv, plot):
+    """The strict rule stays: a preview created this turn can never be confirmed in this turn."""
+    t = _turn(RealEstateTools(conv), 'Yes, confirm.')
+    day = _tomorrow(conv)
     p = t.prepare_viewing(plot.reference_number, day.isoformat(), '11:00', day.strftime('%A'), name='Martas')
     res = t.confirm_pending_action(p['preview_id'])
-    assert res['ok'] and res['receipt']['code'].startswith('APT')
-    assert Appointment.objects.filter(conversation=conv).count() == 1
-
-
-def test_same_turn_preview_with_unseen_details_still_needs_a_yes(conv, plot):
-    day = _tomorrow(conv)
-    t = RealEstateTools(conv)
-    Message.objects.create(conversation=conv, sender=MessageSender.AI,
-                           content=f"{plot.reference_number} {day.isoformat()} 11:00 Name: Martas. Confirm?")
-    t = _turn(t, 'yes')
-    p = t.prepare_viewing(plot.reference_number, day.isoformat(), '15:00', day.strftime('%A'), name='Martas')
-    res = t.confirm_pending_action(p['preview_id'])                    # 15:00 was never shown
-    assert not res['ok'] and 'NOT_CONFIRMED_YET' in res['error']
-    assert Appointment.objects.count() == 0
+    assert not res['ok'] and 'NOT_CONFIRMED_YET' in res['error'] and Appointment.objects.count() == 0

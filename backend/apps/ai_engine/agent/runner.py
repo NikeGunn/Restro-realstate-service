@@ -26,7 +26,7 @@ from . import actions as agent_actions
 from . import capabilities
 from . import tone
 from .tools import RealEstateTools, format_money
-from .verifier import salvage, verify_reply
+from .verifier import preview_problems, salvage, verify_reply
 
 logger = logging.getLogger(__name__)
 
@@ -284,7 +284,8 @@ class RealEstateAgent:
             messages.append({'role': 'assistant', 'content': reply})
             messages.append({'role': 'system', 'content': (
                 "VERIFICATION FAILED - your last reply was NOT sent. Problems: " + "; ".join(gate.problems)
-                + ". Rewrite it. Only state figures/references that appear in tool results, KNOWLEDGE, or the "
+                + ". Fix it (call the tool the problem names if needed), then rewrite. Only state "
+                  "figures/references that appear in tool results, KNOWLEDGE, or the "
                   "customer's own words. If the customer was vague (e.g. 'cheap'), describe it in words or ask "
                   "their budget - never invent a number. Never claim an action a tool did not confirm. "
                   "Keep being helpful: give the real options you have and one next step.")})
@@ -446,7 +447,15 @@ class RealEstateAgent:
             logger.exception("Could not schedule memory consolidation")
 
     def _verify(self, reply: str):
-        return verify_reply(reply, self.evidence, self.tools.actions, self._has_appts()) if reply else None
+        if not reply:
+            return None
+        gate = verify_reply(reply, self.evidence, self.tools.actions, self._has_appts())
+        # What the customer is asked to confirm must be the stored preview (see verifier.preview_problems).
+        confirmed = any(t['tool'] == 'confirm_pending_action' and t.get('ok') for t in self.tool_trace)
+        pending = agent_actions.pending_preview(self.conversation)
+        for problem, span in preview_problems(reply, pending.payload if pending else None, confirmed):
+            gate.fail(problem, span)
+        return gate
 
     def _has_appts(self) -> bool:
         return getattr(self, 'has_appointments', False) or any(

@@ -157,6 +157,48 @@ def verify_reply(reply: str, evidence: List[str], actions: List[dict],
 
 
 
+# A sentence that asks the customer to confirm/book something ("Shall I confirm this viewing?",
+# "Yo viewing confirm garidiu?", "पक्का गरिदिऊँ?", "要確認嗎？").
+_CONFIRM_ASK_RE = re.compile(r"\b(?:confirm|book)\b(?!ed)|garidiu|garidiun|garau\b|गरिदिऊँ|पक्का|確認|确认", re.I)
+_TIME_RE = re.compile(r'\b\d{1,2}:\d{2}\b')
+_NAME_LABEL_RE = re.compile(r'\b(?:name|naam)\b|नाम|姓名', re.I)
+
+
+def preview_problems(reply: str, pending: dict, confirmed_this_turn: bool) -> List[tuple]:
+    """
+    The customer may only be asked to confirm EXACTLY the preview stored in the AgentAction ledger.
+
+    Root cause (eval RE-043, 2026-10-04): the customer changed the booking name; the model typed an
+    updated preview ("Name: Martas ... confirm?") without calling prepare_viewing, so the stored
+    preview still said another name. The customer's "yes" then referred to details that had never
+    been prepared. Returns [(problem, offending_sentence)] for the corrective retry / salvage.
+    """
+    if not reply or confirmed_this_turn:
+        return []
+    asks = [s for s in re.split(r'(?<=[.!?\u3002\uff01\uff1f\u0964])\s+|\n', reply)
+            if ('?' in s or '\uff1f' in s) and _CONFIRM_ASK_RE.search(s)]
+    if not asks or not (ISO_DATE_RE.search(reply) or _TIME_RE.search(reply)):
+        return []          # not a booking-style confirmation request
+    span = asks[-1].strip()
+    fix = (" If the customer gave new details (name, date, time, listing), call prepare_viewing (or "
+           "prepare_reschedule) with them NOW and show that tool's preview. Never ask the customer to "
+           "confirm details that were not prepared by a tool.")
+    if not pending:
+        return [("PREVIEW_MISSING: you ask the customer to confirm a booking, but no preview is prepared." + fix,
+                 span)]
+    text = reply.lower()
+    expected = {k: str(pending[k]) for k in ('reference', 'code', 'date', 'to_date', 'time', 'to_time')
+                if pending.get(k)}
+    missing = [f"{k}={v}" for k, v in expected.items() if v.lower() not in text]
+    name = str(pending.get('name') or '')
+    if name and name.lower() not in text and _NAME_LABEL_RE.search(reply):
+        missing.append(f"name={name}")
+    if missing:
+        return [("PREVIEW_MISMATCH: the details you ask the customer to confirm differ from the prepared "
+                 "preview (prepared: " + ", ".join(missing) + ")." + fix, span)]
+    return []
+
+
 def salvage(reply: str, gate: GateResult) -> str:
     """
     Drop only the sentences/lines that contain an unverifiable figure or reference,
