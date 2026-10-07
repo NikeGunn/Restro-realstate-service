@@ -25,8 +25,10 @@
 .field label{font:700 12px/1 var(--sans);letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
 .field input,.field select{width:100%;font:500 16px/1.2 var(--sans);color:var(--ink);background:var(--paper);border:1.5px solid var(--line);border-radius:12px;padding:13px 14px;appearance:none}
 .field input:focus,.field select:focus{outline:none;border-color:var(--pine);background:#fff}
-.seg{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;background:var(--paper);padding:5px;border-radius:14px;border:1.5px solid var(--line)}
-.seg input{position:absolute;opacity:0}.seg label{text-align:center;padding:10px 6px;border-radius:10px;font:600 14px/1 var(--sans);cursor:pointer;letter-spacing:0;text-transform:none;color:var(--ink)}
+.seg{position:relative;display:grid;grid-template-columns:repeat(3,1fr);gap:6px;background:var(--paper);padding:5px;border-radius:14px;border:1.5px solid var(--line)}
+/* .field input (width:100%, padding) also matches these radios; without this reset the invisible
+   radios stretch over the whole row and the last one (Either) swallows every click. */
+.seg input{position:absolute;opacity:0;width:1px;height:1px;padding:0;margin:0;border:0;pointer-events:none}.seg label{text-align:center;padding:10px 6px;border-radius:10px;font:600 14px/1 var(--sans);cursor:pointer;letter-spacing:0;text-transform:none;color:var(--ink)}
 .seg input:checked+label{background:var(--ink);color:var(--paper)}
 .seg input:focus-visible+label{outline:3px solid var(--gold)}
 .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}

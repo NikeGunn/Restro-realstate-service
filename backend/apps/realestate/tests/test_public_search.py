@@ -124,3 +124,12 @@ def test_nav_uses_short_labels_and_footer_has_agent_column(client, stock):
     nav = html.split('class="nav"')[1].split('</nav>')[0]
     assert '>Rooms<' in nav and 'Shops &amp; shutters for rent<' not in nav and 'AI agent' in nav
     assert '<h4>AI agent</h4>' in html and 'Our AI agent does the legwork' in html
+
+
+def test_hero_deal_radios_do_not_cover_the_buttons(client, stock):
+    # Regression: `.field input{width:100%}` stretched the hidden radios over the whole
+    # Rent/Buy/Either row, so every click landed on "Either" and Buy could not be chosen.
+    html = client.get('/realestate/properties/').content.decode()
+    rule = html.split('.seg input{')[1].split('}')[0]
+    assert 'pointer-events:none' in rule and 'width:1px' in rule
+    assert '.seg{position:relative' in html
